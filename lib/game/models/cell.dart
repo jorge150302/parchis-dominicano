@@ -14,4 +14,14 @@ class Cell {
     this.type = CellType.normal,
     this.action,
   });
+
+  /// =====================================================
+  /// 🔥 HELPERS (limpian el engine/controller)
+  /// =====================================================
+
+  bool get hasAction => action != null;
+
+  bool get isStart => number == 0;
+
+  bool get isFinish => number == 100;
 }

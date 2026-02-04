@@ -1,68 +1,101 @@
-import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:flutter/material.dart';
 
+/// =======================================================
+/// 🎲 CONFIGURACIÓN DEL DADO (future-proof)
+/// =======================================================
+class DiceStyle {
+  final int sides;
+  final String assetPath;
+  final double size;
+
+  const DiceStyle({
+    required this.sides,
+    required this.assetPath,
+    this.size = 60,
+  });
+}
+
+/// =======================================================
+/// 🎲 DICE WIDGET (sprites LIMPIO, sin rebotes)
+/// =======================================================
+/// Filosofía:
+/// • mientras rolling → caras random rápidas
+/// • cuando termina → se queda fijo instantáneo
+/// • sin bounce, sin scale, sin glitches
+/// =======================================================
 class DiceWidget extends StatefulWidget {
-  final int value; // 1 a 6
+  final int value;
   final bool rolling;
+  final DiceStyle style;
 
-  const DiceWidget({super.key, required this.value, required this.rolling});
+  const DiceWidget({
+    super.key,
+    required this.value,
+    required this.rolling,
+    required this.style,
+  });
 
   @override
   State<DiceWidget> createState() => _DiceWidgetState();
 }
 
-class _DiceWidgetState extends State<DiceWidget> with SingleTickerProviderStateMixin {
+class _DiceWidgetState extends State<DiceWidget>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _rotation;
+
+  final _random = Random();
+  int displayedValue = 1;
 
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 90), // rápido tipo casino
       vsync: this,
     );
 
-    _rotation = Tween<double>(begin: 0, end: 2 * pi).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    /// mientras rueda → caras random
+    _controller.addListener(() {
+      if (widget.rolling) {
+        setState(() {
+          displayedValue = _random.nextInt(widget.style.sides) + 1;
+        });
+      }
+    });
   }
 
   @override
   void didUpdateWidget(covariant DiceWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    /// empezó a rodar
     if (widget.rolling && !_controller.isAnimating) {
       _controller.repeat();
-    } else if (!widget.rolling && _controller.isAnimating) {
+    }
+
+    /// terminó → mostrar valor real instantáneo
+    if (!widget.rolling && _controller.isAnimating) {
       _controller.stop();
-      _controller.reset();
+
+      setState(() {
+        displayedValue = widget.value;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _rotation,
-      builder: (context, child) {
-        return Transform.rotate(
-          angle: widget.rolling ? _rotation.value : 0,
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.black, width: 2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                widget.value.toString(),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        );
-      },
+    final size = widget.style.size;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.asset(
+        '${widget.style.assetPath}/$displayedValue.png',
+        fit: BoxFit.contain,
+      ),
     );
   }
 
