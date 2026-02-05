@@ -5,7 +5,7 @@ import '../models/player.dart';
 import '../models/cell.dart';
 import '../models/board_action.dart';
 
-class BoardWidget extends StatelessWidget {
+class BoardWidget extends StatefulWidget {
   final Board board;
   final List<Player> players;
 
@@ -15,13 +15,16 @@ class BoardWidget extends StatelessWidget {
     required this.players,
   });
 
+  @override
+  State<BoardWidget> createState() => _BoardWidgetState();
+}
+
+class _BoardWidgetState extends State<BoardWidget> {
   static const int columns = 10;
 
   @override
   Widget build(BuildContext context) {
-    /// 🔥 1) ORDEN INVERTIDO
-    /// Inicio abajo izquierda → Fin arriba derecha
-    final cells = board.cells.reversed.toList();
+    final cells = widget.board.cells.reversed.toList();
 
     return AspectRatio(
       aspectRatio: 1,
@@ -32,7 +35,7 @@ class BoardWidget extends StatelessWidget {
           crossAxisCount: columns,
         ),
         itemBuilder: (_, visualIndex) {
-          /// 🔥 2) ZIGZAG
+          /// zigzag
           final row = visualIndex ~/ columns;
           final col = visualIndex % columns;
 
@@ -41,69 +44,93 @@ class BoardWidget extends StatelessWidget {
 
           final cell = cells[realIndex];
 
-          final playersInCell =
-          players.where((p) => p.position == cell.number).toList();
+          final playersInCell = widget.players
+              .where((p) => p.position == cell.number)
+              .toList();
 
-          return _buildCell(cell, playersInCell);
+          return _AnimatedCell(
+            cell: cell,
+            playersInCell: playersInCell,
+          );
         },
       ),
     );
   }
+}
 
-  // ===================================================
-  // 🔥 TEXTO DE CELDA (Número o Acción)
-  // ===================================================
+////////////////////////////////////////////////////////////////////////////////
+/// 🎯 CELDA ANIMADA PRO
+////////////////////////////////////////////////////////////////////////////////
+
+class _AnimatedCell extends StatelessWidget {
+  final Cell cell;
+  final List<Player> playersInCell;
+
+  const _AnimatedCell({
+    required this.cell,
+    required this.playersInCell,
+  });
+
   String _getCellLabel(Cell cell) {
-    /// Inicio / Fin
     if (cell.number == 0) return 'Inicio';
     if (cell.number == 100) return 'Fin';
 
-    /// Si tiene acción → mostrar nombre de acción
     final action = cell.action;
 
     if (action != null) {
       switch (action.type) {
         case BoardActionType.goToStart:
           return 'INICIO';
-
         case BoardActionType.moveTo:
           return 'SALTA ${action.targetNumber ?? ''}';
-
         case BoardActionType.skipTurn:
-          return 'PIERDE TURNO';
-
+          return 'PIERDE';
         case BoardActionType.rollAgain:
-          return 'TIRA OTRA';
+          return 'OTRA';
       }
     }
 
-    /// normal → número
     return cell.number.toString();
   }
 
-  // ===================================================
-  // CELDA
-  // ===================================================
-  Widget _buildCell(Cell cell, List<Player> playersInCell) {
+  @override
+  Widget build(BuildContext context) {
+    final hasAction = cell.action != null;
     final label = _getCellLabel(cell);
 
-    final bool hasAction = cell.action != null;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
 
-    return Container(
       margin: const EdgeInsets.all(2),
+
       decoration: BoxDecoration(
-        color: hasAction
-            ? Colors.orange.shade200 // 🔥 resalta acciones
-            : Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(4),
+        gradient: hasAction
+            ? const LinearGradient(
+            colors: [Color(0xffffd180), Color(0xffffb74d)]
+        )
+            : const LinearGradient(
+          colors: [Colors.white, Color(0xffeeeeee)],
+        ),
+
+        borderRadius: BorderRadius.circular(6),
+
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 3,
+            offset: Offset(1, 2),
+          ),
+        ],
+
         border: Border.all(color: Colors.black26),
       ),
+
       child: Stack(
         children: [
-          /// 🔥 label (acción o número)
+          /// label
           Positioned(
             top: 2,
-            left: 4,
+            left: 3,
             right: 2,
             child: Text(
               label,
@@ -116,18 +143,35 @@ class BoardWidget extends StatelessWidget {
             ),
           ),
 
-          /// 🔥 fichas PNG dinámicas
+          /// 🔥 FICHAS ANIMADAS
           Center(
             child: Wrap(
-              spacing: 3,
-              runSpacing: 3,
+              spacing: 4,
+              runSpacing: 4,
               children: playersInCell
                   .map(
-                    (p) => Image.asset(
-                  p.tokenAsset,
-                  width: 18,
-                  height: 18,
-                  fit: BoxFit.contain,
+                    (p) => AnimatedScale(
+                  duration: const Duration(milliseconds: 180),
+                  scale: 1.15,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutBack,
+
+                    decoration: BoxDecoration(
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+
+                    child: Image.asset(
+                      p.tokenAsset,
+                      width: 20,
+                      height: 20,
+                    ),
+                  ),
                 ),
               )
                   .toList(),
