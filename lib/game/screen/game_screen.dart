@@ -135,13 +135,18 @@ class _GameScreenState extends State<GameScreen> {
 class _PlayerCornerWidget extends StatelessWidget {
   final Player player;
 
-  const _PlayerCornerWidget({required this.player});
+  const _PlayerCornerWidget({
+    required this.player,
+  });
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
 
     final isTurn = controller.currentPlayer.id == player.id;
+
+    /// ✅ SOLO este jugador puede rodar
+    final rollingThisDice = controller.rollingDice && isTurn;
     final canRoll = isTurn && !controller.rollingDice;
 
     return Padding(
@@ -149,9 +154,7 @@ class _PlayerCornerWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          /// =====================================
-          /// 🎟️ NOMBRE + FICHA (highlight naranja)
-          /// =====================================
+          /// 🎟️ Nombre + ficha
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             padding: const EdgeInsets.symmetric(
@@ -161,14 +164,6 @@ class _PlayerCornerWidget extends StatelessWidget {
             decoration: BoxDecoration(
               color: isTurn ? Colors.orange : Colors.grey.shade400,
               borderRadius: BorderRadius.circular(10),
-              boxShadow: isTurn
-                  ? const [
-                BoxShadow(
-                  color: Colors.orangeAccent,
-                  blurRadius: 8,
-                )
-              ]
-                  : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -177,7 +172,9 @@ class _PlayerCornerWidget extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   player.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -185,17 +182,15 @@ class _PlayerCornerWidget extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          /// =====================================
-          /// 🎲 DADO (sprites, no 3D fake)
-          /// SOLO gira el del turno
-          /// =====================================
+          /// 🎲 SOLO este dado gira
           GestureDetector(
             onTap: canRoll ? controller.rollDice : null,
             child: Opacity(
               opacity: isTurn ? 1 : 0.35,
               child: DiceWidget(
+                key: ValueKey(player.id),
                 value: controller.diceValue,
-                rolling: controller.rollingDice && isTurn,
+                rolling: rollingThisDice, // ⭐ FIX
                 style: const DiceStyle(
                   sides: 6,
                   assetPath: 'assets/dice/classic',

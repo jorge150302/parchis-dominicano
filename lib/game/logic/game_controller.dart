@@ -16,10 +16,15 @@ class GameController extends ChangeNotifier {
   // =====================================================
 
   bool rollingDice = false;
+  bool _inputLocked = false;
+
   int diceValue = 1;
 
   final AudioPlayer _audio = AudioPlayer();
   final Random _random = Random();
+
+  static const _diceAnimDuration = Duration(milliseconds: 300);
+  static const _inputLockDuration = Duration(milliseconds: 1500);
 
   List<Player> get players => engine.players;
   Player get currentPlayer => engine.currentPlayer;
@@ -41,7 +46,9 @@ class GameController extends ChangeNotifier {
   // =====================================================
 
   Future<void> rollDice() async {
-    if (rollingDice || engine.finished) return;
+    if (rollingDice || engine.finished || _inputLocked) return;
+
+    _inputLocked = true;
 
     final player = currentPlayer;
 
@@ -50,6 +57,7 @@ class GameController extends ChangeNotifier {
       player.consumeSkip();
       engine.nextTurn();
       notifyListeners();
+      _unlockInputLater();
       return;
     }
 
@@ -59,24 +67,25 @@ class GameController extends ChangeNotifier {
     _audio.play(AssetSource('sounds/dice.mp3'));
     HapticFeedback.lightImpact();
 
-    /// 🎰 animación fake
+    /// 🎰 animación fake (caras rápidas)
     for (int i = 0; i < 14; i++) {
       diceValue = _random.nextInt(6) + 1;
       notifyListeners();
-      await Future.delayed(const Duration(milliseconds: 70));
+      await Future.delayed(const Duration(milliseconds: 60));
     }
 
     /// 🎯 valor real
     diceValue = engine.rollDice();
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 250));
+    /// 🔥 ESPERAR A QUE TERMINE EL GIRO/REBOTE
+    await Future.delayed(_diceAnimDuration);
 
     rollingDice = false;
     notifyListeners();
 
     // =====================================================
-    // 🔥 reglas puras delegadas al engine
+    // reglas engine
     // =====================================================
 
     engine.registerSix(player, diceValue);
@@ -84,20 +93,30 @@ class GameController extends ChangeNotifier {
     if (engine.reachedThreeSixes(player)) {
       engine.penaltyThreeSixes(player);
       notifyListeners();
+      _unlockInputLater();
       return;
     }
 
     if (!engine.canMove(player, diceValue)) {
       engine.nextTurn();
       notifyListeners();
+      _unlockInputLater();
       return;
     }
 
     await _moveStepByStep(diceValue);
+
+    _unlockInputLater();
+  }
+
+  void _unlockInputLater() {
+    Future.delayed(_inputLockDuration, () {
+      _inputLocked = false;
+    });
   }
 
   // =====================================================
-  // 🚶 MOVIMIENTO SUAVE (usa engine)
+  // 🚶 MOVIMIENTO SUAVE
   // =====================================================
 
   Future<void> _moveStepByStep(int steps) async {
@@ -108,7 +127,7 @@ class GameController extends ChangeNotifier {
     for (int i = 0; i < steps; i++) {
       await Future.delayed(const Duration(milliseconds: 240));
 
-      engine.stepForward(player); // ✅ ya no tocamos position
+      engine.stepForward(player);
       notifyListeners();
 
       if (engine.finished) return;
@@ -116,13 +135,9 @@ class GameController extends ChangeNotifier {
 
     engine.stopMoving(player);
 
-    /// acciones de celda
     engine.applyCellAction(player);
-
-    /// colisiones
     engine.resolveCollisions(player);
 
-    /// turno normal
     if (diceValue != 6) {
       engine.nextTurn();
     }
