@@ -117,13 +117,8 @@ class _DiceWidgetState extends State<DiceWidget>
           builder: (_, __) {
             return Transform.translate(
               offset: Offset(0, _bounce.value),
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.identity()
-                  ..setEntry(3, 2, 0.0015) // perspectiva 3D
-                  ..rotateX(_rotation.value * 7) // hacia adelante
-                  ..rotateY(_rotation.value * 4) // giro lateral suave
-                  ..rotateZ(_rotation.value * 2), // spin leve
+              child: Transform.rotate(
+                angle: _rotation.value,
                 child: Transform.scale(
                   scale: widget.rolling ? _scale.value : 1,
                   child: Container(
