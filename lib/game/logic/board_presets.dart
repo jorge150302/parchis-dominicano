@@ -1,25 +1,24 @@
-// lib/game/logic/board_presets.dart
-
 import '../models/board_action.dart';
 
-// Posiciones en las que habrá acciones (después del número indicado)
 final classicActionPositions = [
-  13, 15, 19, 24, 29, 37, 43, 49, 56, 66, 72, 76, 79, 83
+  13, 15, 19, 24, 29, 37, 43, 49, 56, 66, 72, 76, 79, 83, 93, 97
 ];
 
 final classicActions = [
-  BoardAction.goToStart(),    // después del 12
-  BoardAction.rollAgain(),    // después del 14
-  BoardAction.skipTurn(),     // después del 18
-  BoardAction.moveTo(63),     // después del 23
-  BoardAction.rollAgain(),    // después del 28
-  BoardAction.skipTurn(),     // después del 36
-  BoardAction.moveTo(24),     // después del 42
-  BoardAction.moveTo(70),     // después del 48
-  BoardAction.moveTo(18),     // después del 55
-  BoardAction.skipTurn(),     // después del 65
-  BoardAction.rollAgain(),    // después del 71
-  BoardAction.moveTo(18),     // después del 75
-  BoardAction.goToStart(),    // después del 78
-  BoardAction.moveTo(70),     // después del 82
+  BoardAction.goToStart(),      // 13
+  BoardAction.rollAgain(),      // 15
+  BoardAction.skipTurn(),       // 19
+  BoardAction.moveTo(63),       // 24
+  BoardAction.rollAgain(),      // 29
+  BoardAction.skipTurn(),       // 37
+  BoardAction.moveTo(25),       // 43 (era 24)
+  BoardAction.moveTo(70),       // 49
+  BoardAction.moveTo(18),       // 56
+  BoardAction.skipTurn(),       // 66
+  BoardAction.rollAgain(),      // 72
+  BoardAction.moveTo(18),       // 76
+  BoardAction.goToStart(),      // 79
+  BoardAction.moveTo(23),       // 83 (era 70)
+  BoardAction.goToStart(),      // 93 (nuevo)
+  BoardAction.moveTo(70),       // 97 (nuevo)
 ];
