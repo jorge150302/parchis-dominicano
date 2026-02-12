@@ -16,6 +16,9 @@ class Player {
   /// 🎲 conteo de 6 consecutivos
   int consecutiveSixes;
 
+  /// 🔥 CONTADOR DE TURNOS EXTRA
+  int extraTurns;
+
   /// =================================================
   /// 🆕 estados extra (NO rompen nada)
   /// =================================================
@@ -36,6 +39,7 @@ class Player {
     this.position = 0,
     this.skippedTurns = 0,
     this.consecutiveSixes = 0,
+    this.extraTurns = 0, // ✅
 
     /// defaults seguros
     this.isFinished = false,
@@ -50,6 +54,7 @@ class Player {
     position = 0;
     skippedTurns = 0;
     consecutiveSixes = 0;
+    extraTurns = 0; // ✅
     isFinished = false;
     isMoving = false;
     stepsMoved = 0;
@@ -92,6 +97,7 @@ class Player {
       position: position,
       skippedTurns: skippedTurns,
       consecutiveSixes: consecutiveSixes,
+      extraTurns: extraTurns, // ✅
       isFinished: isFinished,
       isMoving: isMoving,
       stepsMoved: stepsMoved,

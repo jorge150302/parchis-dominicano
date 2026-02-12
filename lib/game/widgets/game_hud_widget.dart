@@ -49,7 +49,7 @@ class GameHudWidget extends StatelessWidget {
             /// =============================
             /// 🏆 WINNER OVERLAY
             /// =============================
-            if (engine.finished && engine.winner != null)
+            if (engine.phase == GamePhase.finished && engine.winner != null)
               _winnerCard(engine.winner!.name),
           ],
         ),

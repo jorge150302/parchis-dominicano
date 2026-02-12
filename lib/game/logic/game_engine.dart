@@ -1,16 +1,8 @@
-// lib/game/logic/game_engine.dart
-
 import 'dart:math';
 
 import '../models/board.dart';
-import '../models/player.dart';
-import '../models/cell.dart';
 import '../models/board_action.dart';
-
-/// =======================================================
-/// 🎯 SOLO REGLAS DE JUEGO (sin animaciones ni delays)
-/// El Controller maneja UI y timing.
-/// =======================================================
+import '../models/player.dart';
 
 enum GamePhase {
   idle,
@@ -22,156 +14,96 @@ enum GamePhase {
 class GameEngine {
   final Board board;
   final List<Player> players;
+  final Random _random = Random();
+
+  int _currentPlayerIndex = 0;
+  GamePhase phase = GamePhase.idle;
+  Player? winner;
 
   GameEngine({
     required this.board,
     required this.players,
   });
 
-  // =====================================================
-  // STATE
-  // =====================================================
-
-  int currentPlayerIndex = 0;
-  bool finished = false;
-  Player? winner;
-
-  GamePhase phase = GamePhase.idle;
-
-  final Random _random = Random();
-
-  // =====================================================
-  // GETTERS
-  // =====================================================
-
-  Player get currentPlayer => players[currentPlayerIndex];
-
-  // =====================================================
-  // 🎲 DICE
-  // =====================================================
+  Player get currentPlayer => players[_currentPlayerIndex];
 
   int rollDice() => _random.nextInt(6) + 1;
 
-  // =====================================================
-  // 🎯 TURN CONTROL
-  // =====================================================
-
   void nextTurn() {
-    if (finished) return;
-
-    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-    phase = GamePhase.idle;
-  }
-
-  // =====================================================
-  // 🏁 FINISH
-  // =====================================================
-
-  void finishGame(Player player) {
-    finished = true;
-    winner = player;
-    phase = GamePhase.finished;
-
-    player.finish(); // 🆕 marca jugador como terminado
-  }
-
-  // =====================================================
-  // 🚶 MOVEMENT RULES
-  // =====================================================
-
-  /// devuelve true si puede moverse
-  bool canMove(Player player, int steps) {
-    if (player.isFinished) return false;
-
-    return player.position + steps <= board.finalPosition;
-  }
-
-  /// mueve una casilla (usado por controller animado)
-  void stepForward(Player player) {
-    if (player.isFinished) return;
-
-    player.isMoving = true;
-    player.moveBy(1);
-
-    // 🏁 llegó a meta
-    if (player.position == board.finalPosition) {
-      finishGame(player);
+    if (players.where((p) => !p.isFinished).length <= 1) {
+      phase = GamePhase.finished;
+      winner = players.firstWhere((p) => !p.isFinished, orElse: () => players.first);
+      return;
     }
+
+    do {
+      _currentPlayerIndex = (_currentPlayerIndex + 1) % players.length;
+    } while (currentPlayer.isFinished);
   }
 
-  /// llamado cuando termina animación
-  void stopMoving(Player player) {
-    player.isMoving = false;
-  }
-
-  // =====================================================
-  // 💥 COLLISIONS
-  // =====================================================
-
-  void resolveCollisions(Player current) {
-    for (final other in players) {
-      if (other == current) continue;
-      if (other.isFinished) continue;
-
-      if (other.position == current.position) {
-        other.resetToStart();
-      }
-    }
-  }
-
-  // =====================================================
-  // 🟧 CELL ACTIONS
-  // =====================================================
-
-  void applyCellAction(Player player) {
-    if (player.isFinished) return;
-
-    final Cell cell = board.getCell(player.position);
-
-    if (cell.action == null) return;
-
-    _applyAction(player, cell.action!);
-  }
-
-  void _applyAction(Player player, BoardAction action) {
-    switch (action.type) {
-      case BoardActionType.goToStart:
-        player.resetToStart();
-        break;
-
-      case BoardActionType.moveTo:
-        player.position = action.targetNumber!;
-        break;
-
-      case BoardActionType.skipTurn:
-        player.addSkip(1); // 🆕 helper
-        break;
-
-      case BoardActionType.rollAgain:
-      // el controller decide no cambiar turno
-        break;
-    }
-  }
-
-  // =====================================================
-  // 🔥 RULE HELPERS
-  // =====================================================
-
-  void registerSix(Player player, int dice) {
-    if (dice == 6) {
+  void registerSix(Player player, int diceValue) {
+    if (diceValue == 6) {
       player.consecutiveSixes++;
     } else {
       player.consecutiveSixes = 0;
     }
   }
 
-  bool reachedThreeSixes(Player player) {
-    return player.consecutiveSixes >= 3;
-  }
+  bool reachedThreeSixes(Player player) => player.consecutiveSixes >= 3;
 
-  /// castigo por 3 seises
   void penaltyThreeSixes(Player player) {
     player.resetToStart();
-    nextTurn();
+  }
+
+  bool canMove(Player player, int steps) {
+    return player.position + steps <= board.finalPosition;
+  }
+
+  void stepForward(Player player) {
+    if (player.position < board.finalPosition) {
+      player.moveBy(1);
+      if (player.position == board.finalPosition) {
+        player.finish();
+        winner ??= player;
+      }
+    }
+  }
+
+  void stopMoving(Player player) {
+    player.isMoving = false;
+  }
+
+  void applyCellAction(Player player) {
+    final cell = board.getCell(player.position);
+    final action = cell.action;
+
+    if (action != null) {
+      switch (action.type) {
+        case BoardActionType.goToStart:
+          player.resetToStart();
+          break;
+        case BoardActionType.moveTo:
+          if (action.targetNumber != null) {
+            player.position = action.targetNumber!;
+          }
+          break;
+        case BoardActionType.skipTurn:
+          player.addSkip(1);
+          break;
+        case BoardActionType.rollAgain:
+          player.extraTurns++;
+          break;
+      }
+    }
+  }
+
+  void resolveCollisions(Player player) {
+    if (player.isFinished) return;
+
+    final playersInCell = players.where((p) => p != player && p.position == player.position).toList();
+
+    for (final otherPlayer in playersInCell) {
+      otherPlayer.resetToStart();
+    }
   }
 }

@@ -1,6 +1,6 @@
 import 'dart:math';
-import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/player.dart';
@@ -10,10 +10,6 @@ class GameController extends ChangeNotifier {
   final GameEngine engine;
 
   GameController(this.engine);
-
-  // =====================================================
-  // STATE
-  // =====================================================
 
   bool rollingDice = false;
   bool _inputLocked = false;
@@ -29,30 +25,20 @@ class GameController extends ChangeNotifier {
   List<Player> get players => engine.players;
   Player get currentPlayer => engine.currentPlayer;
 
-  // =====================================================
-  // PLAYERS
-  // =====================================================
-
   void setPlayers(List<Player> newPlayers) {
     engine.players
       ..clear()
       ..addAll(newPlayers);
-
     notifyListeners();
   }
 
-  // =====================================================
-  // 🎲 DICE
-  // =====================================================
-
   Future<void> rollDice() async {
-    if (rollingDice || engine.finished || _inputLocked) return;
+    if (rollingDice || engine.phase == GamePhase.finished || _inputLocked) return;
 
     _inputLocked = true;
 
     final player = currentPlayer;
 
-    /// ⏭️ skip
     if (player.mustSkipTurn) {
       player.consumeSkip();
       engine.nextTurn();
@@ -67,31 +53,28 @@ class GameController extends ChangeNotifier {
     _audio.play(AssetSource('sounds/dice.mp3'));
     HapticFeedback.lightImpact();
 
-    /// 🎰 animación fake (caras rápidas)
     for (int i = 0; i < 14; i++) {
       diceValue = _random.nextInt(6) + 1;
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 60));
     }
 
-    /// 🎯 valor real
     diceValue = engine.rollDice();
     notifyListeners();
 
-    /// 🔥 ESPERAR A QUE TERMINE EL GIRO/REBOTE
     await Future.delayed(_diceAnimDuration);
 
     rollingDice = false;
     notifyListeners();
 
-    // =====================================================
-    // reglas engine
-    // =====================================================
-
+    if (diceValue == 6) {
+      player.extraTurns++;
+    }
     engine.registerSix(player, diceValue);
 
     if (engine.reachedThreeSixes(player)) {
       engine.penaltyThreeSixes(player);
+      player.extraTurns = 0;
       notifyListeners();
       _unlockInputLater();
       return;
@@ -106,6 +89,13 @@ class GameController extends ChangeNotifier {
 
     await _moveStepByStep(diceValue);
 
+    if (player.extraTurns > 0) {
+      player.extraTurns--;
+    } else {
+      engine.nextTurn();
+    }
+
+    notifyListeners();
     _unlockInputLater();
   }
 
@@ -115,10 +105,6 @@ class GameController extends ChangeNotifier {
     });
   }
 
-  // =====================================================
-  // 🚶 MOVIMIENTO SUAVE
-  // =====================================================
-
   Future<void> _moveStepByStep(int steps) async {
     final player = currentPlayer;
 
@@ -126,11 +112,9 @@ class GameController extends ChangeNotifier {
 
     for (int i = 0; i < steps; i++) {
       await Future.delayed(const Duration(milliseconds: 240));
-
       engine.stepForward(player);
       notifyListeners();
-
-      if (engine.finished) return;
+      if (engine.phase == GamePhase.finished) return;
     }
 
     engine.stopMoving(player);
@@ -138,12 +122,7 @@ class GameController extends ChangeNotifier {
     engine.applyCellAction(player);
     engine.resolveCollisions(player);
 
-    if (diceValue != 6) {
-      engine.nextTurn();
-    }
-
     engine.phase = GamePhase.idle;
-
     notifyListeners();
   }
 }
