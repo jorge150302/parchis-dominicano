@@ -67,6 +67,7 @@ class GameController extends ChangeNotifier {
     rollingDice = false;
     notifyListeners();
 
+    // --- Lógica unificada para todos los jugadores ---
     if (diceValue == 6) {
       player.extraTurns++;
     }

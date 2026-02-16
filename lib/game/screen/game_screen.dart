@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../logic/game_controller.dart';
 import '../models/player.dart';
 import '../widgets/board_widget.dart';
-import '../widgets/dice_widget.dart'; // ✅ nuevo widget de sprites
+import '../widgets/dice_widget.dart';
+import '../widgets/home_zone_widget.dart';
 
 class GameScreen extends StatefulWidget {
   final int playerCount;
@@ -23,7 +24,6 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
 
-    /// ⚡ crear jugadores SOLO una vez
     Future.microtask(() {
       final controller = context.read<GameController>();
 
@@ -36,7 +36,7 @@ class _GameScreenState extends State<GameScreen> {
 
       final players = List.generate(
         widget.playerCount,
-            (i) => Player(
+        (i) => Player(
           id: '${i + 1}',
           name: 'Jugador ${i + 1}',
           tokenAsset: tokens[i % tokens.length],
@@ -54,20 +54,15 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          /// 🌄 background
           Positioned.fill(
             child: Image.asset(
               'assets/images/menu_background.png',
               fit: BoxFit.cover,
             ),
           ),
-
           SafeArea(
             child: Stack(
               children: [
-                /// =====================================
-                /// 🟫 TABLERO
-                /// =====================================
                 Center(
                   child: Container(
                     padding: const EdgeInsets.all(14),
@@ -92,10 +87,6 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
                 ),
-
-                /// =====================================
-                /// 👥 JUGADORES EN ESQUINAS
-                /// =====================================
                 ..._buildPlayers(controller),
               ],
             ),
@@ -105,12 +96,8 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// =================================================
-  /// 📍 Posiciones parchís (4 esquinas)
-  /// =================================================
   List<Widget> _buildPlayers(GameController controller) {
     final players = controller.players;
-
     const positions = [
       Alignment.topLeft,
       Alignment.topRight,
@@ -120,7 +107,6 @@ class _GameScreenState extends State<GameScreen> {
 
     return List.generate(players.length, (i) {
       final player = players[i];
-
       return Align(
         alignment: positions[i % positions.length],
         child: _PlayerCornerWidget(player: player),
@@ -129,9 +115,6 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
-/// =================================================
-/// 🎲 Player Corner (nombre + ficha + dado sprite)
-/// =================================================
 class _PlayerCornerWidget extends StatelessWidget {
   final Player player;
 
@@ -142,19 +125,15 @@ class _PlayerCornerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
-
     final isTurn = controller.currentPlayer.id == player.id;
-
-    /// ✅ SOLO este jugador puede rodar
     final rollingThisDice = controller.rollingDice && isTurn;
     final canRoll = isTurn && !controller.rollingDice;
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(8.0), // ✅ ESPACIO REDUCIDO
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          /// 🎟️ Nombre + ficha
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             padding: const EdgeInsets.symmetric(
@@ -179,10 +158,7 @@ class _PlayerCornerWidget extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 8),
-
-          /// 🎲 SOLO este dado gira
           GestureDetector(
             onTap: canRoll ? controller.rollDice : null,
             child: Opacity(
@@ -190,15 +166,17 @@ class _PlayerCornerWidget extends StatelessWidget {
               child: DiceWidget(
                 key: ValueKey(player.id),
                 value: controller.diceValue,
-                rolling: rollingThisDice, // ⭐ FIX
+                rolling: rollingThisDice,
                 style: const DiceStyle(
                   sides: 6,
                   assetPath: 'assets/dice/classic',
-                  size: 60,
+                  size: 60, // ❗️TAMAÑO ORIGINAL
                 ),
               ),
             ),
           ),
+          const SizedBox(height: 8), // ✅ ESPACIO REDUCIDO
+          HomeZoneWidget(player: player),
         ],
       ),
     );

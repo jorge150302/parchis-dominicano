@@ -42,7 +42,7 @@ class _BoardWidgetState extends State<BoardWidget> {
           final cell = cells[realIndex];
 
           final playersInCell = widget.players
-              .where((p) => p.position == cell.number)
+              .where((p) => p.position == cell.number && p.position > 0) // ✅
               .toList();
 
           return _AnimatedCell(
@@ -78,7 +78,7 @@ class _AnimatedCell extends StatelessWidget {
         case BoardActionType.skipTurn:
           return '1 turno sin jugar';
         case BoardActionType.rollAgain:
-          return 'Juegue otra vez'; // ✅ CAMBIO
+          return 'Juegue otra vez';
       }
     }
 
@@ -87,12 +87,11 @@ class _AnimatedCell extends StatelessWidget {
 
   double _getFontSize(String label, bool hasAction) {
     if (hasAction) {
-      // ✅ AJUSTE
       if (label == '1 turno sin jugar' || label == 'Juegue otra vez') return 7.5;
       if (label == 'INICIO') return 9.0;
-      return 10.0; // "Al #"
+      return 10.0;
     }
-    return 12.0; // números
+    return 12.0;
   }
 
   @override
