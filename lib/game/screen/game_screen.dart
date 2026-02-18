@@ -47,51 +47,82 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Terminar partida'),
+        content: const Text('¿Deseas terminar la partida? Si sales ahora, la partida finalizará.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sí'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/menu_background.png',
-              fit: BoxFit.cover,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final shouldExit = await _showExitConfirmationDialog(context);
+        if (shouldExit && mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+        }
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/menu_background.png',
+                fit: BoxFit.cover,
+              ),
             ),
-          ),
-          SafeArea(
-            child: Stack(
-              children: [
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.brown.shade700,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Colors.brown.shade900,
-                        width: 6,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          blurRadius: 18,
-                          color: Colors.black45,
-                          offset: Offset(0, 8),
+            SafeArea(
+              child: Stack(
+                children: [
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.brown.shade700,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: Colors.brown.shade900,
+                          width: 6,
                         ),
-                      ],
-                    ),
-                    child: BoardWidget(
-                      board: controller.engine.board,
-                      players: controller.players,
+                        boxShadow: const [
+                          BoxShadow(
+                            blurRadius: 18,
+                            color: Colors.black45,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: BoardWidget(
+                        board: controller.engine.board,
+                        players: controller.players,
+                      ),
                     ),
                   ),
-                ),
-                ..._buildPlayers(controller),
-              ],
+                  ..._buildPlayers(controller),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -130,7 +161,7 @@ class _PlayerCornerWidget extends StatelessWidget {
     final canRoll = isTurn && !controller.rollingDice;
 
     return Padding(
-      padding: const EdgeInsets.all(8.0), // ✅ ESPACIO REDUCIDO
+      padding: const EdgeInsets.all(8.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -170,12 +201,12 @@ class _PlayerCornerWidget extends StatelessWidget {
                 style: const DiceStyle(
                   sides: 6,
                   assetPath: 'assets/dice/classic',
-                  size: 60, // ❗️TAMAÑO ORIGINAL
+                  size: 60,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8), // ✅ ESPACIO REDUCIDO
+          const SizedBox(height: 8),
           HomeZoneWidget(player: player),
         ],
       ),
