@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../game/models/player.dart';
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
 
@@ -50,7 +51,7 @@ class GameHudWidget extends StatelessWidget {
             /// 🏆 WINNER OVERLAY
             /// =============================
             if (engine.phase == GamePhase.finished && engine.finishedPlayers.isNotEmpty)
-              _winnerCard(engine.finishedPlayers.first.name),
+              _rankingCard(engine.finishedPlayers),
           ],
         ),
       ),
@@ -94,7 +95,7 @@ class GameHudWidget extends StatelessWidget {
     );
   }
 
-  Widget _winnerCard(String name) {
+  Widget _rankingCard(List<Player> players) {
     return Center(
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -106,7 +107,7 @@ class GameHudWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              "🏆 GANADOR",
+              "🏆 Ranking",
               style: TextStyle(
                 fontSize: 22,
                 color: Colors.white,
@@ -114,13 +115,22 @@ class GameHudWidget extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              name,
-              style: const TextStyle(
-                fontSize: 18,
-                color: Colors.orange,
+            ...players.map(
+              (p) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${players.indexOf(p) + 1} - ${p.name}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Image.asset(p.tokenAsset, width: 20),
+                ],
               ),
-            ),
+            )
           ],
         ),
       ),

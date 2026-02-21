@@ -42,12 +42,14 @@ class _BoardWidgetState extends State<BoardWidget> {
           final cell = cells[realIndex];
 
           final playersInCell = widget.players
-              .where((p) => p.position == cell.number && p.position > 0) // ✅
+              .where((p) =>
+                  !p.isFinished && p.position == cell.number && p.position > 0)
               .toList();
 
           return _AnimatedCell(
             cell: cell,
             playersInCell: playersInCell,
+            finalPosition: widget.board.finalPosition,
           );
         },
       ),
@@ -58,15 +60,17 @@ class _BoardWidgetState extends State<BoardWidget> {
 class _AnimatedCell extends StatelessWidget {
   final Cell cell;
   final List<Player> playersInCell;
+  final int finalPosition;
 
   const _AnimatedCell({
     required this.cell,
     required this.playersInCell,
+    required this.finalPosition,
   });
 
   String _getCellLabel(Cell cell) {
     if (cell.number == 0) return 'Inicio';
-    if (cell.number == 100) return 'Fin';
+    if (cell.number == finalPosition) return 'Fin';
 
     final action = cell.action;
     if (action != null) {

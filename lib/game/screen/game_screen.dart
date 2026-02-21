@@ -106,13 +106,25 @@ class _GameScreenState extends State<GameScreen> {
         title: const Text('Resultados Finales'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             for (int i = 0; i < controller.engine.finishedPlayers.length; i++)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: Text(
-                  '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
-                  style: const TextStyle(fontSize: 16),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(width: 8),
+                    Image.asset(
+                      controller.engine.finishedPlayers[i].tokenAsset,
+                      width: 20,
+                      height: 20,
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -255,9 +267,16 @@ class _GameScreenState extends State<GameScreen> {
                       fontSize: 16)),
               const SizedBox(height: 4),
               for (int i = 0; i < controller.engine.finishedPlayers.length; i++)
-                Text(
-                    '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
-                    style: const TextStyle(color: Colors.white, fontSize: 14)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                        '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
+                        style: const TextStyle(color: Colors.white, fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Image.asset(controller.engine.finishedPlayers[i].tokenAsset, width: 20),
+                  ],
+                ),
             ],
           ),
         ),
