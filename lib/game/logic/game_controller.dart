@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +17,8 @@ class GameController extends ChangeNotifier {
 
   int diceValue = 1;
 
-  final AudioPlayer _audio = AudioPlayer();
+  final AudioPlayer _diceAudio = AudioPlayer();
+  final AudioPlayer _fanfareAudio = AudioPlayer();
   final Random _random = Random();
 
   static const _diceAnimDuration = Duration(milliseconds: 300);
@@ -25,11 +27,25 @@ class GameController extends ChangeNotifier {
   List<Player> get players => engine.players;
   Player get currentPlayer => engine.currentPlayer;
 
+  @override
+  void dispose() {
+    _diceAudio.dispose();
+    _fanfareAudio.dispose();
+    super.dispose();
+  }
+
   void setPlayers(List<Player> newPlayers) {
     engine.players
       ..clear()
       ..addAll(newPlayers);
     notifyListeners();
+  }
+
+  Future<void> playFanfare() async {
+    await _fanfareAudio.play(AssetSource('sounds/fanfarreas.mp3'));
+    final completer = Completer();
+    _fanfareAudio.onPlayerComplete.first.then((_) => completer.complete());
+    return completer.future;
   }
 
   Future<void> rollDice() async {
@@ -50,7 +66,7 @@ class GameController extends ChangeNotifier {
     rollingDice = true;
     notifyListeners();
 
-    _audio.play(AssetSource('sounds/dice.mp3'));
+    _diceAudio.play(AssetSource('sounds/dice.mp3'));
     HapticFeedback.lightImpact();
 
     for (int i = 0; i < 14; i++) {
@@ -119,6 +135,9 @@ class GameController extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 240));
       engine.stepForward(player);
       notifyListeners();
+      if (player.isFinished) {
+        await playFanfare();
+      }
       if (engine.phase == GamePhase.finished) return;
     }
 
