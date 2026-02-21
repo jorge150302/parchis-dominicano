@@ -49,8 +49,8 @@ class GameHudWidget extends StatelessWidget {
             /// =============================
             /// 🏆 WINNER OVERLAY
             /// =============================
-            if (engine.phase == GamePhase.finished && engine.winner != null)
-              _winnerCard(engine.winner!.name),
+            if (engine.phase == GamePhase.finished && engine.finishedPlayers.isNotEmpty)
+              _winnerCard(engine.finishedPlayers.first.name),
           ],
         ),
       ),
@@ -80,6 +80,7 @@ class GameHudWidget extends StatelessWidget {
               color: Colors.white70,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             value,
             style: const TextStyle(

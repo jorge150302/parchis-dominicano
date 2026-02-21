@@ -1,7 +1,9 @@
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../logic/game_controller.dart';
+import '../logic/game_engine.dart';
 import '../models/player.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/dice_widget.dart';
@@ -20,9 +22,14 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  late final ConfettiController _confettiController;
+  final Set<String> _announcedWinners = {};
+  bool _isGameFinishedDialogShown = false;
+
   @override
   void initState() {
     super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
 
     Future.microtask(() {
       final controller = context.read<GameController>();
@@ -44,7 +51,83 @@ class _GameScreenState extends State<GameScreen> {
       );
 
       controller.setPlayers(players);
+      controller.addListener(_onGameUpdate);
     });
+  }
+
+  @override
+  void dispose() {
+    _confettiController.dispose();
+    if (mounted) {
+      context.read<GameController>().removeListener(_onGameUpdate);
+    }
+    super.dispose();
+  }
+
+  void _onGameUpdate() {
+    if (!mounted) return;
+
+    final controller = context.read<GameController>();
+    final engine = controller.engine;
+
+    for (final player in engine.finishedPlayers) {
+      if (!_announcedWinners.contains(player.id)) {
+        _announcedWinners.add(player.id);
+
+        if (engine.phase != GamePhase.finished) {
+          _confettiController.play();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('¡${player.name} ha llegado a la meta!'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
+
+    if (engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
+      _isGameFinishedDialogShown = true;
+      _confettiController.play();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showGameFinishedDialog();
+      });
+    }
+
+    setState(() {});
+  }
+
+  Future<void> _showGameFinishedDialog() async {
+    final controller = context.read<GameController>();
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Resultados Finales'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int i = 0; i < controller.engine.finishedPlayers.length; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Text(
+                  '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/menu', (route) => false);
+            },
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _showExitConfirmationDialog(BuildContext context) async {
@@ -52,7 +135,8 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Terminar partida'),
-        content: const Text('¿Deseas terminar la partida? Si sales ahora, la partida finalizará.'),
+        content: const Text(
+            '¿Deseas terminar la partida? Si sales ahora, la partida finalizará.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -78,7 +162,8 @@ class _GameScreenState extends State<GameScreen> {
         if (didPop) return;
         final shouldExit = await _showExitConfirmationDialog(context);
         if (shouldExit && mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+          Navigator.of(context)
+              .pushNamedAndRemoveUntil('/menu', (route) => false);
         }
       },
       child: Scaffold(
@@ -88,6 +173,24 @@ class _GameScreenState extends State<GameScreen> {
               child: Image.asset(
                 'assets/images/menu_background.png',
                 fit: BoxFit.cover,
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                shouldLoop: false,
+                colors: const [
+                  Colors.green,
+                  Colors.blue,
+                  Colors.pink,
+                  Colors.orange,
+                  Colors.purple
+                ],
+                numberOfParticles: 30,
+                maxBlastForce: 20,
+                minBlastForce: 5,
               ),
             ),
             SafeArea(
@@ -118,10 +221,45 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
                   ..._buildPlayers(controller),
+                  if (controller.engine.finishedPlayers.isNotEmpty &&
+                      controller.engine.phase != GamePhase.finished)
+                    _buildRanking(controller),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRanking(GameController controller) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 20.0),
+        child: Container(
+          padding: const EdgeInsets.all(8.0),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text('Ranking:',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
+              const SizedBox(height: 4),
+              for (int i = 0; i < controller.engine.finishedPlayers.length; i++)
+                Text(
+                    '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
+                    style: const TextStyle(color: Colors.white, fontSize: 14)),
+            ],
+          ),
         ),
       ),
     );

@@ -15,10 +15,10 @@ class GameEngine {
   final Board board;
   final List<Player> players;
   final Random _random = Random();
+  final List<Player> finishedPlayers = [];
 
   int _currentPlayerIndex = 0;
   GamePhase phase = GamePhase.idle;
-  Player? winner;
 
   GameEngine({
     required this.board,
@@ -32,7 +32,10 @@ class GameEngine {
   void nextTurn() {
     if (players.where((p) => !p.isFinished).length <= 1) {
       phase = GamePhase.finished;
-      winner = players.firstWhere((p) => !p.isFinished, orElse: () => players.first);
+      final lastPlayer = players.firstWhere((p) => !p.isFinished);
+      if (!finishedPlayers.contains(lastPlayer)) {
+        finishedPlayers.add(lastPlayer);
+      }
       return;
     }
 
@@ -64,7 +67,9 @@ class GameEngine {
       player.moveBy(1);
       if (player.position == board.finalPosition) {
         player.finish();
-        winner ??= player;
+        if (!finishedPlayers.contains(player)) {
+          finishedPlayers.add(player);
+        }
       }
     }
   }
