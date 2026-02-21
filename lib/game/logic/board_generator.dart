@@ -6,7 +6,7 @@ import '../models/board_action.dart';
 
 Board generateBoard(List<int> actionPositions, List<BoardAction> actions) {
   List<Cell> cells = [];
-  int totalCells = 10;
+  int totalCells = 100;
   int actionIndex = 0;
 
   for (int i = 1; i <= totalCells; i++) {
