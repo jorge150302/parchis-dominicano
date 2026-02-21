@@ -54,8 +54,9 @@ class GameEngine {
 
   bool reachedThreeSixes(Player player) => player.consecutiveSixes >= 3;
 
-  void penaltyThreeSixes(Player player) {
+  bool penaltyThreeSixes(Player player) {
     player.resetToStart();
+    return true;
   }
 
   bool canMove(Player player, int steps) {
@@ -78,14 +79,16 @@ class GameEngine {
     player.isMoving = false;
   }
 
-  void applyCellAction(Player player) {
+  bool applyCellAction(Player player) {
     final cell = board.getCell(player.position);
     final action = cell.action;
+    bool sentHome = false;
 
     if (action != null) {
       switch (action.type) {
         case BoardActionType.goToStart:
           player.resetToStart();
+          sentHome = true;
           break;
         case BoardActionType.moveTo:
           if (action.targetNumber != null) {
@@ -100,15 +103,19 @@ class GameEngine {
           break;
       }
     }
+    return sentHome;
   }
 
-  void resolveCollisions(Player player) {
-    if (player.isFinished) return;
+  bool resolveCollisions(Player player) {
+    if (player.isFinished) return false;
 
     final playersInCell = players.where((p) => p != player && p.position == player.position).toList();
+    bool sentHome = false;
 
     for (final otherPlayer in playersInCell) {
       otherPlayer.resetToStart();
+      sentHome = true;
     }
+    return sentHome;
   }
 }

@@ -19,6 +19,7 @@ class GameController extends ChangeNotifier {
 
   final AudioPlayer _diceAudio = AudioPlayer();
   final AudioPlayer _fanfareAudio = AudioPlayer();
+  final AudioPlayer _sendToHomeAudio = AudioPlayer();
   final Random _random = Random();
 
   static const _diceAnimDuration = Duration(milliseconds: 300);
@@ -31,6 +32,7 @@ class GameController extends ChangeNotifier {
   void dispose() {
     _diceAudio.dispose();
     _fanfareAudio.dispose();
+    _sendToHomeAudio.dispose();
     super.dispose();
   }
 
@@ -42,9 +44,20 @@ class GameController extends ChangeNotifier {
   }
 
   Future<void> playFanfare() async {
+    if (_fanfareAudio.state == PlayerState.playing) return;
     await _fanfareAudio.play(AssetSource('sounds/fanfarreas.mp3'));
     final completer = Completer();
     _fanfareAudio.onPlayerComplete.first.then((_) => completer.complete());
+    return completer.future;
+  }
+
+  Future<void> playSendToHomeSound() async {
+    if (_sendToHomeAudio.state == PlayerState.playing) {
+      return;
+    }
+    await _sendToHomeAudio.play(AssetSource('sounds/send_to_home.mp3'));
+    final completer = Completer();
+    _sendToHomeAudio.onPlayerComplete.first.then((_) => completer.complete());
     return completer.future;
   }
 
@@ -90,7 +103,9 @@ class GameController extends ChangeNotifier {
     engine.registerSix(player, diceValue);
 
     if (engine.reachedThreeSixes(player)) {
-      engine.penaltyThreeSixes(player);
+      if (engine.penaltyThreeSixes(player)) {
+        await playSendToHomeSound();
+      }
       player.extraTurns = 0;
       engine.nextTurn(); // Finaliza el turno después de la penalización
       notifyListeners();
@@ -106,13 +121,10 @@ class GameController extends ChangeNotifier {
 
     // --- Lógica de fin de turno ---
     if (player.isFinished) {
-      // Si el jugador ha terminado, su turno acaba, incluso si sacó un 6
       engine.nextTurn();
     } else if (player.extraTurns > 0) {
-      // Si tiene turnos extra (por un 6 o una casilla de acción), juega de nuevo
       player.extraTurns--;
     } else {
-      // Si no, pasa el turno
       engine.nextTurn();
     }
 
@@ -143,8 +155,12 @@ class GameController extends ChangeNotifier {
 
     engine.stopMoving(player);
 
-    engine.applyCellAction(player);
-    engine.resolveCollisions(player);
+    bool sentHomeByAction = engine.applyCellAction(player);
+    bool sentHomeByCollision = engine.resolveCollisions(player);
+
+    if (sentHomeByAction || sentHomeByCollision) {
+      await playSendToHomeSound();
+    }
 
     engine.phase = GamePhase.idle;
     notifyListeners();
