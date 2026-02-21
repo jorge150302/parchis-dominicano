@@ -84,6 +84,9 @@ class GameController extends ChangeNotifier {
     rollingDice = true;
     notifyListeners();
 
+    if (_diceAudio.state == PlayerState.playing) {
+      await _diceAudio.stop();
+    }
     _diceAudio.play(AssetSource('sounds/dice.mp3'));
     HapticFeedback.lightImpact();
 
