@@ -52,6 +52,7 @@ class _GameScreenState extends State<GameScreen> {
 
       controller.setPlayers(players);
       controller.addListener(_onGameUpdate);
+      controller.startTurn();
     });
   }
 
@@ -315,7 +316,7 @@ class _PlayerCornerWidget extends StatelessWidget {
     final controller = context.watch<GameController>();
     final isTurn = controller.currentPlayer.id == player.id;
     final rollingThisDice = controller.rollingDice && isTurn;
-    final canRoll = isTurn && !controller.rollingDice;
+    final canRoll = isTurn && !controller.rollingDice && !player.mustSkipTurn;
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -350,7 +351,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           GestureDetector(
             onTap: canRoll ? controller.rollDice : null,
             child: Opacity(
-              opacity: isTurn ? 1 : 0.35,
+              opacity: isTurn && !player.mustSkipTurn ? 1 : 0.35,
               child: DiceWidget(
                 key: ValueKey(player.id),
                 value: controller.diceValue,

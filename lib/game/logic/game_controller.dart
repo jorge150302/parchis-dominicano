@@ -61,20 +61,25 @@ class GameController extends ChangeNotifier {
     return completer.future;
   }
 
+  void startTurn() {
+    if (currentPlayer.mustSkipTurn) {
+      currentPlayer.consumeSkip();
+      engine.nextTurn();
+      notifyListeners();
+      // Vuelve a comprobar si el nuevo jugador también debe saltarse el turno
+      Future.microtask(startTurn);
+    } else {
+      // El jugador actual puede jugar
+      notifyListeners();
+    }
+  }
+
   Future<void> rollDice() async {
-    if (rollingDice || engine.phase == GamePhase.finished || _inputLocked) return;
+    if (rollingDice || engine.phase == GamePhase.finished || _inputLocked || currentPlayer.mustSkipTurn) return;
 
     _inputLocked = true;
 
     final player = currentPlayer;
-
-    if (player.mustSkipTurn) {
-      player.consumeSkip();
-      engine.nextTurn();
-      notifyListeners();
-      _unlockInputLater();
-      return;
-    }
 
     rollingDice = true;
     notifyListeners();
@@ -108,7 +113,7 @@ class GameController extends ChangeNotifier {
       }
       player.extraTurns = 0;
       engine.nextTurn(); // Finaliza el turno después de la penalización
-      notifyListeners();
+      startTurn(); // Inicia el turno para el siguiente jugador
       _unlockInputLater();
       return;
     }
@@ -128,13 +133,15 @@ class GameController extends ChangeNotifier {
       engine.nextTurn();
     }
 
-    notifyListeners();
+    startTurn(); // Inicia el turno para el siguiente jugador
+
     _unlockInputLater();
   }
 
   void _unlockInputLater() {
     Future.delayed(_inputLockDuration, () {
       _inputLocked = false;
+      notifyListeners();
     });
   }
 

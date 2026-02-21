@@ -1,10 +1,11 @@
 import '../models/board_action.dart';
 
 final classicActionPositions = [
-  13, 15, 19, 24, 29, 37, 43, 49, 56, 66, 72, 76, 79, 83, 93, 97
+  3, 13, 15, 19, 24, 29, 37, 43, 49, 56, 66, 72, 76, 79, 83, 93, 97
 ];
 
 final classicActions = [
+  BoardAction.skipTurn(),       // 3
   BoardAction.goToStart(),      // 13
   BoardAction.rollAgain(),      // 15
   BoardAction.skipTurn(),       // 19
