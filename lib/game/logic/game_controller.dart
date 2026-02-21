@@ -76,23 +76,27 @@ class GameController extends ChangeNotifier {
     if (engine.reachedThreeSixes(player)) {
       engine.penaltyThreeSixes(player);
       player.extraTurns = 0;
+      engine.nextTurn(); // Finaliza el turno después de la penalización
       notifyListeners();
       _unlockInputLater();
       return;
     }
 
-    if (!engine.canMove(player, diceValue)) {
+    final bool canMove = engine.canMove(player, diceValue);
+
+    if (canMove) {
+      await _moveStepByStep(diceValue);
+    }
+
+    // --- Lógica de fin de turno ---
+    if (player.isFinished) {
+      // Si el jugador ha terminado, su turno acaba, incluso si sacó un 6
       engine.nextTurn();
-      notifyListeners();
-      _unlockInputLater();
-      return;
-    }
-
-    await _moveStepByStep(diceValue);
-
-    if (player.extraTurns > 0) {
+    } else if (player.extraTurns > 0) {
+      // Si tiene turnos extra (por un 6 o una casilla de acción), juega de nuevo
       player.extraTurns--;
     } else {
+      // Si no, pasa el turno
       engine.nextTurn();
     }
 
