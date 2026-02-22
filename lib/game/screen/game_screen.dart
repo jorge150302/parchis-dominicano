@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
+import '../models/game_event.dart';
 import '../models/player.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/dice_widget.dart';
@@ -25,6 +26,7 @@ class _GameScreenState extends State<GameScreen> {
   late final ConfettiController _confettiController;
   final Set<String> _announcedWinners = {};
   bool _isGameFinishedDialogShown = false;
+  final Set<String> _processedEvents = {};
 
   @override
   void initState() {
@@ -70,6 +72,19 @@ class _GameScreenState extends State<GameScreen> {
 
     final controller = context.read<GameController>();
     final engine = controller.engine;
+
+    final newEvents = controller.consumeEvents();
+    for (final event in newEvents) {
+      if (!_processedEvents.contains(event.id)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(event.message),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        _processedEvents.add(event.id);
+      }
+    }
 
     for (final player in engine.finishedPlayers) {
       if (!_announcedWinners.contains(player.id)) {

@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/game_event.dart';
 import '../models/player.dart';
 import 'game_engine.dart';
 
@@ -27,6 +28,12 @@ class GameController extends ChangeNotifier {
 
   List<Player> get players => engine.players;
   Player get currentPlayer => engine.currentPlayer;
+
+  List<GameEvent> consumeEvents() {
+    final events = List<GameEvent>.from(engine.events);
+    engine.clearEvents();
+    return events;
+  }
 
   @override
   void dispose() {
@@ -165,8 +172,8 @@ class GameController extends ChangeNotifier {
 
     engine.stopMoving(player);
 
-    bool sentHomeByAction = engine.applyCellAction(player);
-    bool sentHomeByCollision = engine.resolveCollisions(player);
+    final sentHomeByAction = engine.applyCellAction(player);
+    final sentHomeByCollision = engine.resolveCollisions(player);
 
     if (sentHomeByAction || sentHomeByCollision) {
       await playSendToHomeSound();

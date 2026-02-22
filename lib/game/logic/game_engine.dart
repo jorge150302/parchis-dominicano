@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../models/board.dart';
 import '../models/board_action.dart';
+import '../models/game_event.dart';
 import '../models/player.dart';
 
 enum GamePhase {
@@ -16,6 +17,7 @@ class GameEngine {
   final List<Player> players;
   final Random _random = Random();
   final List<Player> finishedPlayers = [];
+  final List<GameEvent> _events = [];
 
   int _currentPlayerIndex = 0;
   GamePhase phase = GamePhase.idle;
@@ -26,6 +28,7 @@ class GameEngine {
   });
 
   Player get currentPlayer => players[_currentPlayerIndex];
+  List<GameEvent> get events => _events;
 
   int rollDice() => _random.nextInt(6) + 1;
 
@@ -56,6 +59,7 @@ class GameEngine {
 
   bool penaltyThreeSixes(Player player) {
     player.resetToStart();
+    _events.add(GameEvent(message: '¡Tres 6 seguidos! ${player.name} vuelve a casa'));
     return true;
   }
 
@@ -85,22 +89,30 @@ class GameEngine {
     bool sentHome = false;
 
     if (action != null) {
+      GameEvent? event;
       switch (action.type) {
         case BoardActionType.goToStart:
           player.resetToStart();
+          event = GameEvent(message: '¡Mala suerte! ${player.name} vuelve a casa');
           sentHome = true;
           break;
         case BoardActionType.moveTo:
           if (action.targetNumber != null) {
             player.position = action.targetNumber!;
+            event = GameEvent(message: '${player.name} se mueve a la casilla ${action.targetNumber}');
           }
           break;
         case BoardActionType.skipTurn:
           player.addSkip(1);
+          event = GameEvent(message: '¡${player.name} pierde un turno!');
           break;
         case BoardActionType.rollAgain:
           player.extraTurns++;
+          event = GameEvent(message: '¡${player.name} tiene un turno extra!');
           break;
+      }
+      if (event != null) {
+        _events.add(event);
       }
     }
     return sentHome;
@@ -114,8 +126,13 @@ class GameEngine {
 
     for (final otherPlayer in playersInCell) {
       otherPlayer.resetToStart();
+      _events.add(GameEvent(message: '¡${player.name} ha capturado a ${otherPlayer.name}!'));
       sentHome = true;
     }
     return sentHome;
+  }
+
+  void clearEvents() {
+    _events.clear();
   }
 }
