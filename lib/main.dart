@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:frontend_parchis/menu/online_lobby_screen.dart';
+import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/splash_screen.dart';
@@ -20,37 +22,57 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Parché',
-      initialRoute: '/',
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: socketService),
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Parché',
+        initialRoute: '/',
+        routes: {
+          '/': (_) => const SplashScreen(),
+          '/menu': (_) => const MainMenuScreen(),
+          '/players': (_) => const PlayerSelectionScreen(),
+          '/online_lobby': (_) => const OnlineLobbyScreen(),
+        },
+        onGenerateRoute: (settings) {
+          if (settings.name == '/game') {
+            final args = settings.arguments;
+            int playersCount = 2;
+            String? roomCode;
 
-      routes: {
-        '/': (_) => const SplashScreen(),
-        '/menu': (_) => const MainMenuScreen(),
-        '/players': (_) => const PlayerSelectionScreen(),
-      },
+            if (args is int) {
+              playersCount = args;
+            } else if (args is Map<String, dynamic>) {
+              playersCount = args['playerCount'] ?? 2;
+              roomCode = args['roomCode'];
+            }
 
-      /// 🔥 SOLO cambiamos esto
-      onGenerateRoute: (settings) {
-        if (settings.name == '/game') {
-          final int playersCount = settings.arguments as int;
+            final engine = GameEngine(
+              board: generateBoard(classicActionPositions, classicActions),
+              players: [],
+            );
 
-          final engine = GameEngine(
-            board: generateBoard(classicActionPositions, classicActions),
-            players: [],
-          );
-
-          return MaterialPageRoute(
-            builder: (_) => ChangeNotifierProvider(
-              create: (_) => GameController(engine),
-              child: GameScreen(playerCount: playersCount),
-            ),
-          );
-        }
-
-        return null;
-      },
+            return MaterialPageRoute(
+              builder: (context) {
+                // Creamos el controlador específico AQUÍ dentro del builder
+                // para que Provider gestione su ciclo de vida correctamente.
+                return ChangeNotifierProvider<GameController>(
+                  create: (_) => (roomCode != null)
+                      ? NetworkGameController(engine: engine, socketService: socketService)
+                      : LocalGameController(engine: engine),
+                  child: GameScreen(
+                    playerCount: playersCount,
+                    roomCode: roomCode,
+                  ),
+                );
+              },
+            );
+          }
+          return null;
+        },
+      ),
     );
   }
 }

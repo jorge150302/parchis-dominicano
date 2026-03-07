@@ -98,7 +98,9 @@ class MainMenuScreen extends StatelessWidget {
                       title: 'En línea',
                       subtitle: 'Juega a distancia',
                       color: Colors.green,
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.pushNamed(context, '/online_lobby');
+                      },
                     )
                         .animate()
                         .fadeIn(delay: 900.ms)

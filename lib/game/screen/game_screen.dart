@@ -9,13 +9,16 @@ import '../models/player.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/dice_widget.dart';
 import '../widgets/home_zone_widget.dart';
+import '../../service/socket_service.dart';
 
 class GameScreen extends StatefulWidget {
   final int playerCount;
+  final String? roomCode;
 
   const GameScreen({
     super.key,
     required this.playerCount,
+    this.roomCode,
   });
 
   @override
@@ -27,6 +30,8 @@ class _GameScreenState extends State<GameScreen> {
   final Set<String> _announcedWinners = {};
   bool _isGameFinishedDialogShown = false;
   final Set<String> _processedEvents = {};
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final ScrollController _chatScrollController = ScrollController();
 
   @override
   void initState() {
@@ -35,32 +40,35 @@ class _GameScreenState extends State<GameScreen> {
 
     Future.microtask(() {
       final controller = context.read<GameController>();
-
-      final tokens = [
-        'assets/tokens/red.png',
-        'assets/tokens/blue.png',
-        'assets/tokens/green.png',
-        'assets/tokens/yellow.png',
-      ];
-
-      final players = List.generate(
-        widget.playerCount,
-        (i) => Player(
-          id: '${i + 1}',
-          name: 'Jugador ${i + 1}',
-          tokenAsset: tokens[i % tokens.length],
-        ),
-      );
-
-      controller.setPlayers(players);
       controller.addListener(_onGameUpdate);
-      controller.startTurn();
+
+      if (controller.engine.players.isEmpty) {
+        final tokens = [
+          'assets/tokens/red.png',
+          'assets/tokens/blue.png',
+          'assets/tokens/green.png',
+          'assets/tokens/yellow.png',
+        ];
+
+        final players = List.generate(
+          widget.playerCount,
+          (i) => Player(
+            id: '${i + 1}',
+            name: 'Jugador ${i + 1}',
+            index: i,
+            tokenAsset: tokens[i % tokens.length],
+          ),
+        );
+        controller.setPlayers(players);
+        controller.startTurn();
+      }
     });
   }
 
   @override
   void dispose() {
     _confettiController.dispose();
+    _chatScrollController.dispose();
     if (mounted) {
       context.read<GameController>().removeListener(_onGameUpdate);
     }
@@ -70,47 +78,250 @@ class _GameScreenState extends State<GameScreen> {
   void _onGameUpdate() {
     if (!mounted) return;
 
-    final controller = context.read<GameController>();
-    final engine = controller.engine;
-
-    final newEvents = controller.consumeEvents();
-    for (final event in newEvents) {
-      if (!_processedEvents.contains(event.id)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(event.message),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        _processedEvents.add(event.id);
-      }
-    }
-
-    for (final player in engine.finishedPlayers) {
-      if (!_announcedWinners.contains(player.id)) {
-        _announcedWinners.add(player.id);
-
-        if (engine.phase != GamePhase.finished) {
-          _confettiController.play();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('¡${player.name} ha llegado a la meta!'),
-              duration: const Duration(seconds: 3),
-            ),
+    if (_scaffoldKey.currentState?.isEndDrawerOpen ?? false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScrollController.hasClients) {
+          _chatScrollController.animateTo(
+            _chatScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
           );
         }
-      }
-    }
-
-    if (engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
-      _isGameFinishedDialogShown = true;
-      _confettiController.play();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showGameFinishedDialog();
       });
     }
 
     setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<GameController>();
+    final isConnected = context.watch<SocketService>().isConnected;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldExit = await _showExitConfirmationDialog(context);
+        if (shouldExit && mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        endDrawer: controller.isOnline ? _buildChatDrawer(controller) : null,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset('assets/images/menu_background.png', fit: BoxFit.cover),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Solo mostramos la TopBar si es ONLINE
+                  if (controller.isOnline) 
+                    _buildTopBar(isConnected, controller),
+                  
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.brown.shade700,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: Colors.brown.shade900, width: 4),
+                              boxShadow: const [BoxShadow(blurRadius: 15, color: Colors.black45)],
+                            ),
+                            child: BoardWidget(
+                              board: controller.engine.board,
+                              players: controller.players,
+                            ),
+                          ),
+                        ),
+                        ..._buildPlayers(controller),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                numberOfParticles: 20,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar(bool isConnected, GameController controller) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.black26,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: isConnected ? Colors.green : Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isConnected ? 'EN LÍNEA' : 'DESCONECTADO',
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+
+          if (widget.roomCode != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'SALA: ${widget.roomCode}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+
+          Row(
+            children: [
+              Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chat, color: Colors.white70),
+                    onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+                  ),
+                  if (controller.chatMessages.isNotEmpty)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          '${controller.chatMessages.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 10),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.exit_to_app, color: Colors.white70),
+                onPressed: () async {
+                  if (await _showExitConfirmationDialog(context)) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                  }
+                },
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatDrawer(GameController controller) {
+    final TextEditingController chatInputController = TextEditingController();
+
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.orange,
+            child: const Row(
+              children: [
+                Icon(Icons.chat, color: Colors.white),
+                SizedBox(width: 10),
+                Text('Chat en Vivo', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: _chatScrollController,
+              padding: const EdgeInsets.all(8),
+              itemCount: controller.chatMessages.length,
+              itemBuilder: (context, index) {
+                final msg = controller.chatMessages[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(msg.sender, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(10)),
+                        child: Text(msg.message),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: chatInputController,
+                    onSubmitted: (value) {
+                      if (value.trim().isNotEmpty) {
+                        controller.sendChatMessage(value.trim());
+                        chatInputController.clear();
+                      }
+                    },
+                    decoration: const InputDecoration(hintText: 'Escribe un mensaje...', border: OutlineInputBorder()),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.orange),
+                  onPressed: () {
+                    final text = chatInputController.text.trim();
+                    if (text.isNotEmpty) {
+                      controller.sendChatMessage(text);
+                      chatInputController.clear();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPlayers(GameController controller) {
+    const alignments = [Alignment.topLeft, Alignment.topRight, Alignment.bottomLeft, Alignment.bottomRight];
+    return List.generate(controller.players.length, (i) {
+      return Align(
+        alignment: alignments[i % alignments.length],
+        child: _PlayerCornerWidget(player: controller.players[i]),
+      );
+    });
   }
 
   Future<void> _showGameFinishedDialog() async {
@@ -119,267 +330,95 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Resultados Finales'),
+        title: const Text('¡Partida Finalizada!'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            for (int i = 0; i < controller.engine.finishedPlayers.length; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(width: 8),
-                    Image.asset(
-                      controller.engine.finishedPlayers[i].tokenAsset,
-                      width: 20,
-                      height: 20,
-                    ),
-                  ],
-                ),
-              ),
-          ],
+          children: controller.engine.finishedPlayers.asMap().entries.map((e) =>
+            ListTile(
+              leading: Text('${e.key + 1}°'),
+              title: Text(e.value.name),
+              trailing: Image.asset(e.value.tokenAsset, width: 24),
+            )
+          ).toList(),
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context)
-                  .pushNamedAndRemoveUntil('/menu', (route) => false);
-            },
-            child: const Text('Aceptar'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false), child: const Text('Volver al Menú')),
         ],
       ),
     );
   }
 
   Future<bool> _showExitConfirmationDialog(BuildContext context) async {
-    final result = await showDialog<bool>(
+    return await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Terminar partida'),
-        content: const Text(
-            '¿Deseas terminar la partida? Si sales ahora, la partida finalizará.'),
+        title: const Text('¿Salir de la partida?'),
+        content: const Text('Perderás el progreso actual.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Sí'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Salir')),
         ],
-      ),
-    );
-    return result ?? false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = context.watch<GameController>();
-
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        final shouldExit = await _showExitConfirmationDialog(context);
-        if (shouldExit && mounted) {
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/menu', (route) => false);
-        }
-      },
-      child: Scaffold(
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Image.asset(
-                'assets/images/menu_background.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-            Align(
-              alignment: Alignment.topCenter,
-              child: ConfettiWidget(
-                confettiController: _confettiController,
-                blastDirectionality: BlastDirectionality.explosive,
-                shouldLoop: false,
-                colors: const [
-                  Colors.green,
-                  Colors.blue,
-                  Colors.pink,
-                  Colors.orange,
-                  Colors.purple
-                ],
-                numberOfParticles: 30,
-                maxBlastForce: 20,
-                minBlastForce: 5,
-              ),
-            ),
-            SafeArea(
-              child: Stack(
-                children: [
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.brown.shade700,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: Colors.brown.shade900,
-                          width: 6,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            blurRadius: 18,
-                            color: Colors.black45,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: BoardWidget(
-                        board: controller.engine.board,
-                        players: controller.players,
-                      ),
-                    ),
-                  ),
-                  ..._buildPlayers(controller),
-                  if (controller.engine.finishedPlayers.isNotEmpty &&
-                      controller.engine.phase != GamePhase.finished)
-                    _buildRanking(controller),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRanking(GameController controller) {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 20.0),
-        child: Container(
-          padding: const EdgeInsets.all(8.0),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Text('Ranking:',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
-              const SizedBox(height: 4),
-              for (int i = 0; i < controller.engine.finishedPlayers.length; i++)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                        '${i + 1}° - ${controller.engine.finishedPlayers[i].name}',
-                        style: const TextStyle(color: Colors.white, fontSize: 14)),
-                    const SizedBox(width: 8),
-                    Image.asset(controller.engine.finishedPlayers[i].tokenAsset, width: 20),
-                  ],
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildPlayers(GameController controller) {
-    final players = controller.players;
-    const positions = [
-      Alignment.topLeft,
-      Alignment.topRight,
-      Alignment.bottomLeft,
-      Alignment.bottomRight,
-    ];
-
-    return List.generate(players.length, (i) {
-      final player = players[i];
-      return Align(
-        alignment: positions[i % positions.length],
-        child: _PlayerCornerWidget(player: player),
-      );
-    });
+      )
+    ) ?? false;
   }
 }
 
 class _PlayerCornerWidget extends StatelessWidget {
   final Player player;
-
-  const _PlayerCornerWidget({
-    required this.player,
-  });
+  const _PlayerCornerWidget({required this.player});
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
     final isTurn = controller.currentPlayer.id == player.id;
-    final rollingThisDice = controller.rollingDice && isTurn;
-    final canRoll = isTurn && !controller.rollingDice && !player.mustSkipTurn;
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 6,
-            ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isTurn ? Colors.orange : Colors.grey.shade400,
-              borderRadius: BorderRadius.circular(10),
+              color: isTurn ? Colors.orange.withValues(alpha: 0.9) : Colors.black45,
+              borderRadius: BorderRadius.circular(12),
+              border: isTurn ? Border.all(color: Colors.white, width: 2) : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(player.tokenAsset, width: 22, height: 22),
-                const SizedBox(width: 6),
-                Text(
-                  player.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                Image.asset(player.tokenAsset, width: 20, height: 20),
+                const SizedBox(width: 8),
+                Row(
+                  children: [
+                    Text(player.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    if (player.isAI)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Text('(IA)', style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                  ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: canRoll ? controller.rollDice : null,
+            onTap: isTurn && !controller.rollingDice && !player.isAI ? controller.rollDice : null,
             child: Opacity(
-              opacity: isTurn && !player.mustSkipTurn ? 1 : 0.35,
+              opacity: player.isAI ? 0.5 : 1.0,
               child: DiceWidget(
-                key: ValueKey(player.id),
                 value: controller.diceValue,
-                rolling: rollingThisDice,
+                rolling: controller.rollingDice && isTurn,
                 style: const DiceStyle(
                   sides: 6,
-                  assetPath: 'assets/dice/classic',
-                  size: 60,
+                  size: 55, 
+                  assetPath: 'assets/dice/classic'
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           HomeZoneWidget(player: player),
         ],
       ),

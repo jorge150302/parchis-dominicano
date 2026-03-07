@@ -6,7 +6,7 @@ import '../models/board_action.dart';
 
 Board generateBoard(List<int> actionPositions, List<BoardAction> actions) {
   List<Cell> cells = [];
-  int totalCells = 100;
+  int totalCells = 100; // ✅ Restaurado a 100 casillas
   int actionIndex = 0;
 
   for (int i = 1; i <= totalCells; i++) {

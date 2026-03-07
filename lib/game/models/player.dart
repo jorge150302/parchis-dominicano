@@ -1,68 +1,47 @@
-import 'package:flutter/material.dart';
-
 class Player {
   final String id;
   final String name;
-
-  /// 🎟️ ficha visual elegida por el jugador (PNG)
   final String tokenAsset;
-
-  /// 📍 posición en el tablero
+  final int index; // 🎨 Slot fijo enviado por el servidor (0-3)
   int position;
-
-  /// ⏭️ turnos perdidos
   int skippedTurns;
-
-  /// 🎲 conteo de 6 consecutivos
   int consecutiveSixes;
-
-  /// 🔥 CONTADOR DE TURNOS EXTRA
   int extraTurns;
-
-  /// =================================================
-  /// 🆕 estados extra (NO rompen nada)
-  /// =================================================
-
-  /// 🏁 llegó a meta
   bool isFinished;
-
-  /// 🎬 usado por animaciones (evita doble movimiento)
   bool isMoving;
-
-  /// 👣 estadísticas / animaciones
   int stepsMoved;
+  bool isAI;
 
   Player({
     required this.id,
     required this.name,
     required this.tokenAsset,
+    required this.index,
     this.position = 0,
     this.skippedTurns = 0,
     this.consecutiveSixes = 0,
-    this.extraTurns = 0, // ✅
-
-    /// defaults seguros
+    this.extraTurns = 0,
     this.isFinished = false,
     this.isMoving = false,
     this.stepsMoved = 0,
+    this.isAI = false,
   });
 
-  /// =================================================
-  /// 🔄 reset
-  /// =================================================
+  void updateFromNetwork(Map<String, dynamic> data) {
+    position = data['position'] ?? position;
+    isFinished = data['isFinished'] ?? isFinished;
+    isAI = data['isAI'] ?? isAI;
+  }
+
   void resetToStart() {
     position = 0;
     skippedTurns = 0;
     consecutiveSixes = 0;
-    extraTurns = 0; // ✅
+    extraTurns = 0;
     isFinished = false;
     isMoving = false;
     stepsMoved = 0;
   }
-
-  /// =================================================
-  /// 🆕 helpers limpios (mejoran el engine)
-  /// =================================================
 
   void moveBy(int steps) {
     position += steps;
@@ -77,30 +56,26 @@ class Player {
     isFinished = true;
   }
 
-  /// =================================================
-  /// lógica existente (intocable)
-  /// =================================================
   bool get mustSkipTurn => skippedTurns > 0;
 
   void consumeSkip() {
     if (skippedTurns > 0) skippedTurns--;
   }
 
-  /// =================================================
-  /// copia segura
-  /// =================================================
   Player copy() {
     return Player(
       id: id,
       name: name,
       tokenAsset: tokenAsset,
+      index: index,
       position: position,
       skippedTurns: skippedTurns,
       consecutiveSixes: consecutiveSixes,
-      extraTurns: extraTurns, // ✅
+      extraTurns: extraTurns,
       isFinished: isFinished,
       isMoving: isMoving,
       stepsMoved: stepsMoved,
+      isAI: isAI,
     );
   }
 }

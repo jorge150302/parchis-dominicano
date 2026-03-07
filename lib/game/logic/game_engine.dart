@@ -30,6 +30,14 @@ class GameEngine {
   Player get currentPlayer => players[_currentPlayerIndex];
   List<GameEvent> get events => _events;
 
+  /// 🌐 NUEVO: Permite al servidor establecer quién tiene el turno
+  void setCurrentPlayerById(String id) {
+    final index = players.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      _currentPlayerIndex = index;
+    }
+  }
+
   int rollDice() => _random.nextInt(6) + 1;
 
   void nextTurn() {
