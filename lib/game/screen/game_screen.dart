@@ -29,7 +29,7 @@ class _GameScreenState extends State<GameScreen> {
   late final ConfettiController _confettiController;
   final Set<String> _announcedWinners = {};
   bool _isGameFinishedDialogShown = false;
-  final Set<String> _processedEvents = {};
+  final Set<String> _processedEvents = {}; // ✅ Para no repetir avisos
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _chatScrollController = ScrollController();
 
@@ -78,6 +78,43 @@ class _GameScreenState extends State<GameScreen> {
   void _onGameUpdate() {
     if (!mounted) return;
 
+    final controller = context.read<GameController>();
+    final engine = controller.engine;
+
+    // --- 🔔 RESTAURADO: CONSUMIR Y MOSTRAR EVENTOS (AVISOS) ---
+    final newEvents = controller.consumeEvents();
+    for (final event in newEvents) {
+      if (!_processedEvents.contains(event.id)) {
+        _processedEvents.add(event.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(event.message, style: const TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.orangeAccent.shade700,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+
+    // --- 🏆 GANADORES Y FIN DE JUEGO ---
+    for (final player in engine.finishedPlayers) {
+      if (!_announcedWinners.contains(player.id)) {
+        _announcedWinners.add(player.id);
+        if (engine.phase != GamePhase.finished) {
+          _confettiController.play();
+        }
+      }
+    }
+
+    if (engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
+      _isGameFinishedDialogShown = true;
+      _confettiController.play();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showGameFinishedDialog());
+    }
+
+    // Auto-scroll chat
     if (_scaffoldKey.currentState?.isEndDrawerOpen ?? false) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_chatScrollController.hasClients) {
@@ -118,10 +155,7 @@ class _GameScreenState extends State<GameScreen> {
             SafeArea(
               child: Column(
                 children: [
-                  // Solo mostramos la TopBar si es ONLINE
-                  if (controller.isOnline) 
-                    _buildTopBar(isConnected, controller),
-                  
+                  if (controller.isOnline) _buildTopBar(isConnected, controller),
                   Expanded(
                     child: Stack(
                       children: [

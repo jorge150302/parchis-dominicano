@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend_parchis/menu/online_lobby_screen.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
+import 'package:frontend_parchis/service/prefs_service.dart'; // ✅ Importamos Prefs
 import 'package:provider/provider.dart';
 
 import 'screens/splash_screen.dart';
@@ -13,7 +14,11 @@ import 'game/logic/game_engine.dart';
 import 'game/logic/board_generator.dart';
 import 'game/logic/board_presets.dart';
 
-void main() {
+void main() async {
+  // ✅ Inicialización obligatoria para SharedPreferences y Servicios
+  WidgetsFlutterBinding.ensureInitialized();
+  await PrefsService.init(); 
+  
   runApp(const MyApp());
 }
 
@@ -56,8 +61,6 @@ class MyApp extends StatelessWidget {
 
             return MaterialPageRoute(
               builder: (context) {
-                // Creamos el controlador específico AQUÍ dentro del builder
-                // para que Provider gestione su ciclo de vida correctamente.
                 return ChangeNotifierProvider<GameController>(
                   create: (_) => (roomCode != null)
                       ? NetworkGameController(engine: engine, socketService: socketService)

@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
-import 'package:frontend_parchis/config/env.dart'; // ✅ Importamos Env
+import 'package:frontend_parchis/config/env.dart';
+import 'package:frontend_parchis/service/prefs_service.dart';
 
 class OnlineLobbyScreen extends StatefulWidget {
   const OnlineLobbyScreen({super.key});
@@ -12,18 +13,18 @@ class OnlineLobbyScreen extends StatefulWidget {
 }
 
 class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
-  final _nameController = TextEditingController();
+  late final TextEditingController _nameController;
   final _roomCodeController = TextEditingController();
   late final StreamSubscription _socketSubscription;
   bool _isLoading = false;
   String? _currentRoomCode;
 
-  // 🔌 URL dinámica desde el archivo de configuración
   final String _serverUrl = Env.serverUrl;
 
   @override
   void initState() {
     super.initState();
+    _nameController = TextEditingController(text: PrefsService.playerName);
     _socketSubscription = socketService.events.listen(_handleServerEvent);
   }
 
@@ -37,15 +38,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     switch (eventName) {
       case 'game_created':
         _currentRoomCode = data['roomCode'];
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('¡Sala creada! Código: $_currentRoomCode'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        PrefsService.lastRoomCode = _currentRoomCode;
         break;
       case 'game_joined':
         _currentRoomCode ??= data['roomCode'] ?? _roomCodeController.text.trim();
+        PrefsService.lastRoomCode = _currentRoomCode;
         break;
       case 'game_state':
         final List players = data['players'];
@@ -59,6 +56,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         );
         break;
       case 'error':
+        PrefsService.lastRoomCode = null;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${data['message']}'), backgroundColor: Colors.red),
         );
@@ -69,6 +67,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   Future<void> _connectAndCreate() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return _showError('Introduce tu nombre');
+    PrefsService.playerName = name;
     setState(() => _isLoading = true);
     try {
       await socketService.connect(_serverUrl);
@@ -79,11 +78,15 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     }
   }
 
-  Future<void> _connectAndJoin() async {
+  Future<void> _connectAndJoin({String? manualCode}) async {
     final name = _nameController.text.trim();
-    final code = _roomCodeController.text.trim();
+    final code = manualCode ?? _roomCodeController.text.trim();
+    
     if (name.isEmpty || code.isEmpty) return _showError('Nombre y código obligatorios');
+    
+    PrefsService.playerName = name;
     setState(() => _isLoading = true);
+    
     try {
       await socketService.connect(_serverUrl);
       _currentRoomCode = code;
@@ -100,6 +103,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lastCode = PrefsService.lastRoomCode;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -132,7 +137,20 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
                     ).animate().fadeIn(delay: 200.ms),
 
-                    const SizedBox(height: 50),
+                    const SizedBox(height: 40),
+
+                    // --- RECONEXIÓN RÁPIDA ---
+                    if (lastCode != null && !_isLoading)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 30),
+                        child: _actionButton(
+                          title: 'VOLVER A SALA: $lastCode',
+                          color: Colors.orange.shade700,
+                          onTap: () => _connectAndJoin(manualCode: lastCode),
+                        ).animate(
+                          onPlay: (controller) => controller.repeat(), // ✅ Forma correcta de repetir
+                        ).shimmer(duration: 1500.ms),
+                      ),
 
                     _customTextField(
                       controller: _nameController,
@@ -167,7 +185,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                     _actionButton(
                       title: 'UNIRSE A PARTIDA',
                       color: Colors.blueAccent,
-                      onTap: _connectAndJoin,
+                      onTap: () => _connectAndJoin(),
                     ).animate().fadeIn(delay: 1000.ms).scale(),
 
                     const SizedBox(height: 40),

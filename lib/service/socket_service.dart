@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
+import 'prefs_service.dart'; // ✅ Importamos para usar el playerId
 
 final socketService = SocketService.instance;
 
@@ -15,7 +16,6 @@ class SocketService with ChangeNotifier {
   bool _isConnected = false;
   final StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   
-  // 🔥 ESTA ES LA VARIABLE QUE FALTABA
   Map<String, dynamic>? lastGameState;
 
   Stream<Map<String, dynamic>> get events => _eventController.stream;
@@ -34,26 +34,22 @@ class SocketService with ChangeNotifier {
 
       _channel!.stream.listen(
         (message) {
-          debugPrint('📥 RECIBIDO del servidor: $message');
+          debugPrint('📥 RECIBIDO: $message');
           try {
             final data = jsonDecode(message);
             if (data is Map<String, dynamic>) {
-              // 🔥 Si recibimos el estado, lo guardamos para el GameController
               if (data['event'] == 'game_state') {
                 lastGameState = data['data'];
               }
               _eventController.add(data);
             }
           } catch (e) {
-            debugPrint('⚠️ Error decodificando JSON: $e');
+            debugPrint('⚠️ Error JSON: $e');
           }
         },
         onDone: () => _handleDisconnect('Servidor cerró conexión'),
         onError: (e) => _handleDisconnect('Error en stream: $e'),
       );
-    } on TimeoutException {
-      _handleDisconnect('Tiempo de espera agotado (Timeout)');
-      rethrow;
     } catch (e) {
       _handleDisconnect('Error de red: $e');
       rethrow;
@@ -64,13 +60,20 @@ class SocketService with ChangeNotifier {
     debugPrint('ℹ️ Desconectado: $reason');
     _isConnected = false;
     _channel = null;
-    lastGameState = null; // Limpiamos al desconectar
     notifyListeners();
   }
 
   void send(String event, [Map<String, dynamic>? data]) {
     if (_channel == null || !_isConnected) return;
-    final message = jsonEncode({'event': event, if (data != null) 'data': data});
+    
+    // 🔥 ENVIAMOS NUESTRO ID ÚNICO SIEMPRE
+    final payload = {
+      'event': event,
+      'clientId': PrefsService.playerId, // ✅ Tu ID persistente
+      if (data != null) 'data': data,
+    };
+    
+    final message = jsonEncode(payload);
     debugPrint('📤 Enviando: $message');
     _channel!.sink.add(message);
   }

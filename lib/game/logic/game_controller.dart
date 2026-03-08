@@ -24,7 +24,6 @@ abstract class GameController extends ChangeNotifier {
   static const diceAnimDuration = Duration(milliseconds: 300);
   static const inputLockDuration = Duration(milliseconds: 1500);
 
-  // 🔥 Movido a la base: Lista de mensajes de chat
   List<ChatMessage> chatMessages = [];
 
   GameController({required this.engine});
@@ -63,8 +62,6 @@ abstract class GameController extends ChangeNotifier {
 
   void startTurn();
   Future<void> rollDice();
-  
-  // 🔥 Movido a la base: Firma del método para enviar chat
   void sendChatMessage(String message);
 
   @override
@@ -76,7 +73,6 @@ abstract class GameController extends ChangeNotifier {
   }
 }
 
-/// 🏠 CONTROLADOR OFFLINE ORIGINAL (Restaurado al 100%)
 class LocalGameController extends GameController {
   LocalGameController({required super.engine});
 
@@ -94,7 +90,6 @@ class LocalGameController extends GameController {
 
   @override
   void sendChatMessage(String message) {
-    // En modo offline no hacemos nada o podríamos añadir un mensaje local
     debugPrint('Chat offline: $message');
   }
 
@@ -182,11 +177,11 @@ class LocalGameController extends GameController {
   }
 }
 
-/// 🌐 CONTROLADOR ONLINE (Con Chat e IA remota)
 class NetworkGameController extends GameController {
   final SocketService socketService;
   StreamSubscription? _socketSubscription;
   String? currentRoomCode;
+  final Set<String> _animatingPlayers = {};
 
   @override
   bool get isOnline => true;
@@ -206,24 +201,49 @@ class NetworkGameController extends GameController {
     final data = event['data'];
     switch (eventName) {
       case 'game_state': _updateGameState(data); break;
-      case 'dice_result': diceValue = data['diceValue']; notifyListeners(); break;
+      case 'dice_result': 
+        // ✅ Si no somos nosotros los que tiramos físicamente, activamos la animación remota
+        if (!rollingDice) {
+          _animateRemoteDice(data['diceValue']);
+        } else {
+          // Si fuimos nosotros, solo confirmamos el valor final
+          diceValue = data['diceValue'];
+          notifyListeners();
+        }
+        break;
       case 'chat': _handleChatMessage(data); break;
     }
   }
 
+  /// ✅ NUEVO: Simula el giro del dado para acciones remotas (oponentes o IA)
+  Future<void> _animateRemoteDice(int finalValue) async {
+    rollingDice = true;
+    notifyListeners();
+
+    diceAudio.play(AssetSource('sounds/dice.mp3'));
+
+    // Giro rápido de caras aleatorias
+    for (int i = 0; i < 8; i++) {
+      diceValue = random.nextInt(6) + 1;
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 70));
+    }
+
+    // Ponemos el valor real enviado por el servidor
+    diceValue = finalValue;
+    await Future.delayed(GameController.diceAnimDuration);
+    
+    rollingDice = false;
+    notifyListeners();
+  }
+
   void _handleChatMessage(Map<String, dynamic> data) {
-    chatMessages.add(ChatMessage(
-      sender: data['sender'] ?? 'Servidor',
-      message: data['message'] ?? '',
-      timestamp: DateTime.now(),
-    ));
+    chatMessages.add(ChatMessage(sender: data['sender'] ?? 'Servidor', message: data['message'] ?? '', timestamp: DateTime.now()));
     notifyListeners();
   }
 
   @override
-  void sendChatMessage(String message) {
-    socketService.send('chat_message', {'message': message});
-  }
+  void sendChatMessage(String message) => socketService.send('chat_message', {'message': message});
 
   void _updateGameState(Map<String, dynamic> data) {
     final List serverPlayers = data['players'] ?? [];
@@ -233,16 +253,23 @@ class NetworkGameController extends GameController {
     final tokens = ['assets/tokens/red.png', 'assets/tokens/blue.png', 'assets/tokens/green.png', 'assets/tokens/yellow.png'];
 
     for (var playerData in serverPlayers) {
+      final String id = playerData['id'];
+      final int targetPosition = playerData['position'] ?? 0;
       final int slotIndex = playerData['index'] ?? 0;
+      
       final player = engine.players.firstWhere(
-        (p) => p.id == playerData['id'],
+        (p) => p.id == id,
         orElse: () {
-          final p = Player(id: playerData['id'], name: playerData['name'], index: slotIndex, tokenAsset: tokens[slotIndex % tokens.length]);
+          final p = Player(id: id, name: playerData['name'], index: slotIndex, tokenAsset: tokens[slotIndex % tokens.length]);
           engine.players.add(p);
           return p;
         },
       );
-      player.position = playerData['position'] ?? 0;
+
+      if (player.position != targetPosition && !_animatingPlayers.contains(id)) {
+        _animatePlayerMovement(player, targetPosition);
+      }
+
       player.isFinished = playerData['isFinished'] ?? false;
       player.isAI = playerData['isAI'] ?? false;
     }
@@ -252,6 +279,24 @@ class NetworkGameController extends GameController {
     notifyListeners();
   }
 
+  Future<void> _animatePlayerMovement(Player player, int target) async {
+    _animatingPlayers.add(player.id);
+    
+    if (target < player.position) {
+      player.position = target;
+      await playSendToHomeSound();
+      notifyListeners();
+    } else {
+      while (player.position < target) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        player.moveBy(1);
+        notifyListeners();
+        if (player.isFinished) await playFanfare();
+      }
+    }
+    _animatingPlayers.remove(player.id);
+  }
+
   @override
   Future<void> rollDice() async {
     if (engine.currentPlayer.isAI || rollingDice || inputLocked || engine.phase == GamePhase.finished) return;
@@ -259,10 +304,10 @@ class NetworkGameController extends GameController {
     rollingDice = true;
     notifyListeners();
 
-    if (diceAudio.state == PlayerState.playing) await diceAudio.stop();
-    diceAudio.play(AssetSource('sounds/dice.mp3'));
     HapticFeedback.lightImpact();
+    diceAudio.play(AssetSource('sounds/dice.mp3'));
 
+    // Animación visual local preventiva
     for (int i = 0; i < 10; i++) {
       diceValue = random.nextInt(6) + 1;
       notifyListeners();
@@ -270,6 +315,7 @@ class NetworkGameController extends GameController {
     }
 
     socketService.send('roll_dice');
+    // Nota: El valor final vendrá en el evento dice_result
     await Future.delayed(GameController.diceAnimDuration);
     rollingDice = false;
     notifyListeners();
