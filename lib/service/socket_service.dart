@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/io.dart';
-import 'prefs_service.dart'; // ✅ Importamos para usar el playerId
+import 'package:web_socket_channel/web_socket_channel.dart'; // ✅ Cambiado para compatibilidad Web
+import 'prefs_service.dart';
 
 final socketService = SocketService.instance;
 
@@ -12,7 +11,7 @@ class SocketService with ChangeNotifier {
   static final SocketService _instance = SocketService._privateConstructor();
   static SocketService get instance => _instance;
 
-  IOWebSocketChannel? _channel;
+  WebSocketChannel? _channel; // ✅ Cambiado de IOWebSocketChannel a WebSocketChannel
   bool _isConnected = false;
   final StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   
@@ -26,8 +25,12 @@ class SocketService with ChangeNotifier {
     debugPrint('🔌 Conectando a WebSocket: $url');
     
     try {
-      final ws = await WebSocket.connect(url).timeout(const Duration(seconds: 5));
-      _channel = IOWebSocketChannel(ws);
+      // ✅ Usamos la forma multiplataforma de conectar
+      _channel = WebSocketChannel.connect(Uri.parse(url));
+      
+      // En Web, esperamos un poco para confirmar la conexión antes de marcar como conectado
+      await _channel!.ready; 
+      
       _isConnected = true;
       notifyListeners();
       debugPrint('✅ ¡Conectado con éxito!');
@@ -60,16 +63,16 @@ class SocketService with ChangeNotifier {
     debugPrint('ℹ️ Desconectado: $reason');
     _isConnected = false;
     _channel = null;
+    lastGameState = null;
     notifyListeners();
   }
 
   void send(String event, [Map<String, dynamic>? data]) {
     if (_channel == null || !_isConnected) return;
     
-    // 🔥 ENVIAMOS NUESTRO ID ÚNICO SIEMPRE
     final payload = {
       'event': event,
-      'clientId': PrefsService.playerId, // ✅ Tu ID persistente
+      'clientId': PrefsService.playerId,
       if (data != null) 'data': data,
     };
     

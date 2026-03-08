@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
+import 'package:frontend_parchis/service/prefs_service.dart';
 
 import '../models/game_event.dart';
 import '../models/player.dart';
@@ -13,6 +14,7 @@ abstract class GameController extends ChangeNotifier {
   final GameEngine engine;
   
   bool rollingDice = false;
+  String? rollingPlayerId; // 🎲 Quién está tirando el dado ahora
   bool inputLocked = false;
   int diceValue = 1;
 
@@ -32,6 +34,11 @@ abstract class GameController extends ChangeNotifier {
   Player get currentPlayer => engine.currentPlayer;
   
   bool get isOnline => false;
+
+  bool get isMyTurn {
+    if (!isOnline) return true;
+    return currentPlayer.id == PrefsService.playerId;
+  }
 
   List<GameEvent> consumeEvents() {
     final events = List<GameEvent>.from(engine.events);
@@ -89,9 +96,7 @@ class LocalGameController extends GameController {
   }
 
   @override
-  void sendChatMessage(String message) {
-    debugPrint('Chat offline: $message');
-  }
+  void sendChatMessage(String message) {}
 
   @override
   Future<void> rollDice() async {
@@ -99,9 +104,9 @@ class LocalGameController extends GameController {
 
     inputLocked = true;
     rollingDice = true;
+    rollingPlayerId = currentPlayer.id; // ✅ Marcamos quién tira
     notifyListeners();
 
-    if (diceAudio.state == PlayerState.playing) await diceAudio.stop();
     diceAudio.play(AssetSource('sounds/dice.mp3'));
     HapticFeedback.lightImpact();
 
@@ -116,6 +121,7 @@ class LocalGameController extends GameController {
 
     await Future.delayed(GameController.diceAnimDuration);
     rollingDice = false;
+    rollingPlayerId = null; // ✅ Limpiamos
     notifyListeners();
 
     final player = currentPlayer;
@@ -202,11 +208,10 @@ class NetworkGameController extends GameController {
     switch (eventName) {
       case 'game_state': _updateGameState(data); break;
       case 'dice_result': 
-        // ✅ Si no somos nosotros los que tiramos físicamente, activamos la animación remota
         if (!rollingDice) {
-          _animateRemoteDice(data['diceValue']);
+          // ✅ Animamos solo si el evento dice quién tiró (usamos currentPlayer si no viene)
+          _animateRemoteDice(data['diceValue'], data['playerId'] ?? currentPlayer.id);
         } else {
-          // Si fuimos nosotros, solo confirmamos el valor final
           diceValue = data['diceValue'];
           notifyListeners();
         }
@@ -215,25 +220,22 @@ class NetworkGameController extends GameController {
     }
   }
 
-  /// ✅ NUEVO: Simula el giro del dado para acciones remotas (oponentes o IA)
-  Future<void> _animateRemoteDice(int finalValue) async {
+  Future<void> _animateRemoteDice(int finalValue, String targetPlayerId) async {
     rollingDice = true;
+    rollingPlayerId = targetPlayerId; // ✅ Identificamos al autor del tiro
     notifyListeners();
 
     diceAudio.play(AssetSource('sounds/dice.mp3'));
-
-    // Giro rápido de caras aleatorias
     for (int i = 0; i < 8; i++) {
       diceValue = random.nextInt(6) + 1;
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 70));
     }
-
-    // Ponemos el valor real enviado por el servidor
     diceValue = finalValue;
     await Future.delayed(GameController.diceAnimDuration);
     
     rollingDice = false;
+    rollingPlayerId = null; // ✅ Limpiamos
     notifyListeners();
   }
 
@@ -281,7 +283,6 @@ class NetworkGameController extends GameController {
 
   Future<void> _animatePlayerMovement(Player player, int target) async {
     _animatingPlayers.add(player.id);
-    
     if (target < player.position) {
       player.position = target;
       await playSendToHomeSound();
@@ -299,15 +300,16 @@ class NetworkGameController extends GameController {
 
   @override
   Future<void> rollDice() async {
-    if (engine.currentPlayer.isAI || rollingDice || inputLocked || engine.phase == GamePhase.finished) return;
+    if (!isMyTurn || engine.currentPlayer.isAI || rollingDice || inputLocked || engine.phase == GamePhase.finished) return;
+    
     inputLocked = true;
     rollingDice = true;
+    rollingPlayerId = PrefsService.playerId; // ✅ Marcamos que soy yo quien tira
     notifyListeners();
 
     HapticFeedback.lightImpact();
     diceAudio.play(AssetSource('sounds/dice.mp3'));
 
-    // Animación visual local preventiva
     for (int i = 0; i < 10; i++) {
       diceValue = random.nextInt(6) + 1;
       notifyListeners();
@@ -315,9 +317,9 @@ class NetworkGameController extends GameController {
     }
 
     socketService.send('roll_dice');
-    // Nota: El valor final vendrá en el evento dice_result
     await Future.delayed(GameController.diceAnimDuration);
     rollingDice = false;
+    // No limpiamos rollingPlayerId aquí porque vendrá el dice_result para confirmarlo
     notifyListeners();
   }
 

@@ -10,6 +10,7 @@ import '../widgets/board_widget.dart';
 import '../widgets/dice_widget.dart';
 import '../widgets/home_zone_widget.dart';
 import '../../service/socket_service.dart';
+import '../../service/prefs_service.dart';
 
 class GameScreen extends StatefulWidget {
   final int playerCount;
@@ -29,7 +30,7 @@ class _GameScreenState extends State<GameScreen> {
   late final ConfettiController _confettiController;
   final Set<String> _announcedWinners = {};
   bool _isGameFinishedDialogShown = false;
-  final Set<String> _processedEvents = {}; // ✅ Para no repetir avisos
+  final Set<String> _processedEvents = {};
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _chatScrollController = ScrollController();
 
@@ -42,7 +43,7 @@ class _GameScreenState extends State<GameScreen> {
       final controller = context.read<GameController>();
       controller.addListener(_onGameUpdate);
 
-      if (controller.engine.players.isEmpty) {
+      if (!controller.isOnline && controller.engine.players.isEmpty) {
         final tokens = [
           'assets/tokens/red.png',
           'assets/tokens/blue.png',
@@ -79,42 +80,28 @@ class _GameScreenState extends State<GameScreen> {
     if (!mounted) return;
 
     final controller = context.read<GameController>();
-    final engine = controller.engine;
-
-    // --- 🔔 RESTAURADO: CONSUMIR Y MOSTRAR EVENTOS (AVISOS) ---
+    
     final newEvents = controller.consumeEvents();
     for (final event in newEvents) {
       if (!_processedEvents.contains(event.id)) {
         _processedEvents.add(event.id);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(event.message, style: const TextStyle(fontWeight: FontWeight.bold)),
+            content: Text(event.message),
             backgroundColor: Colors.orangeAccent.shade700,
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
     }
 
-    // --- 🏆 GANADORES Y FIN DE JUEGO ---
-    for (final player in engine.finishedPlayers) {
-      if (!_announcedWinners.contains(player.id)) {
-        _announcedWinners.add(player.id);
-        if (engine.phase != GamePhase.finished) {
-          _confettiController.play();
-        }
-      }
-    }
-
-    if (engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
+    if (controller.engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
       _isGameFinishedDialogShown = true;
       _confettiController.play();
       WidgetsBinding.instance.addPostFrameCallback((_) => _showGameFinishedDialog());
     }
 
-    // Auto-scroll chat
     if (_scaffoldKey.currentState?.isEndDrawerOpen ?? false) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_chatScrollController.hasClients) {
@@ -134,6 +121,8 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
     final isConnected = context.watch<SocketService>().isConnected;
+    
+    final bool isWaiting = controller.isOnline && controller.players.length < 2;
 
     return PopScope(
       canPop: false,
@@ -175,6 +164,29 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ),
                         ..._buildPlayers(controller),
+                        
+                        if (isWaiting)
+                          Container(
+                            color: Colors.black54,
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const CircularProgressIndicator(color: Colors.white),
+                                  const SizedBox(height: 20),
+                                  const Text(
+                                    'ESPERANDO A OTROS JUGADORES...',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Código: ${widget.roomCode}',
+                                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 24, fontWeight: FontWeight.w900),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -235,29 +247,30 @@ class _GameScreenState extends State<GameScreen> {
 
           Row(
             children: [
-              Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chat, color: Colors.white70),
-                    onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-                  ),
-                  if (controller.chatMessages.isNotEmpty)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                        child: Text(
-                          '${controller.chatMessages.length}',
-                          style: const TextStyle(color: Colors.white, fontSize: 10),
-                          textAlign: TextAlign.center,
+              if (controller.isOnline)
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chat, color: Colors.white70),
+                      onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+                    ),
+                    if (controller.chatMessages.isNotEmpty)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '${controller.chatMessages.length}',
+                            style: const TextStyle(color: Colors.white, fontSize: 10),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                ),
               IconButton(
                 icon: const Icon(Icons.exit_to_app, color: Colors.white70),
                 onPressed: () async {
@@ -275,7 +288,6 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildChatDrawer(GameController controller) {
     final TextEditingController chatInputController = TextEditingController();
-
     return Drawer(
       child: Column(
         children: [
@@ -404,7 +416,14 @@ class _PlayerCornerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
-    final isTurn = controller.currentPlayer.id == player.id;
+    
+    final bool isMe = controller.isOnline && player.id == PrefsService.playerId;
+    final bool isTurn = controller.currentPlayer.id == player.id;
+    
+    // ✅ CORRECCIÓN: El dado solo gira si este jugador específico es quien está tirando
+    final bool isThisDiceRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
+    
+    final bool canITap = isTurn && isMe && !player.isAI && !controller.rollingDice;
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -438,12 +457,12 @@ class _PlayerCornerWidget extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: isTurn && !controller.rollingDice && !player.isAI ? controller.rollDice : null,
+            onTap: canITap ? controller.rollDice : null,
             child: Opacity(
-              opacity: player.isAI ? 0.5 : 1.0,
+              opacity: !isMe || player.isAI ? 0.4 : 1.0,
               child: DiceWidget(
                 value: controller.diceValue,
-                rolling: controller.rollingDice && isTurn,
+                rolling: isThisDiceRolling, // ✅ Ahora es específico por jugador
                 style: const DiceStyle(
                   sides: 6,
                   size: 55, 
