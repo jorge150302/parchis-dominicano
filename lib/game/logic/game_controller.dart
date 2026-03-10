@@ -14,7 +14,7 @@ abstract class GameController extends ChangeNotifier {
   final GameEngine engine;
   
   bool rollingDice = false;
-  String? rollingPlayerId; // 🎲 Quién está tirando el dado ahora
+  String? rollingPlayerId;
   bool inputLocked = false;
   int diceValue = 1;
 
@@ -24,7 +24,7 @@ abstract class GameController extends ChangeNotifier {
   final Random random = Random();
 
   static const diceAnimDuration = Duration(milliseconds: 300);
-  static const inputLockDuration = Duration(milliseconds: 1500);
+  static const inputLockDuration = Duration(milliseconds: 1000);
 
   List<ChatMessage> chatMessages = [];
 
@@ -104,7 +104,7 @@ class LocalGameController extends GameController {
 
     inputLocked = true;
     rollingDice = true;
-    rollingPlayerId = currentPlayer.id; // ✅ Marcamos quién tira
+    rollingPlayerId = currentPlayer.id;
     notifyListeners();
 
     diceAudio.play(AssetSource('sounds/dice.mp3'));
@@ -121,16 +121,15 @@ class LocalGameController extends GameController {
 
     await Future.delayed(GameController.diceAnimDuration);
     rollingDice = false;
-    rollingPlayerId = null; // ✅ Limpiamos
+    rollingPlayerId = null;
     notifyListeners();
 
     final player = currentPlayer;
-    if (diceValue == 6) player.extraTurns++;
-    engine.registerSix(player, diceValue);
+    if (diceValue == 6) player.consecutiveSixes++;
+    else player.consecutiveSixes = 0;
 
     if (engine.reachedThreeSixes(player)) {
       if (engine.penaltyThreeSixes(player)) await playSendToHomeSound();
-      player.extraTurns = 0;
       engine.nextTurn();
       startTurn();
       _unlockInputLater();
@@ -143,8 +142,8 @@ class LocalGameController extends GameController {
 
     if (player.isFinished) {
       engine.nextTurn();
-    } else if (player.extraTurns > 0) {
-      player.extraTurns--;
+    } else if (diceValue == 6) {
+      // Se queda igual
     } else {
       engine.nextTurn();
     }
@@ -188,6 +187,7 @@ class NetworkGameController extends GameController {
   StreamSubscription? _socketSubscription;
   String? currentRoomCode;
   final Set<String> _animatingPlayers = {};
+  int _lastServerDiceValue = 0;
 
   @override
   bool get isOnline => true;
@@ -208,8 +208,8 @@ class NetworkGameController extends GameController {
     switch (eventName) {
       case 'game_state': _updateGameState(data); break;
       case 'dice_result': 
+        _lastServerDiceValue = data['diceValue'];
         if (!rollingDice) {
-          // ✅ Animamos solo si el evento dice quién tiró (usamos currentPlayer si no viene)
           _animateRemoteDice(data['diceValue'], data['playerId'] ?? currentPlayer.id);
         } else {
           diceValue = data['diceValue'];
@@ -217,12 +217,16 @@ class NetworkGameController extends GameController {
         }
         break;
       case 'chat': _handleChatMessage(data); break;
+      case 'game_event':
+        engine.events.add(GameEvent(message: data['message'] ?? ''));
+        notifyListeners();
+        break;
     }
   }
 
   Future<void> _animateRemoteDice(int finalValue, String targetPlayerId) async {
     rollingDice = true;
-    rollingPlayerId = targetPlayerId; // ✅ Identificamos al autor del tiro
+    rollingPlayerId = targetPlayerId;
     notifyListeners();
 
     diceAudio.play(AssetSource('sounds/dice.mp3'));
@@ -235,7 +239,7 @@ class NetworkGameController extends GameController {
     await Future.delayed(GameController.diceAnimDuration);
     
     rollingDice = false;
-    rollingPlayerId = null; // ✅ Limpiamos
+    rollingPlayerId = null;
     notifyListeners();
   }
 
@@ -250,6 +254,8 @@ class NetworkGameController extends GameController {
   void _updateGameState(Map<String, dynamic> data) {
     final List serverPlayers = data['players'] ?? [];
     final String? currentPlayerId = data['currentPlayerId'];
+    final String? phase = data['phase'];
+    final List winners = data['winners'] ?? [];
     currentRoomCode = data['roomCode'] ?? currentRoomCode;
 
     final tokens = ['assets/tokens/red.png', 'assets/tokens/blue.png', 'assets/tokens/green.png', 'assets/tokens/yellow.png'];
@@ -269,20 +275,42 @@ class NetworkGameController extends GameController {
       );
 
       if (player.position != targetPosition && !_animatingPlayers.contains(id)) {
-        _animatePlayerMovement(player, targetPosition);
+        int jump = (targetPosition - player.position).abs();
+        if (jump != _lastServerDiceValue) {
+          player.position = targetPosition;
+          if (targetPosition < player.position) playSendToHomeSound();
+          notifyListeners();
+        } else {
+          _animatePlayerMovement(player, targetPosition);
+        }
       }
 
       player.isFinished = playerData['isFinished'] ?? false;
       player.isAI = playerData['isAI'] ?? false;
     }
 
+    // ✅ SINCRONIZACIÓN DE FIN DE JUEGO
+    if (phase == 'finished') {
+      engine.phase = GamePhase.finished;
+      // Sincronizamos la lista de ganadores en orden
+      engine.finishedPlayers.clear();
+      for (var winnerId in winners) {
+        final winner = engine.players.firstWhere((p) => p.id == winnerId);
+        engine.finishedPlayers.add(winner);
+      }
+    } else {
+      engine.phase = GamePhase.idle;
+    }
+
     if (currentPlayerId != null) engine.setCurrentPlayerById(currentPlayerId);
-    inputLocked = false;
+    if (_animatingPlayers.isEmpty) inputLocked = false;
     notifyListeners();
   }
 
   Future<void> _animatePlayerMovement(Player player, int target) async {
     _animatingPlayers.add(player.id);
+    inputLocked = true;
+
     if (target < player.position) {
       player.position = target;
       await playSendToHomeSound();
@@ -296,30 +324,27 @@ class NetworkGameController extends GameController {
       }
     }
     _animatingPlayers.remove(player.id);
+    inputLocked = false;
+    notifyListeners();
   }
 
   @override
   Future<void> rollDice() async {
     if (!isMyTurn || engine.currentPlayer.isAI || rollingDice || inputLocked || engine.phase == GamePhase.finished) return;
-    
     inputLocked = true;
     rollingDice = true;
-    rollingPlayerId = PrefsService.playerId; // ✅ Marcamos que soy yo quien tira
+    rollingPlayerId = PrefsService.playerId;
     notifyListeners();
-
     HapticFeedback.lightImpact();
     diceAudio.play(AssetSource('sounds/dice.mp3'));
-
     for (int i = 0; i < 10; i++) {
       diceValue = random.nextInt(6) + 1;
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 60));
     }
-
     socketService.send('roll_dice');
     await Future.delayed(GameController.diceAnimDuration);
     rollingDice = false;
-    // No limpiamos rollingPlayerId aquí porque vendrá el dice_result para confirmarlo
     notifyListeners();
   }
 

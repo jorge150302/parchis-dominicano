@@ -81,18 +81,32 @@ class _GameScreenState extends State<GameScreen> {
 
     final controller = context.read<GameController>();
     
+    // --- 🔔 MOSTRAR MENSAJES DEL SERVIDOR O LOCALES ---
     final newEvents = controller.consumeEvents();
     for (final event in newEvents) {
       if (!_processedEvents.contains(event.id)) {
         _processedEvents.add(event.id);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(event.message),
-            backgroundColor: Colors.orangeAccent.shade700,
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        
+        // Usamos un pequeño delay para no saturar si hay muchos eventos
+        Future.delayed(Duration(milliseconds: newEvents.indexOf(event) * 500), () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(event.message, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+                ],
+              ),
+              backgroundColor: Colors.orange.shade800.withValues(alpha: 0.95),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+          );
+        });
       }
     }
 
@@ -419,8 +433,6 @@ class _PlayerCornerWidget extends StatelessWidget {
     
     final bool isMe = controller.isOnline && player.id == PrefsService.playerId;
     final bool isTurn = controller.currentPlayer.id == player.id;
-    
-    // ✅ CORRECCIÓN: El dado solo gira si este jugador específico es quien está tirando
     final bool isThisDiceRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
     
     final bool canITap = isTurn && isMe && !player.isAI && !controller.rollingDice;
@@ -462,7 +474,7 @@ class _PlayerCornerWidget extends StatelessWidget {
               opacity: !isMe || player.isAI ? 0.4 : 1.0,
               child: DiceWidget(
                 value: controller.diceValue,
-                rolling: isThisDiceRolling, // ✅ Ahora es específico por jugador
+                rolling: isThisDiceRolling,
                 style: const DiceStyle(
                   sides: 6,
                   size: 55, 
