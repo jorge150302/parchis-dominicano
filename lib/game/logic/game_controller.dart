@@ -274,7 +274,6 @@ class NetworkGameController extends GameController {
         },
       );
 
-      // ✅ Sincronizamos reglas avanzadas desde el servidor
       player.skippedTurns = playerData['skippedTurns'] ?? 0;
       player.extraTurns = playerData['extraTurns'] ?? 0;
       player.consecutiveSixes = playerData['consecutiveSixes'] ?? 0;
@@ -282,7 +281,6 @@ class NetworkGameController extends GameController {
       if (player.position != targetPosition && !_animatingPlayers.contains(id)) {
         int jump = (targetPosition - player.position).abs();
         
-        // Si es teletransporte (salto no coincide con dado) o es el autor del tiro y ya terminamos su animación local
         if (jump != _lastServerDiceValue) {
           player.position = targetPosition;
           if (targetPosition < player.position) playSendToHomeSound();
@@ -302,6 +300,10 @@ class NetworkGameController extends GameController {
       for (var winnerId in winners) {
         final winner = engine.players.firstWhere((p) => p.id == winnerId);
         engine.finishedPlayers.add(winner);
+      }
+      // ✅ Sincronización con el Servidor: La sala ha terminado, olvidamos el código de reconexión.
+      if (PrefsService.lastRoomCode == currentRoomCode) {
+        PrefsService.lastRoomCode = null;
       }
     } else {
       engine.phase = GamePhase.idle;

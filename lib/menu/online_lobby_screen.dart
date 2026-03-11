@@ -18,6 +18,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   late final StreamSubscription _socketSubscription;
   bool _isLoading = false;
   String? _currentRoomCode;
+  int? _maxPlayersInRoom;
+  int _currentPlayersInRoom = 0;
 
   final String _serverUrl = Env.serverUrl;
 
@@ -30,32 +32,60 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   void _handleServerEvent(Map<String, dynamic> event) {
     if (!mounted) return;
-    setState(() => _isLoading = false);
 
     final eventName = event['event'];
     final data = event['data'];
 
     switch (eventName) {
       case 'game_created':
-        _currentRoomCode = data['roomCode'];
+        setState(() {
+          _isLoading = false;
+          _currentRoomCode = data['roomCode'];
+          _maxPlayersInRoom = data['maxPlayers'] ?? 2;
+          _currentPlayersInRoom = 1;
+        });
         PrefsService.lastRoomCode = _currentRoomCode;
         break;
       case 'game_joined':
-        _currentRoomCode ??= data['roomCode'] ?? _roomCodeController.text.trim();
+        setState(() {
+          _isLoading = false;
+          _currentRoomCode ??= data['roomCode'] ?? _roomCodeController.text.trim();
+          _maxPlayersInRoom = data['maxPlayers'];
+        });
         PrefsService.lastRoomCode = _currentRoomCode;
         break;
       case 'game_state':
-        final List players = data['players'];
-        Navigator.pushReplacementNamed(
-          context,
-          '/game',
-          arguments: {
-            'playerCount': players.length,
-            'roomCode': _currentRoomCode,
-          }
+        final List players = data['players'] ?? [];
+        final int maxPlayers = data['maxPlayers'] ?? 2;
+        
+        setState(() {
+          _currentPlayersInRoom = players.length;
+          _maxPlayersInRoom = maxPlayers;
+        });
+
+        // REGLA 2: Solo navegamos si la sala está llena
+        if (players.length >= maxPlayers) {
+          setState(() => _isLoading = false);
+          Navigator.pushReplacementNamed(
+            context,
+            '/game',
+            arguments: {
+              'playerCount': players.length,
+              'roomCode': _currentRoomCode,
+            }
+          );
+        }
+        break;
+      case 'info':
+        // Manejo de avisos del servidor (ej: sugerencia de fluidez)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] ?? ''), backgroundColor: Colors.orange),
         );
         break;
       case 'error':
+        setState(() => _isLoading = false);
+        _currentRoomCode = null;
+        _maxPlayersInRoom = null;
         PrefsService.lastRoomCode = null;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${data['message']}'), backgroundColor: Colors.red),
@@ -64,14 +94,41 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     }
   }
 
-  Future<void> _connectAndCreate() async {
+  // REGLA 1: Selección de cantidad de jugadores
+  Future<void> _showPlayerCountSelection() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return _showError('Introduce tu nombre');
+
+    final int? selected = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Configurar nueva sala'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [2, 3, 4].map((n) => ListTile(
+            title: Text('$n Jugadores'),
+            leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
+            onTap: () => Navigator.pop(context, n),
+          )).toList(),
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      _connectAndCreate(selected);
+    }
+  }
+
+  Future<void> _connectAndCreate(int maxPlayers) async {
+    final name = _nameController.text.trim();
     PrefsService.playerName = name;
     setState(() => _isLoading = true);
     try {
       await socketService.connect(_serverUrl);
-      socketService.send('create_game', {'name': name});
+      socketService.send('create_game', {
+        'name': name,
+        'maxPlayers': maxPlayers,
+      });
     } catch (e) {
       setState(() => _isLoading = false);
       _showError('No se pudo conectar: $e');
@@ -133,66 +190,83 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
                     const SizedBox(height: 10),
                     const Text(
-                      'Configuración de partida online',
+                      'Multijugador en Línea',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
                     ).animate().fadeIn(delay: 200.ms),
 
                     const SizedBox(height: 40),
 
-                    // --- RECONEXIÓN RÁPIDA ---
-                    if (lastCode != null && !_isLoading)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 30),
-                        child: _actionButton(
-                          title: 'VOLVER A SALA: $lastCode',
-                          color: Colors.orange.shade700,
-                          onTap: () => _connectAndJoin(manualCode: lastCode),
-                        ).animate(
-                          onPlay: (controller) => controller.repeat(), // ✅ Forma correcta de repetir
-                        ).shimmer(duration: 1500.ms),
-                      ),
+                    if (_currentRoomCode != null)
+                      _buildWaitingRoom()
+                    else ...[
+                      // --- RECONEXIÓN RÁPIDA ---
+                      if (lastCode != null && !_isLoading)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 30),
+                          child: _actionButton(
+                            title: 'VOLVER A SALA: $lastCode',
+                            color: Colors.orange.shade700,
+                            onTap: () => _connectAndJoin(manualCode: lastCode),
+                          ).animate(
+                            onPlay: (controller) => controller.repeat(), 
+                          ).shimmer(duration: 1500.ms),
+                        ),
 
-                    _customTextField(
-                      controller: _nameController,
-                      hint: 'TU NOMBRE',
-                      icon: Icons.person,
-                    ).animate().fadeIn(delay: 400.ms).slideX(begin: -0.2),
+                      _customTextField(
+                        controller: _nameController,
+                        hint: 'TU NOMBRE',
+                        icon: Icons.person,
+                      ).animate().fadeIn(delay: 400.ms).slideX(begin: -0.2),
 
-                    const SizedBox(height: 30),
+                      const SizedBox(height: 30),
 
-                    if (_isLoading)
-                      const CircularProgressIndicator(color: Colors.orangeAccent)
-                    else
+                      if (_isLoading)
+                        const CircularProgressIndicator(color: Colors.orangeAccent)
+                      else
+                        _actionButton(
+                          title: 'CREAR NUEVA SALA',
+                          color: Colors.green.shade600,
+                          onTap: _showPlayerCountSelection,
+                        ).animate().fadeIn(delay: 600.ms).scale(),
+
+                      const SizedBox(height: 40),
+                      const Divider(color: Colors.white38, thickness: 1.5, indent: 50, endIndent: 50),
+                      const SizedBox(height: 40),
+
+                      _customTextField(
+                        controller: _roomCodeController,
+                        hint: 'CÓDIGO DE SALA',
+                        icon: Icons.vpn_key,
+                        isCode: true,
+                      ).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
+
+                      const SizedBox(height: 20),
+
                       _actionButton(
-                        title: 'CREAR NUEVA SALA',
-                        color: Colors.green.shade600,
-                        onTap: _connectAndCreate,
-                      ).animate().fadeIn(delay: 600.ms).scale(),
-
-                    const SizedBox(height: 40),
-                    const Divider(color: Colors.white38, thickness: 1.5, indent: 50, endIndent: 50),
-                    const SizedBox(height: 40),
-
-                    _customTextField(
-                      controller: _roomCodeController,
-                      hint: 'CÓDIGO DE SALA',
-                      icon: Icons.vpn_key,
-                      isCode: true,
-                    ).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
-
-                    const SizedBox(height: 20),
-
-                    _actionButton(
-                      title: 'UNIRSE A PARTIDA',
-                      color: Colors.blueAccent,
-                      onTap: () => _connectAndJoin(),
-                    ).animate().fadeIn(delay: 1000.ms).scale(),
+                        title: 'UNIRSE A PARTIDA',
+                        color: Colors.blueAccent,
+                        onTap: () => _connectAndJoin(),
+                      ).animate().fadeIn(delay: 1000.ms).scale(),
+                    ],
 
                     const SizedBox(height: 40),
                     
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('← Volver al Menú', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        if (_currentRoomCode != null) {
+                          socketService.disconnect();
+                          setState(() {
+                            _currentRoomCode = null;
+                            _maxPlayersInRoom = null;
+                          });
+                        } else {
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: Text(
+                        _currentRoomCode != null ? 'SALIR DE LA SALA' : '← Volver al Menú', 
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+                      ),
                     ),
                   ],
                 ),
@@ -202,6 +276,53 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildWaitingRoom() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: Colors.orangeAccent, width: 2),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'ESPERANDO JUGADORES',
+            style: TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            _currentRoomCode ?? '',
+            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 4),
+          ),
+          const SizedBox(height: 25),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.person, color: Colors.white70),
+              const SizedBox(width: 8),
+              Text(
+                '$_currentPlayersInRoom / ${_maxPlayersInRoom ?? "?"}',
+                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const LinearProgressIndicator(
+            backgroundColor: Colors.white10,
+            color: Colors.orangeAccent,
+          ),
+          const SizedBox(height: 15),
+          const Text(
+            'El juego iniciará cuando la sala esté llena.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
+    ).animate().fadeIn().scale();
   }
 
   Widget _customTextField({
