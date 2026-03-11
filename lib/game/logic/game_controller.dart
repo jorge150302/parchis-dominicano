@@ -143,7 +143,7 @@ class LocalGameController extends GameController {
     if (player.isFinished) {
       engine.nextTurn();
     } else if (diceValue == 6) {
-      // Se queda igual
+      // Tirar de nuevo
     } else {
       engine.nextTurn();
     }
@@ -274,8 +274,15 @@ class NetworkGameController extends GameController {
         },
       );
 
+      // ✅ Sincronizamos reglas avanzadas desde el servidor
+      player.skippedTurns = playerData['skippedTurns'] ?? 0;
+      player.extraTurns = playerData['extraTurns'] ?? 0;
+      player.consecutiveSixes = playerData['consecutiveSixes'] ?? 0;
+
       if (player.position != targetPosition && !_animatingPlayers.contains(id)) {
         int jump = (targetPosition - player.position).abs();
+        
+        // Si es teletransporte (salto no coincide con dado) o es el autor del tiro y ya terminamos su animación local
         if (jump != _lastServerDiceValue) {
           player.position = targetPosition;
           if (targetPosition < player.position) playSendToHomeSound();
@@ -289,10 +296,8 @@ class NetworkGameController extends GameController {
       player.isAI = playerData['isAI'] ?? false;
     }
 
-    // ✅ SINCRONIZACIÓN DE FIN DE JUEGO
     if (phase == 'finished') {
       engine.phase = GamePhase.finished;
-      // Sincronizamos la lista de ganadores en orden
       engine.finishedPlayers.clear();
       for (var winnerId in winners) {
         final winner = engine.players.firstWhere((p) => p.id == winnerId);
@@ -331,17 +336,21 @@ class NetworkGameController extends GameController {
   @override
   Future<void> rollDice() async {
     if (!isMyTurn || engine.currentPlayer.isAI || rollingDice || inputLocked || engine.phase == GamePhase.finished) return;
+    
     inputLocked = true;
     rollingDice = true;
     rollingPlayerId = PrefsService.playerId;
     notifyListeners();
+
     HapticFeedback.lightImpact();
     diceAudio.play(AssetSource('sounds/dice.mp3'));
+
     for (int i = 0; i < 10; i++) {
       diceValue = random.nextInt(6) + 1;
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 60));
     }
+
     socketService.send('roll_dice');
     await Future.delayed(GameController.diceAnimDuration);
     rollingDice = false;
