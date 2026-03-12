@@ -333,16 +333,53 @@ class _GameScreenState extends State<GameScreen> {
               itemCount: controller.chatMessages.length,
               itemBuilder: (context, index) {
                 final msg = controller.chatMessages[index];
+                // ✅ REGLA: Detectamos si el mensaje es nuestro para alinearlo a la derecha
+                final bool isMe = controller.isOnline && msg.senderId == PrefsService.playerId;
+
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                     children: [
-                      Text(msg.sender, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
+                        child: Text(
+                          isMe ? 'Yo' : msg.sender,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
                       Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(10)),
-                        child: Text(msg.message),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.6,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.orange.shade400 : Colors.grey.shade200,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: Radius.circular(isMe ? 16 : 0),
+                            bottomRight: Radius.circular(isMe ? 0 : 16),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            )
+                          ],
+                        ),
+                        child: Text(
+                          msg.message,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black87,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -351,30 +388,53 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: chatInputController,
-                    onSubmitted: (value) {
-                      if (value.trim().isNotEmpty) {
-                        controller.sendChatMessage(value.trim());
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(25),
+                      border: Border.all(color: Colors.orange.shade200, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        )
+                      ],
+                    ),
+                    child: TextField(
+                      controller: chatInputController,
+                      onSubmitted: (value) {
+                        if (value.trim().isNotEmpty) {
+                          controller.sendChatMessage(value.trim());
+                          chatInputController.clear();
+                        }
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'Escribe un mensaje...',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Colors.orange,
+                  child: IconButton(
+                    icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                    onPressed: () {
+                      final text = chatInputController.text.trim();
+                      if (text.isNotEmpty) {
+                        controller.sendChatMessage(text);
                         chatInputController.clear();
                       }
                     },
-                    decoration: const InputDecoration(hintText: 'Escribe un mensaje...', border: OutlineInputBorder()),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.orange),
-                  onPressed: () {
-                    final text = chatInputController.text.trim();
-                    if (text.isNotEmpty) {
-                      controller.sendChatMessage(text);
-                      chatInputController.clear();
-                    }
-                  },
                 ),
               ],
             ),

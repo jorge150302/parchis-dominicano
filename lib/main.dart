@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:frontend_parchis/menu/online_lobby_screen.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
-import 'package:frontend_parchis/service/prefs_service.dart'; // ✅ Importamos Prefs
+import 'package:frontend_parchis/service/prefs_service.dart';
+import 'package:frontend_parchis/config/env.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/splash_screen.dart';
@@ -15,7 +16,6 @@ import 'game/logic/board_generator.dart';
 import 'game/logic/board_presets.dart';
 
 void main() async {
-  // ✅ Inicialización obligatoria para SharedPreferences y Servicios
   WidgetsFlutterBinding.ensureInitialized();
   await PrefsService.init(); 
   
@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Parché',
-        initialRoute: '/',
+        initialRoute: '/', 
         routes: {
           '/': (_) => const SplashScreen(),
           '/menu': (_) => const MainMenuScreen(),

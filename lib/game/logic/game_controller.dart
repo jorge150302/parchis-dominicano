@@ -213,12 +213,9 @@ class NetworkGameController extends GameController {
         _lastServerDiceValue = data['diceValue'];
 
         if (isMe) {
-          // ✅ Si soy yo, el valor se actualiza para la animación local que ya está corriendo.
-          // No disparamos _animateRemoteDice para evitar el "doble giro".
           diceValue = data['diceValue'];
           notifyListeners();
         } else {
-          // Si es otro jugador, animamos el giro del dado en su esquina.
           if (!rollingDice || rollingPlayerId != targetId) {
             _animateRemoteDice(data['diceValue'], targetId);
           }
@@ -256,7 +253,13 @@ class NetworkGameController extends GameController {
   }
 
   void _handleChatMessage(Map<String, dynamic> data) {
-    chatMessages.add(ChatMessage(sender: data['sender'] ?? 'Servidor', message: data['message'] ?? '', timestamp: DateTime.now()));
+    // ✅ REGLA: Guardamos el senderId para identificar quién es "Yo" en la UI
+    chatMessages.add(ChatMessage(
+      senderId: data['senderId'] ?? '',
+      sender: data['sender'] ?? 'Servidor',
+      message: data['message'] ?? '',
+      timestamp: DateTime.now()
+    ));
     notifyListeners();
   }
 
@@ -374,7 +377,7 @@ class NetworkGameController extends GameController {
 
     socketService.send('roll_dice');
     await Future.delayed(GameController.diceAnimDuration);
-    rollingDice = false; // El flag se baja, pero el handler de dice_result ya sabe ignorarnos
+    rollingDice = false;
     notifyListeners();
   }
 
@@ -386,8 +389,9 @@ class NetworkGameController extends GameController {
 }
 
 class ChatMessage {
+  final String senderId;
   final String sender;
   final String message;
   final DateTime timestamp;
-  ChatMessage({required this.sender, required this.message, required this.timestamp});
+  ChatMessage({required this.senderId, required this.sender, required this.message, required this.timestamp});
 }

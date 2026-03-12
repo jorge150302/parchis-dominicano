@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:frontend_parchis/service/prefs_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,14 +15,20 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    // Intentamos precargar la imagen para evitar el flash negro en Web
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(const AssetImage('assets/splash/splash_logo.png'), context);
 
-      // Reducimos un poco el tiempo o lo hacemos dinámico
-      Timer(const Duration(milliseconds: 2500), () {
+      Timer(const Duration(milliseconds: 2000), () {
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/menu');
+          final lastRoom = PrefsService.lastRoomCode;
+
+          // ✅ REGLA 2: Si el usuario recarga la página (Web),
+          // detectamos si tenía una sala activa para reconectarlo automáticamente.
+          if (lastRoom != null && lastRoom.isNotEmpty) {
+            Navigator.of(context).pushReplacementNamed('/online_lobby');
+          } else {
+            Navigator.of(context).pushReplacementNamed('/menu');
+          }
         }
       });
     });
@@ -30,7 +37,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // Color de fondo mientras carga la imagen
+      backgroundColor: Colors.black,
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -43,7 +50,6 @@ class _SplashScreenState extends State<SplashScreen> {
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
-            // Añadimos un placeholder o error builder para debug
             errorBuilder: (context, error, stackTrace) {
               return const Center(
                 child: Text(
