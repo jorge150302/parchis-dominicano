@@ -230,6 +230,7 @@ class NetworkGameController extends GameController {
     notifyListeners();
 
     diceAudio.play(AssetSource('sounds/dice.mp3'));
+    // REGLA 3: Reducimos animación a ~800ms para que no solape con el movimiento IA (1.5s)
     for (int i = 0; i < 8; i++) {
       diceValue = random.nextInt(6) + 1;
       notifyListeners();
@@ -254,7 +255,7 @@ class NetworkGameController extends GameController {
   void _updateGameState(Map<String, dynamic> data) {
     final List serverPlayers = data['players'] ?? [];
     final String? currentPlayerId = data['currentPlayerId'];
-    final String? phase = data['phase'];
+    final String? phaseStr = data['phase'];
     final List winners = data['winners'] ?? [];
     currentRoomCode = data['roomCode'] ?? currentRoomCode;
 
@@ -263,12 +264,17 @@ class NetworkGameController extends GameController {
     for (var playerData in serverPlayers) {
       final String id = playerData['id'];
       final int targetPosition = playerData['position'] ?? 0;
-      final int slotIndex = playerData['index'] ?? 0;
+      final int slotIndex = playerData['index'] ?? 0; // REGLA 5: Slot fijo del servidor
       
       final player = engine.players.firstWhere(
         (p) => p.id == id,
         orElse: () {
-          final p = Player(id: id, name: playerData['name'], index: slotIndex, tokenAsset: tokens[slotIndex % tokens.length]);
+          final p = Player(
+            id: id, 
+            name: playerData['name'], 
+            index: slotIndex, 
+            tokenAsset: tokens[slotIndex % tokens.length]
+          );
           engine.players.add(p);
           return p;
         },
@@ -294,23 +300,30 @@ class NetworkGameController extends GameController {
       player.isAI = playerData['isAI'] ?? false;
     }
 
-    if (phase == 'finished') {
+    // REGLA 2: Mapeo detallado de fases
+    if (phaseStr == 'finished') {
       engine.phase = GamePhase.finished;
       engine.finishedPlayers.clear();
       for (var winnerId in winners) {
         final winner = engine.players.firstWhere((p) => p.id == winnerId);
         engine.finishedPlayers.add(winner);
       }
-      // ✅ Sincronización con el Servidor: La sala ha terminado, olvidamos el código de reconexión.
       if (PrefsService.lastRoomCode == currentRoomCode) {
         PrefsService.lastRoomCode = null;
       }
+    } else if (phaseStr == 'moving') {
+      engine.phase = GamePhase.moving;
+      inputLocked = true; // REGLA 2: Bloqueo en fase moving
+    } else if (phaseStr == 'rolling') {
+      engine.phase = GamePhase.rolling;
     } else {
       engine.phase = GamePhase.idle;
     }
 
     if (currentPlayerId != null) engine.setCurrentPlayerById(currentPlayerId);
-    if (_animatingPlayers.isEmpty) inputLocked = false;
+    if (_animatingPlayers.isEmpty && engine.phase != GamePhase.moving) {
+      inputLocked = false;
+    }
     notifyListeners();
   }
 
@@ -331,12 +344,13 @@ class NetworkGameController extends GameController {
       }
     }
     _animatingPlayers.remove(player.id);
-    inputLocked = false;
+    if (engine.phase != GamePhase.moving) inputLocked = false;
     notifyListeners();
   }
 
   @override
   Future<void> rollDice() async {
+    // REGLA 2: Solo habilitado si es mi turno y fase rolling
     if (!isMyTurn || engine.currentPlayer.isAI || rollingDice || inputLocked || engine.phase == GamePhase.finished) return;
     
     inputLocked = true;

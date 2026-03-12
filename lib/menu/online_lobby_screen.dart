@@ -53,48 +53,71 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           _maxPlayersInRoom = data['maxPlayers'];
         });
         PrefsService.lastRoomCode = _currentRoomCode;
+        
+        // REGLA 1 (Backend): Salto directo por reconexión
+        if (data['reconnected'] == true) {
+          _navigateToGame();
+        }
         break;
       case 'game_state':
         final List players = data['players'] ?? [];
         final int maxPlayers = data['maxPlayers'] ?? 2;
+        final String? phase = data['phase'];
         
         setState(() {
           _currentPlayersInRoom = players.length;
           _maxPlayersInRoom = maxPlayers;
         });
 
-        // REGLA 2: Solo navegamos si la sala está llena
-        if (players.length >= maxPlayers) {
-          setState(() => _isLoading = false);
-          Navigator.pushReplacementNamed(
-            context,
-            '/game',
-            arguments: {
-              'playerCount': players.length,
-              'roomCode': _currentRoomCode,
-            }
-          );
+        // REGLA 2: Entrada si la sala está llena O si el juego ya está en marcha (reconexión automática)
+        if (players.length >= maxPlayers || (phase != null && phase != 'idle' && phase != 'finished')) {
+          _navigateToGame(playerCount: players.length);
         }
         break;
       case 'info':
-        // Manejo de avisos del servidor (ej: sugerencia de fluidez)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data['message'] ?? ''), backgroundColor: Colors.orange),
         );
         break;
       case 'error':
         setState(() => _isLoading = false);
-        _currentRoomCode = null;
-        _maxPlayersInRoom = null;
-        PrefsService.lastRoomCode = null;
+        final String message = data['message'] ?? '';
+        final String targetCode = _roomCodeController.text.trim();
+        
+        // 🚨 REGLA 1 (Ajustada): Manejo inteligente de "Sala Llena"
+        String displayMessage = message;
+        
+        if (message.toLowerCase().contains('llena') || message.toLowerCase().contains('full')) {
+          // Si el usuario ya estaba en esta sala (reconexión), intentamos forzar la entrada
+          if (PrefsService.lastRoomCode == targetCode && targetCode.isNotEmpty) {
+            displayMessage = 'Sincronizando partida... Por favor, espera.';
+            // Reintentamos una vez más tras un breve delay para limpiar sockets huérfanos en el server
+            Future.delayed(const Duration(seconds: 1), () => _connectAndJoin(manualCode: targetCode));
+          } else {
+            displayMessage = 'No puedes unirte a esta sala, está completa.';
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${data['message']}'), backgroundColor: Colors.red),
+          SnackBar(content: Text(displayMessage), backgroundColor: Colors.red),
         );
         break;
     }
   }
 
-  // REGLA 1: Selección de cantidad de jugadores
+  void _navigateToGame({int? playerCount}) {
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    Navigator.pushReplacementNamed(
+      context,
+      '/game',
+      arguments: {
+        'playerCount': playerCount ?? _currentPlayersInRoom,
+        'roomCode': _currentRoomCode,
+      }
+    );
+  }
+
   Future<void> _showPlayerCountSelection() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return _showError('Introduce tu nombre');
@@ -204,7 +227,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 30),
                           child: _actionButton(
-                            title: 'VOLVER A SALA: $lastCode',
+                            title: 'VOLVER A PARTIDA: $lastCode',
                             color: Colors.orange.shade700,
                             onTap: () => _connectAndJoin(manualCode: lastCode),
                           ).animate(
