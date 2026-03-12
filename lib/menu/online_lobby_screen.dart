@@ -46,19 +46,22 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         });
         PrefsService.lastRoomCode = _currentRoomCode;
         break;
+
       case 'game_joined':
+        final String joinedCode = data['roomCode'] ?? _roomCodeController.text.trim();
         setState(() {
           _isLoading = false;
-          _currentRoomCode ??= data['roomCode'] ?? _roomCodeController.text.trim();
+          _currentRoomCode = joinedCode;
           _maxPlayersInRoom = data['maxPlayers'];
         });
-        PrefsService.lastRoomCode = _currentRoomCode;
+        PrefsService.lastRoomCode = joinedCode;
         
         // REGLA 1 (Backend): Salto directo por reconexión
         if (data['reconnected'] == true) {
           _navigateToGame();
         }
         break;
+
       case 'game_state':
         final List players = data['players'] ?? [];
         final int maxPlayers = data['maxPlayers'] ?? 2;
@@ -69,33 +72,33 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           _maxPlayersInRoom = maxPlayers;
         });
 
-        // REGLA 2: Entrada si la sala está llena O si el juego ya está en marcha (reconexión automática)
+        // REGLA 2: Solo navegamos si la sala está llena O si el juego ya está en marcha
         if (players.length >= maxPlayers || (phase != null && phase != 'idle' && phase != 'finished')) {
           _navigateToGame(playerCount: players.length);
         }
         break;
+
       case 'info':
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(data['message'] ?? ''), backgroundColor: Colors.orange),
         );
         break;
+
       case 'error':
-        setState(() => _isLoading = false);
-        final String message = data['message'] ?? '';
-        final String targetCode = _roomCodeController.text.trim();
+        setState(() {
+          _isLoading = false;
+          _currentRoomCode = null; // 🔄 Reseteamos para que no se vea la sala de espera si hubo error
+          _maxPlayersInRoom = null;
+        });
         
-        // 🚨 REGLA 1 (Ajustada): Manejo inteligente de "Sala Llena"
+        final String message = data['message'] ?? '';
         String displayMessage = message;
         
+        // Personalización de mensajes sin "Error:"
         if (message.toLowerCase().contains('llena') || message.toLowerCase().contains('full')) {
-          // Si el usuario ya estaba en esta sala (reconexión), intentamos forzar la entrada
-          if (PrefsService.lastRoomCode == targetCode && targetCode.isNotEmpty) {
-            displayMessage = 'Sincronizando partida... Por favor, espera.';
-            // Reintentamos una vez más tras un breve delay para limpiar sockets huérfanos en el server
-            Future.delayed(const Duration(seconds: 1), () => _connectAndJoin(manualCode: targetCode));
-          } else {
-            displayMessage = 'No puedes unirte a esta sala, está completa.';
-          }
+          displayMessage = 'No puedes unirte a esta sala, está completa.';
+        } else if (message.toLowerCase().contains('no existe') || message.toLowerCase().contains('not found')) {
+          displayMessage = 'La sala no existe. Verifica el código.';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -169,7 +172,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     
     try {
       await socketService.connect(_serverUrl);
-      _currentRoomCode = code;
+      // NO seteamos _currentRoomCode aquí para no mostrar la UI de espera prematuramente
       socketService.send('join_game', {'roomCode': code, 'name': name});
     } catch (e) {
       setState(() => _isLoading = false);

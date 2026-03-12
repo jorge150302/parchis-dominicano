@@ -144,6 +144,11 @@ class _GameScreenState extends State<GameScreen> {
         if (didPop) return;
         final shouldExit = await _showExitConfirmationDialog(context);
         if (shouldExit && mounted) {
+          // Si el usuario sale voluntariamente, desconectamos el socket para que entre la IA
+          if (controller.isOnline) {
+            context.read<SocketService>().disconnect();
+            // Mantenemos PrefsService.lastRoomCode para permitir reconexión rápida desde el lobby
+          }
           Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
         }
       },
@@ -289,6 +294,11 @@ class _GameScreenState extends State<GameScreen> {
                 icon: const Icon(Icons.exit_to_app, color: Colors.white70),
                 onPressed: () async {
                   if (await _showExitConfirmationDialog(context)) {
+                    // Si el usuario sale voluntariamente, desconectamos el socket para que entre la IA
+                    if (controller.isOnline) {
+                      context.read<SocketService>().disconnect();
+                      // Mantenemos el código de sala en Prefs para permitir volver rápido
+                    }
                     Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
                   }
                 },
