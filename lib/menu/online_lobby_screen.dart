@@ -28,6 +28,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     super.initState();
     _nameController = TextEditingController(text: PrefsService.playerName);
     _socketSubscription = socketService.events.listen(_handleServerEvent);
+
+    // Pre-cargamos el último código si existe para evitar estados vacíos
+    if (PrefsService.lastRoomCode != null) {
+      _roomCodeController.text = PrefsService.lastRoomCode!;
+    }
   }
 
   void _handleServerEvent(Map<String, dynamic> event) {
@@ -56,9 +61,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         });
         PrefsService.lastRoomCode = joinedCode;
         
-        // REGLA 1 (Backend): Salto directo por reconexión
         if (data['reconnected'] == true) {
-          _navigateToGame();
+          _navigateToGame(roomCode: joinedCode);
         }
         break;
 
@@ -66,35 +70,32 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         final List players = data['players'] ?? [];
         final int maxPlayers = data['maxPlayers'] ?? 2;
         final String? phase = data['phase'];
-        
+        final String? roomCode = data['roomCode'] ?? _currentRoomCode ?? _roomCodeController.text.trim();
+
         setState(() {
           _currentPlayersInRoom = players.length;
           _maxPlayersInRoom = maxPlayers;
+          if (_currentRoomCode == null && roomCode != null && roomCode.isNotEmpty) {
+            _currentRoomCode = roomCode;
+          }
         });
 
-        // REGLA 2: Solo navegamos si la sala está llena O si el juego ya está en marcha
+        // Solo navegamos si la sala está llena O si el juego ya está en marcha
         if (players.length >= maxPlayers || (phase != null && phase != 'idle' && phase != 'finished')) {
-          _navigateToGame(playerCount: players.length);
+          _navigateToGame(playerCount: players.length, roomCode: roomCode);
         }
-        break;
-
-      case 'info':
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? ''), backgroundColor: Colors.orange),
-        );
         break;
 
       case 'error':
         setState(() {
           _isLoading = false;
-          _currentRoomCode = null; // 🔄 Reseteamos para que no se vea la sala de espera si hubo error
+          _currentRoomCode = null;
           _maxPlayersInRoom = null;
         });
         
         final String message = data['message'] ?? '';
         String displayMessage = message;
         
-        // Personalización de mensajes sin "Error:"
         if (message.toLowerCase().contains('llena') || message.toLowerCase().contains('full')) {
           displayMessage = 'No puedes unirte a esta sala, está completa.';
         } else if (message.toLowerCase().contains('no existe') || message.toLowerCase().contains('not found')) {
@@ -108,15 +109,21 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     }
   }
 
-  void _navigateToGame({int? playerCount}) {
+  void _navigateToGame({int? playerCount, String? roomCode}) {
     if (!mounted) return;
+
+    // Prioridad de código de sala: argumento > estado > controlador
+    final targetRoomCode = roomCode ?? _currentRoomCode ?? _roomCodeController.text.trim();
+
+    if (targetRoomCode.isEmpty) return; // Seguridad
+
     setState(() => _isLoading = false);
     Navigator.pushReplacementNamed(
       context,
       '/game',
       arguments: {
         'playerCount': playerCount ?? _currentPlayersInRoom,
-        'roomCode': _currentRoomCode,
+        'roomCode': targetRoomCode,
       }
     );
   }
@@ -168,11 +175,16 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     if (name.isEmpty || code.isEmpty) return _showError('Nombre y código obligatorios');
     
     PrefsService.playerName = name;
+
+    // Si usamos manualCode (botón reconexión), lo ponemos en el controller para consistencia
+    if (manualCode != null) {
+      _roomCodeController.text = manualCode;
+    }
+
     setState(() => _isLoading = true);
     
     try {
       await socketService.connect(_serverUrl);
-      // NO seteamos _currentRoomCode aquí para no mostrar la UI de espera prematuramente
       socketService.send('join_game', {'roomCode': code, 'name': name});
     } catch (e) {
       setState(() => _isLoading = false);
