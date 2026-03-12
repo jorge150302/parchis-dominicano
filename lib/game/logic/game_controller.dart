@@ -208,17 +208,29 @@ class NetworkGameController extends GameController {
     switch (eventName) {
       case 'game_state': _updateGameState(data); break;
       case 'dice_result': 
+        final String targetId = data['playerId'] ?? currentPlayer.id;
+        final bool isMe = targetId == PrefsService.playerId;
         _lastServerDiceValue = data['diceValue'];
-        if (!rollingDice) {
-          _animateRemoteDice(data['diceValue'], data['playerId'] ?? currentPlayer.id);
-        } else {
+
+        if (isMe) {
+          // ✅ Si soy yo, el valor se actualiza para la animación local que ya está corriendo.
+          // No disparamos _animateRemoteDice para evitar el "doble giro".
           diceValue = data['diceValue'];
           notifyListeners();
+        } else {
+          // Si es otro jugador, animamos el giro del dado en su esquina.
+          if (!rollingDice || rollingPlayerId != targetId) {
+            _animateRemoteDice(data['diceValue'], targetId);
+          }
         }
         break;
       case 'chat': _handleChatMessage(data); break;
       case 'game_event':
         engine.events.add(GameEvent(message: data['message'] ?? ''));
+        notifyListeners();
+        break;
+      case 'error':
+        engine.events.add(GameEvent(message: data['message'] ?? 'Acción no permitida'));
         notifyListeners();
         break;
     }
@@ -230,7 +242,6 @@ class NetworkGameController extends GameController {
     notifyListeners();
 
     diceAudio.play(AssetSource('sounds/dice.mp3'));
-    // REGLA 3: Reducimos animación a ~800ms para que no solape con el movimiento IA (1.5s)
     for (int i = 0; i < 8; i++) {
       diceValue = random.nextInt(6) + 1;
       notifyListeners();
@@ -264,17 +275,12 @@ class NetworkGameController extends GameController {
     for (var playerData in serverPlayers) {
       final String id = playerData['id'];
       final int targetPosition = playerData['position'] ?? 0;
-      final int slotIndex = playerData['index'] ?? 0; // REGLA 5: Slot fijo del servidor
+      final int slotIndex = playerData['index'] ?? 0;
       
       final player = engine.players.firstWhere(
         (p) => p.id == id,
         orElse: () {
-          final p = Player(
-            id: id, 
-            name: playerData['name'], 
-            index: slotIndex, 
-            tokenAsset: tokens[slotIndex % tokens.length]
-          );
+          final p = Player(id: id, name: playerData['name'], index: slotIndex, tokenAsset: tokens[slotIndex % tokens.length]);
           engine.players.add(p);
           return p;
         },
@@ -300,7 +306,6 @@ class NetworkGameController extends GameController {
       player.isAI = playerData['isAI'] ?? false;
     }
 
-    // REGLA 2: Mapeo detallado de fases
     if (phaseStr == 'finished') {
       engine.phase = GamePhase.finished;
       engine.finishedPlayers.clear();
@@ -313,7 +318,7 @@ class NetworkGameController extends GameController {
       }
     } else if (phaseStr == 'moving') {
       engine.phase = GamePhase.moving;
-      inputLocked = true; // REGLA 2: Bloqueo en fase moving
+      inputLocked = true;
     } else if (phaseStr == 'rolling') {
       engine.phase = GamePhase.rolling;
     } else {
@@ -321,6 +326,7 @@ class NetworkGameController extends GameController {
     }
 
     if (currentPlayerId != null) engine.setCurrentPlayerById(currentPlayerId);
+
     if (_animatingPlayers.isEmpty && engine.phase != GamePhase.moving) {
       inputLocked = false;
     }
@@ -350,7 +356,6 @@ class NetworkGameController extends GameController {
 
   @override
   Future<void> rollDice() async {
-    // REGLA 2: Solo habilitado si es mi turno y fase rolling
     if (!isMyTurn || engine.currentPlayer.isAI || rollingDice || inputLocked || engine.phase == GamePhase.finished) return;
     
     inputLocked = true;
@@ -369,7 +374,7 @@ class NetworkGameController extends GameController {
 
     socketService.send('roll_dice');
     await Future.delayed(GameController.diceAnimDuration);
-    rollingDice = false;
+    rollingDice = false; // El flag se baja, pero el handler de dice_result ya sabe ignorarnos
     notifyListeners();
   }
 

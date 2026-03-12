@@ -294,7 +294,7 @@ class _GameScreenState extends State<GameScreen> {
                 icon: const Icon(Icons.exit_to_app, color: Colors.white70),
                 onPressed: () async {
                   if (await _showExitConfirmationDialog(context)) {
-                    // Si el usuario sale voluntariamente, desconectamos el socket para que entre la IA
+                    // Acción de salida voluntaria
                     if (controller.isOnline) {
                       context.read<SocketService>().disconnect();
                       // Mantenemos el código de sala en Prefs para permitir volver rápido
@@ -445,7 +445,8 @@ class _PlayerCornerWidget extends StatelessWidget {
     final bool isTurn = controller.currentPlayer.id == player.id;
     final bool isThisDiceRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
     
-    final bool canITap = isTurn && isMe && !player.isAI && !controller.rollingDice;
+    // ✅ CORRECCIÓN: Se añade !controller.inputLocked para evitar el doble clic
+    final bool canITap = isTurn && isMe && !player.isAI && !controller.rollingDice && !controller.inputLocked;
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
