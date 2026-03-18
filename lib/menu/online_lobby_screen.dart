@@ -30,6 +30,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     _nameController = TextEditingController(text: PrefsService.playerName);
     _socketSubscription = socketService.events.listen(_handleServerEvent);
 
+    // ✅ Escuchar cambios en el código para actualizar el color del botón
+    _roomCodeController.addListener(() {
+      if (mounted) setState(() {});
+    });
+
     if (PrefsService.lastRoomCode != null) {
       _roomCodeController.text = PrefsService.lastRoomCode!;
     }
@@ -268,6 +273,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final lastCode = PrefsService.lastRoomCode;
+    final bool isCodeValid = _roomCodeController.text.trim().length >= 4;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -305,7 +312,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                       const SizedBox(height: 30),
                       _customTextField(controller: _roomCodeController, hint: 'CÓDIGO PRIVADO', icon: Icons.vpn_key, isCode: true).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
                       const SizedBox(height: 15),
-                      _actionButton(title: 'UNIRSE POR CÓDIGO', color: Colors.white24, onTap: () => _connectAndJoin()).animate().fadeIn(delay: 1000.ms).scale(),
+                      // ✅ BOTÓN CORREGIDO: Ahora cambia de color cuando se escribe el código
+                      _actionButton(
+                        title: 'UNIRSE POR CÓDIGO',
+                        color: isCodeValid ? Colors.orange.shade800 : Colors.white24,
+                        onTap: () => _connectAndJoin()
+                      ).animate().fadeIn(delay: 1000.ms).scale(),
                     ],
                     const SizedBox(height: 40),
                     TextButton(

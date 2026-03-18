@@ -81,7 +81,7 @@ abstract class GameController extends ChangeNotifier {
 }
 
 class LocalGameController extends GameController {
-  final bool vsAI; // ✅ Modo IA local
+  final bool vsAI;
 
   LocalGameController({required super.engine, this.vsAI = false});
 
@@ -94,7 +94,6 @@ class LocalGameController extends GameController {
       Future.microtask(startTurn);
     } else {
       notifyListeners();
-      // ✅ REGLA 1: Si es modo IA y no es el Jugador 1 (index 0), la IA tira sola
       if (vsAI && currentPlayer.index != 0 && engine.phase != GamePhase.finished) {
         Future.delayed(const Duration(milliseconds: 1500), () => rollDice());
       }
@@ -149,7 +148,6 @@ class LocalGameController extends GameController {
     if (player.isFinished) {
       engine.nextTurn();
     } else if (diceValue == 6) {
-      // Tirar de nuevo - En modo IA, llamamos a startTurn para que decida si tira solo
       startTurn();
       _unlockInputLater();
       return;
@@ -181,10 +179,17 @@ class LocalGameController extends GameController {
     }
 
     engine.stopMoving(player);
+
+    // ✅ CORRECCIÓN: Pequeña pausa para que se vea la casilla donde cayó antes del salto
+    await Future.delayed(const Duration(milliseconds: 600));
+
     final sentHomeByAction = engine.applyCellAction(player);
     final sentHomeByCollision = engine.resolveCollisions(player);
 
-    if (sentHomeByAction || sentHomeByCollision) await playSendToHomeSound();
+    if (sentHomeByAction || sentHomeByCollision) {
+      await playSendToHomeSound();
+      notifyListeners();
+    }
 
     engine.phase = GamePhase.idle;
     notifyListeners();
@@ -302,12 +307,9 @@ class NetworkGameController extends GameController {
       player.consecutiveSixes = playerData['consecutiveSixes'] ?? 0;
 
       if (player.position != targetPosition && !_animatingPlayers.contains(id)) {
-        int jump = (targetPosition - player.position).abs();
-        
-        if (jump != _lastServerDiceValue) {
-          player.position = targetPosition;
-          if (targetPosition < player.position) playSendToHomeSound();
-          notifyListeners();
+        int diff = targetPosition - player.position;
+        if (diff.abs() > 6 || diff < 0) {
+           _handleSpecialJump(player, targetPosition);
         } else {
           _animatePlayerMovement(player, targetPosition);
         }
@@ -344,22 +346,34 @@ class NetworkGameController extends GameController {
     notifyListeners();
   }
 
-  Future<void> _animatePlayerMovement(Player player, int target) async {
+  Future<void> _handleSpecialJump(Player player, int target) async {
     _animatingPlayers.add(player.id);
     inputLocked = true;
 
     if (target < player.position) {
+      await Future.delayed(const Duration(milliseconds: 600));
       player.position = target;
       await playSendToHomeSound();
-      notifyListeners();
     } else {
-      while (player.position < target) {
-        await Future.delayed(const Duration(milliseconds: 250));
-        player.moveBy(1);
-        notifyListeners();
-        if (player.isFinished) await playFanfare();
-      }
+      await Future.delayed(const Duration(milliseconds: 600));
+      player.position = target;
     }
+
+    _animatingPlayers.remove(player.id);
+    notifyListeners();
+  }
+
+  Future<void> _animatePlayerMovement(Player player, int target) async {
+    _animatingPlayers.add(player.id);
+    inputLocked = true;
+
+    while (player.position < target) {
+      await Future.delayed(const Duration(milliseconds: 250));
+      player.moveBy(1);
+      notifyListeners();
+      if (player.isFinished) await playFanfare();
+    }
+
     _animatingPlayers.remove(player.id);
     if (engine.phase != GamePhase.moving) inputLocked = false;
     notifyListeners();

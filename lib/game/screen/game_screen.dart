@@ -30,6 +30,7 @@ class _GameScreenState extends State<GameScreen> {
   late final ConfettiController _confettiController;
   final Set<String> _announcedWinners = {};
   bool _isGameFinishedDialogShown = false;
+  bool _isDisconnectDialogShown = false; // ✅ Nuevo: para no duplicar el diálogo
   final Set<String> _processedEvents = {};
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _chatScrollController = ScrollController();
@@ -87,14 +88,20 @@ class _GameScreenState extends State<GameScreen> {
     if (!mounted) return;
 
     final controller = context.read<GameController>();
-    
+    final socketSrv = context.read<SocketService>();
+
+    // ✅ CORRECCIÓN PUNTO 2: Manejo de desconexión
+    if (controller.isOnline && !socketSrv.isConnected && !_isDisconnectDialogShown) {
+      _isDisconnectDialogShown = true;
+      _showDisconnectDialog();
+    }
+
     // --- 🔔 MOSTRAR MENSAJES DEL SERVIDOR O LOCALES ---
     final newEvents = controller.consumeEvents();
     for (final event in newEvents) {
       if (!_processedEvents.contains(event.id)) {
         _processedEvents.add(event.id);
         
-        // Usamos un pequeño delay para no saturar si hay muchos eventos
         Future.delayed(Duration(milliseconds: newEvents.indexOf(event) * 500), () {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -138,6 +145,28 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {});
   }
 
+  // ✅ Nuevo: Diálogo de desconexión
+  Future<void> _showDisconnectDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Conexión Perdida'),
+        content: const Text('Se ha perdido la conexión con el servidor. ¿Deseas intentar volver a entrar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false),
+            child: const Text('Salir al Menú'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/online_lobby', (route) => false),
+            child: const Text('Reconectar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
@@ -151,10 +180,8 @@ class _GameScreenState extends State<GameScreen> {
         if (didPop) return;
         final shouldExit = await _showExitConfirmationDialog(context);
         if (shouldExit && mounted) {
-          // Si el usuario sale voluntariamente, desconectamos el socket para que entre la IA
           if (controller.isOnline) {
             context.read<SocketService>().disconnect();
-            // Mantenemos PrefsService.lastRoomCode para permitir reconexión rápida desde el lobby
           }
           Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
         }
@@ -301,10 +328,8 @@ class _GameScreenState extends State<GameScreen> {
                 icon: const Icon(Icons.exit_to_app, color: Colors.white70),
                 onPressed: () async {
                   if (await _showExitConfirmationDialog(context)) {
-                    // Acción de salida voluntaria
                     if (controller.isOnline) {
                       context.read<SocketService>().disconnect();
-                      // Mantenemos el código de sala en Prefs para permitir volver rápido
                     }
                     Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
                   }
@@ -340,7 +365,6 @@ class _GameScreenState extends State<GameScreen> {
               itemCount: controller.chatMessages.length,
               itemBuilder: (context, index) {
                 final msg = controller.chatMessages[index];
-                // ✅ REGLA: Detectamos si el mensaje es nuestro para alinearlo a la derecha
                 final bool isMe = controller.isOnline && msg.senderId == PrefsService.playerId;
 
                 return Padding(
@@ -508,15 +532,13 @@ class _PlayerCornerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
     
-    // ✅ CORRECCIÓN: isMe ahora detecta si el jugador actual es controlable por el usuario local
     final bool isMe = controller.isOnline
         ? player.id == PrefsService.playerId
-        : !player.isAI; // En offline, cualquier humano es "yo"
+        : !player.isAI;
 
     final bool isTurn = controller.currentPlayer.id == player.id;
     final bool isThisDiceRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
     
-    // ✅ CORRECCIÓN: Permiso para disparar dados humanos en offline
     final bool canITap = isTurn && isMe && !controller.rollingDice && !controller.inputLocked;
 
     return Padding(
@@ -553,7 +575,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           GestureDetector(
             onTap: canITap ? controller.rollDice : null,
             child: Opacity(
-              opacity: isTurn || isMe ? 1.0 : 0.4, // ✅ Visibilidad mejorada
+              opacity: isTurn || isMe ? 1.0 : 0.4,
               child: DiceWidget(
                 value: controller.diceValue,
                 rolling: isThisDiceRolling,
