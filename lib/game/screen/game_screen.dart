@@ -51,6 +51,12 @@ class _GameScreenState extends State<GameScreen> {
           'assets/tokens/yellow.png',
         ];
 
+        // Detectar si es vs IA
+        bool vsAI = false;
+        if (controller is LocalGameController) {
+          vsAI = controller.vsAI;
+        }
+
         final players = List.generate(
           widget.playerCount,
           (i) => Player(
@@ -58,6 +64,7 @@ class _GameScreenState extends State<GameScreen> {
             name: 'Jugador ${i + 1}',
             index: i,
             tokenAsset: tokens[i % tokens.length],
+            isAI: vsAI ? i != 0 : false, // El jugador 1 siempre es humano
           ),
         );
         controller.setPlayers(players);
@@ -501,12 +508,16 @@ class _PlayerCornerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
     
-    final bool isMe = controller.isOnline && player.id == PrefsService.playerId;
+    // ✅ CORRECCIÓN: isMe ahora detecta si el jugador actual es controlable por el usuario local
+    final bool isMe = controller.isOnline
+        ? player.id == PrefsService.playerId
+        : !player.isAI; // En offline, cualquier humano es "yo"
+
     final bool isTurn = controller.currentPlayer.id == player.id;
     final bool isThisDiceRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
     
-    // ✅ CORRECCIÓN: Se añade !controller.inputLocked para evitar el doble clic
-    final bool canITap = isTurn && isMe && !player.isAI && !controller.rollingDice && !controller.inputLocked;
+    // ✅ CORRECCIÓN: Permiso para disparar dados humanos en offline
+    final bool canITap = isTurn && isMe && !controller.rollingDice && !controller.inputLocked;
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -542,7 +553,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           GestureDetector(
             onTap: canITap ? controller.rollDice : null,
             child: Opacity(
-              opacity: !isMe || player.isAI ? 0.4 : 1.0,
+              opacity: isTurn || isMe ? 1.0 : 0.4, // ✅ Visibilidad mejorada
               child: DiceWidget(
                 value: controller.diceValue,
                 rolling: isThisDiceRolling,

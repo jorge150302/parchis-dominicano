@@ -81,7 +81,9 @@ abstract class GameController extends ChangeNotifier {
 }
 
 class LocalGameController extends GameController {
-  LocalGameController({required super.engine});
+  final bool vsAI; // ✅ Modo IA local
+
+  LocalGameController({required super.engine, this.vsAI = false});
 
   @override
   void startTurn() {
@@ -92,6 +94,10 @@ class LocalGameController extends GameController {
       Future.microtask(startTurn);
     } else {
       notifyListeners();
+      // ✅ REGLA 1: Si es modo IA y no es el Jugador 1 (index 0), la IA tira sola
+      if (vsAI && currentPlayer.index != 0 && engine.phase != GamePhase.finished) {
+        Future.delayed(const Duration(milliseconds: 1500), () => rollDice());
+      }
     }
   }
 
@@ -143,7 +149,10 @@ class LocalGameController extends GameController {
     if (player.isFinished) {
       engine.nextTurn();
     } else if (diceValue == 6) {
-      // Tirar de nuevo
+      // Tirar de nuevo - En modo IA, llamamos a startTurn para que decida si tira solo
+      startTurn();
+      _unlockInputLater();
+      return;
     } else {
       engine.nextTurn();
     }
@@ -253,7 +262,6 @@ class NetworkGameController extends GameController {
   }
 
   void _handleChatMessage(Map<String, dynamic> data) {
-    // ✅ REGLA: Guardamos el senderId para identificar quién es "Yo" en la UI
     chatMessages.add(ChatMessage(
       senderId: data['senderId'] ?? '',
       sender: data['sender'] ?? 'Servidor',

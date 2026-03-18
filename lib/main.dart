@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:frontend_parchis/menu/online_lobby_screen.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
-import 'package:frontend_parchis/config/env.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/splash_screen.dart';
@@ -46,12 +45,14 @@ class MyApp extends StatelessWidget {
             final args = settings.arguments;
             int playersCount = 2;
             String? roomCode;
+            bool vsAI = false;
 
             if (args is int) {
               playersCount = args;
             } else if (args is Map<String, dynamic>) {
               playersCount = args['playerCount'] ?? 2;
               roomCode = args['roomCode'];
+              vsAI = args['vsAI'] ?? false;
             }
 
             final engine = GameEngine(
@@ -64,7 +65,7 @@ class MyApp extends StatelessWidget {
                 return ChangeNotifierProvider<GameController>(
                   create: (_) => (roomCode != null)
                       ? NetworkGameController(engine: engine, socketService: socketService)
-                      : LocalGameController(engine: engine),
+                      : LocalGameController(engine: engine, vsAI: vsAI),
                   child: GameScreen(
                     playerCount: playersCount,
                     roomCode: roomCode,
