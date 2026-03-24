@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart'; // ✅ Cambiado para compatibilidad Web
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'prefs_service.dart';
 
 final socketService = SocketService.instance;
@@ -11,27 +11,35 @@ class SocketService with ChangeNotifier {
   static final SocketService _instance = SocketService._privateConstructor();
   static SocketService get instance => _instance;
 
-  WebSocketChannel? _channel; // ✅ Cambiado de IOWebSocketChannel a WebSocketChannel
+  WebSocketChannel? _channel;
   bool _isConnected = false;
+  bool _isConnecting = false;
+  String? _lastUrl;
+  Timer? _reconnectTimer;
+
   final StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   
   Map<String, dynamic>? lastGameState;
 
   Stream<Map<String, dynamic>> get events => _eventController.stream;
   bool get isConnected => _isConnected;
+  bool get isConnecting => _isConnecting;
 
   Future<void> connect(String url) async {
-    if (_isConnected) return;
+    _lastUrl = url;
+    if (_isConnected || _isConnecting) return;
+
+    _isConnecting = true;
+    notifyListeners();
     debugPrint('🔌 Conectando a WebSocket: $url');
     
     try {
-      // ✅ Usamos la forma multiplataforma de conectar
       _channel = WebSocketChannel.connect(Uri.parse(url));
-      
-      // En Web, esperamos un poco para confirmar la conexión antes de marcar como conectado
-      await _channel!.ready; 
+      await _channel!.ready;
       
       _isConnected = true;
+      _isConnecting = false;
+      _reconnectTimer?.cancel(); // Cancelar cualquier intento de reconexión si logramos conectar
       notifyListeners();
       debugPrint('✅ ¡Conectado con éxito!');
 
@@ -54,6 +62,7 @@ class SocketService with ChangeNotifier {
         onError: (e) => _handleDisconnect('Error en stream: $e'),
       );
     } catch (e) {
+      _isConnecting = false;
       _handleDisconnect('Error de red: $e');
       rethrow;
     }
@@ -63,12 +72,42 @@ class SocketService with ChangeNotifier {
     debugPrint('ℹ️ Desconectado: $reason');
     _isConnected = false;
     _channel = null;
-    lastGameState = null;
     notifyListeners();
+
+    // ✅ Iniciar reconexión automática si no fue una desconexión manual
+    _startReconnectionTimer();
+  }
+
+  void _startReconnectionTimer() {
+    if (_reconnectTimer?.isActive ?? false) return;
+    if (_lastUrl == null) return;
+
+    debugPrint('🔄 Iniciando temporizador de reconexión...');
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      if (!_isConnected && !_isConnecting) {
+        debugPrint('🔄 Intentando reconectar automáticamente...');
+        try {
+          await connect(_lastUrl!);
+          if (_isConnected) {
+            timer.cancel();
+            // Al reconectar, el servidor debería enviarnos el estado de nuevo
+            // o nosotros podríamos pedirlo:
+            send('request_sync');
+          }
+        } catch (e) {
+          debugPrint('❌ Fallo intento de reconexión: $e');
+        }
+      } else if (_isConnected) {
+        timer.cancel();
+      }
+    });
   }
 
   void send(String event, [Map<String, dynamic>? data]) {
-    if (_channel == null || !_isConnected) return;
+    if (_channel == null || !_isConnected) {
+      debugPrint('🚫 No se puede enviar "$event": No hay conexión');
+      return;
+    }
     
     final payload = {
       'event': event,
@@ -82,8 +121,11 @@ class SocketService with ChangeNotifier {
   }
 
   void disconnect() {
+    _lastUrl = null; // Evitar reconexión automática si desconectamos a propósito
+    _reconnectTimer?.cancel();
     _channel?.sink.close();
     _isConnected = false;
+    _isConnecting = false;
     _channel = null;
     lastGameState = null;
     notifyListeners();

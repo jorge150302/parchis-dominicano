@@ -4,9 +4,11 @@ import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 import 'package:provider/provider.dart';
 
+import 'config/language_provider.dart';
 import 'screens/splash_screen.dart';
 import 'menu/main_menu_screen.dart';
 import 'menu/player_selection_screen.dart';
+import 'screens/privacy_policy_screen.dart';
 
 import 'game/screen/game_screen.dart';
 import 'game/logic/game_controller.dart';
@@ -29,54 +31,61 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: socketService),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Parché',
-        initialRoute: '/', 
-        routes: {
-          '/': (_) => const SplashScreen(),
-          '/menu': (_) => const MainMenuScreen(),
-          '/players': (_) => const PlayerSelectionScreen(),
-          '/online_lobby': (_) => const OnlineLobbyScreen(),
-        },
-        onGenerateRoute: (settings) {
-          if (settings.name == '/game') {
-            final args = settings.arguments;
-            int playersCount = 2;
-            String? roomCode;
-            bool vsAI = false;
+      builder: (context, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Parché',
+          initialRoute: '/', 
+          routes: {
+            '/': (_) => const SplashScreen(),
+            '/menu': (_) => const MainMenuScreen(),
+            '/players': (_) => const PlayerSelectionScreen(),
+            '/online_lobby': (_) => const OnlineLobbyScreen(),
+            '/privacy': (_) => const PrivacyPolicyScreen(),
+          },
+          onGenerateRoute: (settings) {
+            if (settings.name == '/game') {
+              final args = settings.arguments;
+              int playersCount = 2;
+              String? roomCode;
+              bool vsAI = false;
+              List<String>? playerNames;
 
-            if (args is int) {
-              playersCount = args;
-            } else if (args is Map<String, dynamic>) {
-              playersCount = args['playerCount'] ?? 2;
-              roomCode = args['roomCode'];
-              vsAI = args['vsAI'] ?? false;
+              if (args is int) {
+                playersCount = args;
+              } else if (args is Map<String, dynamic>) {
+                playersCount = args['playerCount'] ?? 2;
+                roomCode = args['roomCode'];
+                vsAI = args['vsAI'] ?? false;
+                playerNames = args['playerNames'];
+              }
+
+              final engine = GameEngine(
+                board: generateBoard(classicActionPositions, classicActions),
+                players: [],
+              );
+
+              return MaterialPageRoute(
+                builder: (context) {
+                  return ChangeNotifierProvider<GameController>(
+                    create: (_) => (roomCode != null)
+                        ? NetworkGameController(engine: engine, socketService: socketService)
+                        : LocalGameController(engine: engine, vsAI: vsAI),
+                    child: GameScreen(
+                      playerCount: playersCount,
+                      roomCode: roomCode,
+                      playerNames: playerNames,
+                    ),
+                  );
+                },
+              );
             }
-
-            final engine = GameEngine(
-              board: generateBoard(classicActionPositions, classicActions),
-              players: [],
-            );
-
-            return MaterialPageRoute(
-              builder: (context) {
-                return ChangeNotifierProvider<GameController>(
-                  create: (_) => (roomCode != null)
-                      ? NetworkGameController(engine: engine, socketService: socketService)
-                      : LocalGameController(engine: engine, vsAI: vsAI),
-                  child: GameScreen(
-                    playerCount: playersCount,
-                    roomCode: roomCode,
-                  ),
-                );
-              },
-            );
-          }
-          return null;
-        },
-      ),
+            return null;
+          },
+        );
+      },
     );
   }
 }

@@ -1,59 +1,32 @@
 import 'dart:math';
-
 import '../models/board.dart';
 import '../models/board_action.dart';
 import '../models/game_event.dart';
 import '../models/player.dart';
 
-enum GamePhase {
-  idle,
-  rolling,
-  moving,
-  finished,
-}
+enum GamePhase { idle, rolling, choosing_token, moving, finished }
 
 class GameEngine {
   final Board board;
   final List<Player> players;
   final Random _random = Random();
-  final List<Player> finishedPlayers = [];
   final List<GameEvent> _events = [];
+  final List<String> finisherIds = [];
 
   int _currentPlayerIndex = 0;
   GamePhase phase = GamePhase.idle;
 
-  GameEngine({
-    required this.board,
-    required this.players,
-  });
+  GameEngine({required this.board, required this.players});
 
   Player get currentPlayer => players[_currentPlayerIndex];
   List<GameEvent> get events => _events;
 
-  /// 🌐 NUEVO: Permite al servidor establecer quién tiene el turno
   void setCurrentPlayerById(String id) {
     final index = players.indexWhere((p) => p.id == id);
-    if (index != -1) {
-      _currentPlayerIndex = index;
-    }
+    if (index != -1) _currentPlayerIndex = index;
   }
 
   int rollDice() => _random.nextInt(6) + 1;
-
-  void nextTurn() {
-    if (players.where((p) => !p.isFinished).length <= 1) {
-      phase = GamePhase.finished;
-      final lastPlayer = players.firstWhere((p) => !p.isFinished);
-      if (!finishedPlayers.contains(lastPlayer)) {
-        finishedPlayers.add(lastPlayer);
-      }
-      return;
-    }
-
-    do {
-      _currentPlayerIndex = (_currentPlayerIndex + 1) % players.length;
-    } while (currentPlayer.isFinished);
-  }
 
   void registerSix(Player player, int diceValue) {
     if (diceValue == 6) {
@@ -66,81 +39,190 @@ class GameEngine {
   bool reachedThreeSixes(Player player) => player.consecutiveSixes >= 3;
 
   bool penaltyThreeSixes(Player player) {
-    player.resetToStart();
-    _events.add(GameEvent(message: '¡Tres 6 seguidos! ${player.name} vuelve a casa'));
+    for (var token in player.tokens) {
+      if (token.position > 0 && !token.isFinished) {
+        token.reset();
+        break;
+      }
+    }
+    _events.add(GameEvent(
+      messageKey: 'penalty_three_sixes', 
+      args: {'name': player.name}
+    ));
     return true;
   }
 
-  bool canMove(Player player, int steps) {
-    return player.position + steps <= board.finalPosition;
+  bool isBlocked(int cellPosition, String searchingPlayerId) {
+    if (cellPosition <= 0 || cellPosition >= board.finalPosition) return false;
+    bool isPrivatePath = cellPosition > 68;
+    for (var player in players) {
+      if (isPrivatePath && player.id != searchingPlayerId) continue;
+      int count = player.tokens.where((t) => t.position == cellPosition && !t.isFinished).length;
+      if (count >= 2) return true;
+    }
+    return false;
   }
 
-  void stepForward(Player player) {
-    if (player.position < board.finalPosition) {
-      player.moveBy(1);
-      if (player.position == board.finalPosition) {
-        player.finish();
-        if (!finishedPlayers.contains(player)) {
-          finishedPlayers.add(player);
+  bool canMoveToken(Player player, int tokenId, int steps) {
+    if (tokenId >= player.tokens.length) return false;
+    final token = player.tokens[tokenId];
+    if (token.isFinished) return false;
+    int target = token.position + steps;
+    if (target > board.finalPosition) return false;
+    for (int i = token.position + 1; i <= target; i++) {
+      if (isBlocked(i, player.id)) return false;
+    }
+    return true;
+  }
+
+  List<int> getMovableTokenIds(int diceValue) {
+    List<int> movable = [];
+    for (int i = 0; i < currentPlayer.tokens.length; i++) {
+      if (canMoveToken(currentPlayer, i, diceValue)) {
+        movable.add(i);
+      }
+    }
+    return movable;
+  }
+
+  void nextTurn() {
+    if (currentPlayer.isFinished) {
+      if (!finisherIds.contains(currentPlayer.id)) {
+        finisherIds.add(currentPlayer.id);
+      }
+    } else if (currentPlayer.extraTurns > 0) {
+      currentPlayer.extraTurns--;
+      _events.add(GameEvent(
+        messageKey: 'extra_turn', 
+        args: {'name': currentPlayer.name}
+      ));
+      phase = GamePhase.idle;
+      return;
+    }
+
+    int nextIndex = _currentPlayerIndex;
+    int playersCount = players.length;
+    int checked = 0;
+
+    do {
+      nextIndex = (nextIndex + 1) % playersCount;
+      checked++;
+      final nextPlayer = players[nextIndex];
+      
+      int activePlayersCount = players.where((p) => !p.isFinished).length;
+      if (activePlayersCount <= 1) {
+        phase = GamePhase.finished;
+        final lastPlayer = players.firstWhere((p) => !p.isFinished, orElse: () => players.last);
+        if (!finisherIds.contains(lastPlayer.id)) {
+          finisherIds.add(lastPlayer.id);
+        }
+        return;
+      }
+
+      if (nextPlayer.isFinished) continue;
+
+      if (nextPlayer.mustSkipTurn) {
+        nextPlayer.consumeSkip();
+        _events.add(GameEvent(
+          messageKey: 'skip_turn_msg', 
+          args: {'name': nextPlayer.name}
+        ));
+        continue; 
+      }
+
+      _currentPlayerIndex = nextIndex;
+      phase = GamePhase.idle;
+      return;
+    } while (checked < playersCount);
+
+    phase = GamePhase.finished;
+  }
+
+  void stepForward(Player player, int tokenId) {
+    final token = player.tokens[tokenId];
+    if (token.position < board.finalPosition) {
+      token.position++;
+      if (token.position == board.finalPosition) {
+        token.isFinished = true;
+        if (!player.isFinished) {
+          player.extraTurns++; 
+          _events.add(GameEvent(
+            messageKey: 'token_finished_bonus', 
+            args: {'name': player.name}
+          ));
+        } else {
+          if (!finisherIds.contains(player.id)) {
+            finisherIds.add(player.id);
+          }
         }
       }
     }
   }
 
-  void stopMoving(Player player) {
-    player.isMoving = false;
-  }
-
-  bool applyCellAction(Player player) {
-    final cell = board.getCell(player.position);
+  bool applyCellAction(Player player, int tokenId) {
+    final token = player.tokens[tokenId];
+    final cell = board.getCell(token.position);
     final action = cell.action;
-    bool sentHome = false;
+    if (action == null) return false;
 
-    if (action != null) {
-      GameEvent? event;
-      switch (action.type) {
-        case BoardActionType.goToStart:
-          player.resetToStart();
-          event = GameEvent(message: '¡Mala suerte! ${player.name} vuelve a casa');
-          sentHome = true;
-          break;
-        case BoardActionType.moveTo:
-          if (action.targetNumber != null) {
-            player.position = action.targetNumber!;
-            event = GameEvent(message: '${player.name} se mueve a la casilla ${action.targetNumber}');
-          }
-          break;
-        case BoardActionType.skipTurn:
-          player.addSkip(1);
-          event = GameEvent(message: '¡${player.name} pierde un turno!');
-          break;
-        case BoardActionType.rollAgain:
-          player.extraTurns++;
-          event = GameEvent(message: '¡${player.name} tiene un turno extra!');
-          break;
-      }
-      if (event != null) {
-        _events.add(event);
+    switch (action.type) {
+      case BoardActionType.goToStart:
+        token.reset();
+        _events.add(GameEvent(
+          messageKey: 'bad_luck_home', 
+          args: {'name': player.name}
+        ));
+        return true;
+      case BoardActionType.moveTo:
+        if (!isBlocked(action.targetNumber!, player.id)) {
+          token.position = action.targetNumber!;
+          _events.add(GameEvent(
+            messageKey: 'flying_to_cell', 
+            args: {'name': player.name, 'cell': token.position.toString()}
+          ));
+          return true;
+        }
+        return false;
+      case BoardActionType.skipTurn:
+        player.addSkip(1);
+        _events.add(GameEvent(
+          messageKey: 'loses_turn', 
+          args: {'name': player.name}
+        ));
+        return false;
+      case BoardActionType.rollAgain:
+        player.extraTurns++;
+        _events.add(GameEvent(
+          messageKey: 'roll_again', 
+          args: {'name': player.name}
+        ));
+        return false;
+      default: return false;
+    }
+  }
+
+  bool resolveCollisions(Player player, int tokenId) {
+    final token = player.tokens[tokenId];
+    if (token.isFinished) return false;
+    if (isBlocked(token.position, player.id)) return false;
+
+    bool hit = false;
+    for (final other in players) {
+      if (other.id == player.id) continue;
+      for (final otherToken in other.tokens) {
+        if (!otherToken.isFinished && otherToken.position == token.position && token.position != 0) {
+          otherToken.reset();
+          if (!player.isFinished) player.extraTurns++;
+          _events.add(GameEvent(
+            messageKey: 'captured_player', 
+            args: {'name': player.name, 'other': other.name}
+          ));
+          hit = true;
+        }
       }
     }
-    return sentHome;
+    return hit;
   }
 
-  bool resolveCollisions(Player player) {
-    if (player.isFinished) return false;
-
-    final playersInCell = players.where((p) => p != player && p.position == player.position).toList();
-    bool sentHome = false;
-
-    for (final otherPlayer in playersInCell) {
-      otherPlayer.resetToStart();
-      _events.add(GameEvent(message: '¡${player.name} ha capturado a ${otherPlayer.name}!'));
-      sentHome = true;
-    }
-    return sentHome;
-  }
-
-  void clearEvents() {
-    _events.clear();
-  }
+  void clearEvents() => _events.clear();
 }

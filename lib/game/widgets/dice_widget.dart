@@ -109,52 +109,36 @@ class _DiceWidgetState extends State<DiceWidget>
   Widget build(BuildContext context) {
     final size = widget.style.size;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (_, __) {
-            return Transform.translate(
-              offset: Offset(0, _bounce.value),
-              child: Transform.rotate(
-                angle: _rotation.value,
-                child: Transform.scale(
-                  scale: widget.rolling ? _scale.value : 1,
-                  child: Container(
-                    width: size,
-                    height: size,
-                    decoration: const BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 16,
-                          offset: Offset(0, 8),
-                          color: Colors.black26,
-                        )
-                      ],
-                    ),
-                    child: Image.asset(
-                      '${widget.style.assetPath}/$displayedValue.png',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (_, __) {
+        return Transform.translate(
+          offset: Offset(0, _bounce.value),
+          child: Transform.rotate(
+            angle: _rotation.value,
+            child: Transform.scale(
+              scale: widget.rolling ? _scale.value : 1,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: const BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 16,
+                      offset: Offset(0, 8),
+                      color: Colors.black26,
+                    )
+                  ],
+                ),
+                child: Image.asset(
+                  '${widget.style.assetPath}/$displayedValue.png',
+                  fit: BoxFit.contain,
                 ),
               ),
-            );
-          },
-        ),
-
-        /// 🪵 tablita base
-        Container(
-          margin: const EdgeInsets.only(top: 6),
-          width: size * 0.9,
-          height: 10,
-          decoration: BoxDecoration(
-            color: Colors.brown.shade400,
-            borderRadius: BorderRadius.circular(6),
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 

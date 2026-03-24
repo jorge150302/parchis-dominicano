@@ -1,0 +1,222 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../service/prefs_service.dart';
+
+enum Language { en, es }
+
+class LanguageProvider extends ChangeNotifier {
+  Language _currentLanguage = Language.es;
+
+  Language get currentLanguage => _currentLanguage;
+
+  LanguageProvider() {
+    _loadLanguage();
+  }
+
+  void _loadLanguage() {
+    final langCode = PrefsService.languageCode;
+    _currentLanguage = langCode == 'en' ? Language.en : Language.es;
+  }
+
+  Future<void> setLanguage(Language language) async {
+    if (_currentLanguage == language) return;
+    _currentLanguage = language;
+    await PrefsService.setLanguage(language.name);
+    notifyListeners();
+  }
+
+  String translate(String key, {Map<String, String>? args}) {
+    String translation = _translations[_currentLanguage]?[key] ?? key;
+    if (args != null) {
+      args.forEach((placeholder, value) {
+        translation = translation.replaceAll('{$placeholder}', value);
+      });
+    }
+    return translation;
+  }
+
+  static const Map<Language, Map<String, String>> _translations = {
+    Language.es: {
+      'waiting_players': 'Esperando Jugadores...',
+      'room_code': 'Código',
+      'online': '● EN LÍNEA',
+      'offline': '○ DESCONECTADO',
+      'reconnecting': '⏳ RECONECTANDO...',
+      'chat_unavailable': 'Chat pronto disponible',
+      'podium_title': '🏆 PODIO FINAL 🏆',
+      'back_to_menu': 'Volver al Menú',
+      'connection_lost': 'Conexión Perdida',
+      'server_connection_lost': 'Se ha perdido la conexión con el servidor.',
+      'exit': 'Salir',
+      'select_mode': 'Seleccionar modalidad de juego',
+      'offline_mode': 'Sin conexión',
+      'offline_subtitle': 'Juega cerca de ti',
+      'online_mode': 'En línea',
+      'online_subtitle': 'Juega a distancia',
+      'settings': 'Ajustes',
+      'language': 'Idioma',
+      'spanish': 'Español',
+      'english': 'Inglés',
+      'close': 'Cerrar',
+      'player': 'Jugador',
+      'select_player_count': 'Seleccionar cantidad de jugadores',
+      'play_vs_ai': 'Jugar contra IA',
+      'ai_info_content': 'Al activar esta opción, los espacios vacíos serán ocupados por jugadores controlados por la máquina.',
+      'start_game': 'COMENZAR JUEGO',
+      'back': '← Volver',
+      'players_count': 'jugadores',
+      'multiplayer_online': 'Multijugador en Línea',
+      'quick_match': '⚡ PARTIDA RÁPIDA',
+      'create_new_room': '➕ CREAR NUEVA SALA',
+      'private_code': 'CÓDIGO PRIVADO',
+      'join_by_code': 'UNIRSE POR CÓDIGO',
+      'leave_room': 'SALIR DE LA SALA',
+      'waiting_room': 'SALA DE ESPERA',
+      'waiting_room_subtitle': 'El juego iniciará cuando la sala esté llena.',
+      'name_hint': 'TU NOMBRE',
+      'rejoin_match': 'VOLVER A PARTIDA',
+      'no_matches_found': 'Sin partidas disponibles',
+      'no_matches_content': 'No hay salas públicas esperando en este momento.',
+      'play_offline': 'Jugar Offline',
+      'create_my_room': 'Crear mi Sala',
+      'configure_room': 'Configurar nueva sala',
+      'public_room': 'Sala Pública',
+      'public_room_subtitle': 'Permitir que desconocidos se unan',
+      'search_quick_match': 'Buscar Partida Rápida',
+      'enter_name_error': 'Introduce tu nombre',
+      'name_code_error': 'Nombre y código obligatorios',
+      // Privacy & Account
+      'privacy_policy': 'Política de Privacidad',
+      'delete_account': 'Eliminar cuenta',
+      'delete_account_confirm': '¿Estás seguro de que quieres eliminar tu cuenta permanentemente? Esta acción no se puede deshacer.',
+      'confirm': 'Confirmar',
+      'cancel': 'Cancelar',
+      // Moderation
+      'report_player': 'Reportar jugador',
+      'block_player': 'Bloquear jugador',
+      'unblock_player': 'Desbloquear jugador',
+      'report_reason': 'Selecciona el motivo del reporte',
+      'offensive_language': 'Lenguaje ofensivo',
+      'inappropriate_name': 'Nombre inapropiado',
+      'cheating': 'Trampas / Hackeo',
+      'other': 'Otro',
+      'report_sent': 'Reporte enviado con éxito',
+      'player_blocked': 'Jugador bloqueado',
+      'player_unblocked': 'Jugador desbloqueado',
+      // UX & Settings
+      'sound': 'Sonido',
+      'vibration': 'Vibración',
+      // Game Events
+      'penalty_three_sixes': '¡Tres 6 seguidos! Penalización para {name}',
+      'extra_turn': '¡Turno extra para {name}!',
+      'player_cant_move': '{name} no puede mover',
+      'token_finished_bonus': '¡{name} metió una ficha! +1 Turno',
+      'bad_luck_home': '¡Mala suerte! {name} vuelve a casa',
+      'flying_to_cell': '{name} vuela a la casilla {cell}',
+      'loses_turn': '¡{name} pierde un turno!',
+      'roll_again': '¡Tira de nuevo {name}!',
+      'captured_player': '¡{name} capturó a {other}! +1 Turno',
+      'skip_turn_msg': '{name} pierde este turno',
+      // Game Exit
+      'exit_game_title': '¿Salir de la partida?',
+      'exit_game_content': 'Si sales ahora, perderás todo el progreso de esta partida.',
+      'stay': 'Quedarse',
+      'leave': 'Salir',
+      'player_n_name': 'Nombre {player}',
+      'ai_player_name': 'IA {n}',
+    },
+    Language.en: {
+      'waiting_players': 'Waiting for Players...',
+      'room_code': 'Code',
+      'online': '● ONLINE',
+      'offline': '○ OFFLINE',
+      'reconnecting': '⏳ RECONNECTING...',
+      'chat_unavailable': 'Chat available soon',
+      'podium_title': '🏆 FINAL PODIUM 🏆',
+      'back_to_menu': 'Back to Menu',
+      'connection_lost': 'Connection Lost',
+      'server_connection_lost': 'Connection to server has been lost.',
+      'exit': 'Exit',
+      'select_mode': 'Select game mode',
+      'offline_mode': 'Offline',
+      'offline_subtitle': 'Play near you',
+      'online_mode': 'Online',
+      'online_subtitle': 'Play remotely',
+      'settings': 'Settings',
+      'language': 'Language',
+      'spanish': 'Spanish',
+      'english': 'English',
+      'close': 'Close',
+      'player': 'Player',
+      'select_player_count': 'Select number of players',
+      'play_vs_ai': 'Play vs AI',
+      'ai_info_content': 'By enabling this option, empty slots will be filled by machine-controlled players.',
+      'start_game': 'START GAME',
+      'back': '← Back',
+      'players_count': 'players',
+      'multiplayer_online': 'Online Multiplayer',
+      'quick_match': '⚡ QUICK MATCH',
+      'create_new_room': '➕ CREATE NEW ROOM',
+      'private_code': 'PRIVATE CODE',
+      'join_by_code': 'JOIN BY CODE',
+      'leave_room': 'LEAVE ROOM',
+      'waiting_room': 'WAITING ROOM',
+      'waiting_room_subtitle': 'The game will start when the room is full.',
+      'name_hint': 'YOUR NAME',
+      'rejoin_match': 'REJOIN MATCH',
+      'no_matches_found': 'No matches available',
+      'no_matches_content': 'There are no public rooms waiting at this time.',
+      'play_offline': 'Play Offline',
+      'create_my_room': 'Create my Room',
+      'configure_room': 'Configure new room',
+      'public_room': 'Public Room',
+      'public_room_subtitle': 'Allow strangers to join',
+      'search_quick_match': 'Search Quick Match',
+      'enter_name_error': 'Enter your name',
+      'name_code_error': 'Name and code are required',
+      // Privacy & Account
+      'privacy_policy': 'Privacy Policy',
+      'delete_account': 'Delete account',
+      'delete_account_confirm': 'Are you sure you want to permanently delete your account? This action cannot be undone.',
+      'confirm': 'Confirm',
+      'cancel': 'Cancel',
+      // Moderation
+      'report_player': 'Report player',
+      'block_player': 'Block player',
+      'unblock_player': 'Unblock player',
+      'report_reason': 'Select report reason',
+      'offensive_language': 'Offensive language',
+      'inappropriate_name': 'Inappropriate name',
+      'cheating': 'Cheating / Hacking',
+      'other': 'Other',
+      'report_sent': 'Report sent successfully',
+      'player_blocked': 'Player blocked',
+      'player_unblocked': 'Player unblocked',
+      // UX & Settings
+      'sound': 'Sound',
+      'vibration': 'Vibration',
+      // Game Events
+      'penalty_three_sixes': 'Three 6s in a row! Penalty for {name}',
+      'extra_turn': 'Extra turn for {name}!',
+      'player_cant_move': '{name} cannot move',
+      'token_finished_bonus': '{name} scored a token! +1 Turn',
+      'bad_luck_home': 'Bad luck! {name} goes back home',
+      'flying_to_cell': '{name} flies to cell {cell}',
+      'loses_turn': '{name} loses a turn!',
+      'roll_again': 'Roll again {name}!',
+      'captured_player': '{name} captured {other}! +1 Turn',
+      'skip_turn_msg': '{name} skips this turn',
+      // Game Exit
+      'exit_game_title': 'Exit game?',
+      'exit_game_content': 'If you leave now, you will lose all progress in this match.',
+      'stay': 'Stay',
+      'leave': 'Leave',
+      'player_n_name': '{player} Name',
+      'ai_player_name': 'AI {n}',
+    },
+  };
+}
+
+extension LanguageExtension on BuildContext {
+  String translate(String key, {Map<String, String>? args}) => watch<LanguageProvider>().translate(key, args: args);
+}

@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/config/env.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
+import '../config/language_provider.dart';
 
 class OnlineLobbyScreen extends StatefulWidget {
   const OnlineLobbyScreen({super.key});
@@ -30,7 +31,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     _nameController = TextEditingController(text: PrefsService.playerName);
     _socketSubscription = socketService.events.listen(_handleServerEvent);
 
-    // ✅ Escuchar cambios en el código para actualizar el color del botón
     _roomCodeController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -112,14 +112,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Sin partidas disponibles'),
-        content: Text('No hay salas públicas de $_lastRequestedPlayers jugadores esperando en este momento.'),
+        title: Text(context.translate('no_matches_found')),
+        content: Text(context.translate('no_matches_content')),
         actions: [
           Column(
             children: [
               _dialogButton(
                 icon: Icons.videogame_asset,
-                title: 'Jugar Offline',
+                title: context.translate('play_offline'),
                 color: Colors.blueAccent,
                 onTap: () {
                   Navigator.pop(context);
@@ -129,7 +129,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               const SizedBox(height: 8),
               _dialogButton(
                 icon: Icons.add_box,
-                title: 'Crear mi Sala',
+                title: context.translate('create_my_room'),
                 color: Colors.green,
                 onTap: () {
                   Navigator.pop(context);
@@ -139,7 +139,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               const SizedBox(height: 8),
               _dialogButton(
                 icon: Icons.arrow_back,
-                title: 'Volver al Inicio',
+                title: context.translate('back_to_menu'),
                 color: Colors.grey,
                 onTap: () {
                   Navigator.pop(context);
@@ -167,9 +167,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   Future<void> _handleQuickMatch() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return _showError('Introduce tu nombre');
+    if (name.isEmpty) return _showError(context.translate('enter_name_error'));
 
-    final int? selected = await _showPlayerCountDialog('Buscar Partida Rápida');
+    final int? selected = await _showPlayerCountDialog(context.translate('search_quick_match'));
     if (selected != null) {
       _lastRequestedPlayers = selected;
       PrefsService.playerName = name;
@@ -186,26 +186,26 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   Future<void> _handleCreateGame() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return _showError('Introduce tu nombre');
+    if (name.isEmpty) return _showError(context.translate('enter_name_error'));
 
     bool isPublic = true;
     int? maxPlayers = await showDialog<int>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Configurar nueva sala'),
+          title: Text(context.translate('configure_room')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ...[2, 3, 4].map((n) => ListTile(
-                title: Text('$n Jugadores'),
+                title: Text('$n ${context.translate('players_count')}'),
                 leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
                 onTap: () => Navigator.pop(context, n),
               )),
               const Divider(),
               SwitchListTile(
-                title: const Text('Sala Pública', style: TextStyle(fontSize: 14)),
-                subtitle: const Text('Permitir que desconocidos se unan', style: TextStyle(fontSize: 12)),
+                title: Text(context.translate('public_room'), style: const TextStyle(fontSize: 14)),
+                subtitle: Text(context.translate('public_room_subtitle'), style: const TextStyle(fontSize: 12)),
                 value: isPublic,
                 onChanged: (v) => setDialogState(() => isPublic = v),
               ),
@@ -241,7 +241,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [2, 3, 4].map((n) => ListTile(
-            title: Text('$n Jugadores'),
+            title: Text('$n ${context.translate('players_count')}'),
             leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
             onTap: () => Navigator.pop(context, n),
           )).toList(),
@@ -253,7 +253,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   Future<void> _connectAndJoin({String? manualCode}) async {
     final name = _nameController.text.trim();
     final code = manualCode ?? _roomCodeController.text.trim();
-    if (name.isEmpty || code.isEmpty) return _showError('Nombre y código obligatorios');
+    
+    // ✅ Restauramos la validación de nombre y código
+    if (name.isEmpty || code.isEmpty) {
+      return _showError(context.translate('name_code_error'));
+    }
+    
     PrefsService.playerName = name;
     if (manualCode != null) _roomCodeController.text = manualCode;
     setState(() => _isLoading = true);
@@ -288,7 +293,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                   children: [
                     const Text('PARCHÉ', textAlign: TextAlign.center, style: TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 4)).animate().fadeIn().slideY(begin: -0.3),
                     const SizedBox(height: 10),
-                    const Text('Multijugador en Línea', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)).animate().fadeIn(delay: 200.ms),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black38,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(context.translate('multiplayer_online'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
+                    ).animate().fadeIn(delay: 200.ms),
                     const SizedBox(height: 40),
                     if (_currentRoomCode != null)
                       _buildWaitingRoom()
@@ -296,36 +308,49 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                       if (lastCode != null && !_isLoading)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 20),
-                          child: _actionButton(title: 'VOLVER A PARTIDA: $lastCode', color: Colors.orange.shade700, onTap: () => _connectAndJoin(manualCode: lastCode)).animate(onPlay: (c) => c.repeat()).shimmer(duration: 1500.ms),
+                          child: _actionButton(title: '${context.translate('rejoin_match')}: $lastCode', color: Colors.orange.shade700, onTap: () => _connectAndJoin(manualCode: lastCode)).animate(onPlay: (c) => c.repeat()).shimmer(duration: 1500.ms),
                         ),
-                      _customTextField(controller: _nameController, hint: 'TU NOMBRE', icon: Icons.person).animate().fadeIn(delay: 400.ms).slideX(begin: -0.2),
+                      _customTextField(controller: _nameController, hint: context.translate('name_hint'), icon: Icons.person).animate().fadeIn(delay: 400.ms).slideX(begin: -0.2),
                       const SizedBox(height: 30),
                       if (_isLoading)
                         const CircularProgressIndicator(color: Colors.orangeAccent)
                       else ...[
-                        _actionButton(title: '⚡ PARTIDA RÁPIDA', color: Colors.blueAccent, onTap: _handleQuickMatch).animate().fadeIn(delay: 600.ms).scale(),
+                        _actionButton(title: context.translate('quick_match'), color: Colors.blueAccent, onTap: _handleQuickMatch).animate().fadeIn(delay: 600.ms).scale(),
                         const SizedBox(height: 15),
-                        _actionButton(title: '➕ CREAR NUEVA SALA', color: Colors.green.shade600, onTap: _handleCreateGame).animate().fadeIn(delay: 700.ms).scale(),
+                        _actionButton(title: context.translate('create_new_room'), color: Colors.green.shade600, onTap: _handleCreateGame).animate().fadeIn(delay: 700.ms).scale(),
                       ],
                       const SizedBox(height: 30),
                       const Divider(color: Colors.white38),
                       const SizedBox(height: 30),
-                      _customTextField(controller: _roomCodeController, hint: 'CÓDIGO PRIVADO', icon: Icons.vpn_key, isCode: true).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
+                      _customTextField(controller: _roomCodeController, hint: context.translate('private_code'), icon: Icons.vpn_key, isCode: true).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
                       const SizedBox(height: 15),
-                      // ✅ BOTÓN CORREGIDO: Ahora cambia de color cuando se escribe el código
                       _actionButton(
-                        title: 'UNIRSE POR CÓDIGO',
-                        color: isCodeValid ? Colors.orange.shade800 : Colors.white24,
-                        onTap: () => _connectAndJoin()
+                        title: context.translate('join_by_code'),
+                        color: isCodeValid ? Colors.orange.shade800 : Colors.black45,
+                        textColor: isCodeValid ? Colors.white : Colors.white38,
+                        // ✅ Permitimos el tap siempre para mostrar el error de "nombre vacío" si es necesario
+                        onTap: () => _connectAndJoin(),
                       ).animate().fadeIn(delay: 1000.ms).scale(),
                     ],
                     const SizedBox(height: 40),
-                    TextButton(
-                      onPressed: () {
-                        if (_currentRoomCode != null) { socketService.disconnect(); setState(() { _currentRoomCode = null; }); }
-                        else { Navigator.pop(context); }
-                      },
-                      child: Text(_currentRoomCode != null ? 'SALIR DE LA SALA' : '← Volver al Menú', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: TextButton(
+                        onPressed: () {
+                          if (_currentRoomCode != null) { socketService.disconnect(); setState(() { _currentRoomCode = null; }); }
+                          else { Navigator.pop(context); }
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        ),
+                        child: Text(
+                          _currentRoomCode != null ? context.translate('leave_room') : context.translate('back'), 
+                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -343,7 +368,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.orangeAccent, width: 2)),
       child: Column(
         children: [
-          const Text('SALA DE ESPERA', style: TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(context.translate('waiting_room'), style: const TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 15),
           Text(_currentRoomCode ?? '', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 4)),
           const SizedBox(height: 25),
@@ -358,7 +383,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           const SizedBox(height: 20),
           const LinearProgressIndicator(backgroundColor: Colors.white10, color: Colors.orangeAccent),
           const SizedBox(height: 15),
-          const Text('El juego iniciará cuando la sala esté llena.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic)),
+          Text(context.translate('waiting_room_subtitle'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic)),
         ],
       ),
     ).animate().fadeIn().scale();
@@ -377,14 +402,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     );
   }
 
-  Widget _actionButton({required String title, required Color color, required VoidCallback onTap}) {
+  Widget _actionButton({required String title, required Color color, Color textColor = Colors.white, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 6))]),
-        child: Text(title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        child: Text(title, textAlign: TextAlign.center, style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
       ),
     );
   }
