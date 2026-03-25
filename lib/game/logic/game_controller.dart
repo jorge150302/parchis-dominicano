@@ -239,14 +239,53 @@ class LocalGameController extends GameController {
   void _triggerAISelection() {
     Future.delayed(_aiSelectionDelay, () {
       if (movableTokenIds.isEmpty) return;
+
       int selectedId = movableTokenIds.first;
-      if (diceValue == 5) {
-        final homeToken = movableTokenIds.indexWhere((id) => currentPlayer.tokens[id].position == 0);
-        if (homeToken != -1) selectedId = movableTokenIds[homeToken];
-      } else {
-        movableTokenIds.sort((a, b) => currentPlayer.tokens[b].position.compareTo(currentPlayer.tokens[a].position));
-        selectedId = movableTokenIds.first;
+      int maxPriority = -1;
+
+      for (int tokenId in movableTokenIds) {
+        int priority = 0;
+        final token = currentPlayer.tokens[tokenId];
+        final targetPos = token.position + diceValue;
+
+        // 1. PRIORIDAD MÁXIMA: Entrar a meta
+        if (targetPos == engine.board.finalPosition) {
+          priority = 100;
+        }
+        // 2. PRIORIDAD ALTA: Capturar a un oponente
+        else if (targetPos > 0) {
+          bool canCapture = false;
+          for (var other in engine.players) {
+            if (other.id == currentPlayer.id) continue;
+            for (var otherToken in other.tokens) {
+              if (!otherToken.isFinished && otherToken.position == targetPos) {
+                // Solo si no es una barrera (el motor ya valida si se puede mover,
+                // pero aquí confirmamos que hay alguien a quien capturar)
+                canCapture = true;
+                break;
+              }
+            }
+            if (canCapture) break;
+          }
+          if (canCapture) priority = 90;
+        }
+
+        // 3. PRIORIDAD MEDIA: Sacar ficha de casa (si el dado es 5)
+        if (priority < 80 && diceValue == 5 && token.position == 0) {
+          priority = 80;
+        }
+
+        // 4. PRIORIDAD BAJA: Mover la ficha más adelantada (Heurística base)
+        if (priority == 0) {
+          priority = 10 + token.position;
+        }
+
+        if (priority > maxPriority) {
+          maxPriority = priority;
+          selectedId = tokenId;
+        }
       }
+
       selectToken(selectedId);
     });
   }
