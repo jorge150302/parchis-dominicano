@@ -112,11 +112,29 @@ class _AnimatedCell extends StatelessWidget {
     return 12.0;
   }
 
+  // Obtiene la alineación según el índice de la ficha y el total en la celda
+  Alignment _getTokenAlignment(int index, int total) {
+    if (total == 1) return Alignment.center;
+    if (total == 2) {
+      return index == 0 ? const Alignment(-0.45, 0) : const Alignment(0.45, 0);
+    }
+    // Para 3 o 4 fichas (esquinas)
+    switch (index) {
+      case 0: return const Alignment(-0.5, -0.5);
+      case 1: return const Alignment(0.5, -0.5);
+      case 2: return const Alignment(-0.5, 0.5);
+      case 3: return const Alignment(0.5, 0.5);
+      default: return Alignment.center;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasAction = cell.action != null;
     final label = _getCellLabel(cell);
     final fontSize = _getFontSize(label, hasAction);
+    final int totalTokens = tokensInCell.length;
+    final double tokenSize = totalTokens > 1 ? 16.0 : 20.0;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -145,33 +163,33 @@ class _AnimatedCell extends StatelessWidget {
               ),
             ),
           ),
-          Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 4, 
-              runSpacing: 4, 
-              children: tokensInCell.map((data) {
-                final Player player = data['player'];
-                final Token token = data['token'];
-                final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
+          // Sub-rejilla de fichas
+          ...tokensInCell.asMap().entries.map((entry) {
+            final int index = entry.key;
+            final Map<String, dynamic> data = entry.value;
+            final Player player = data['player'];
+            final Token token = data['token'];
+            final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
 
-                final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
-                    controller.currentPlayer.id == player.id &&
-                    controller.movableTokenIds.contains(token.id);
+            final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
+                controller.currentPlayer.id == player.id &&
+                controller.movableTokenIds.contains(token.id);
 
-                return Opacity(
-                  opacity: isBlocked ? 0.4 : 1.0,
-                  child: GestureDetector(
-                    onTap: isSelectable ? () => controller.selectToken(token.id) : null,
-                    child: _TokenWidget(
-                      asset: player.tokenAsset,
-                      isSelectable: isSelectable,
-                    ),
+            return Align(
+              alignment: _getTokenAlignment(index, totalTokens),
+              child: Opacity(
+                opacity: isBlocked ? 0.4 : 1.0,
+                child: GestureDetector(
+                  onTap: isSelectable ? () => controller.selectToken(token.id) : null,
+                  child: _TokenWidget(
+                    asset: player.tokenAsset,
+                    isSelectable: isSelectable,
+                    size: tokenSize,
                   ),
-                );
-              }).toList(),
-            ),
-          ),
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -181,8 +199,13 @@ class _AnimatedCell extends StatelessWidget {
 class _TokenWidget extends StatelessWidget {
   final String asset;
   final bool isSelectable;
+  final double size;
 
-  const _TokenWidget({required this.asset, required this.isSelectable});
+  const _TokenWidget({
+    required this.asset,
+    required this.isSelectable,
+    this.size = 20.0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +220,7 @@ class _TokenWidget extends StatelessWidget {
             BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
           ],
         ),
-        child: Image.asset(asset, width: 20, height: 20),
+        child: Image.asset(asset, width: size, height: size),
       ),
     );
 
