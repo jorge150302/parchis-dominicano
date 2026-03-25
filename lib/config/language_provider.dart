@@ -107,6 +107,9 @@ class LanguageProvider extends ChangeNotifier {
       // UX & Settings
       'sound': 'Sonido',
       'vibration': 'Vibración',
+      'game_speed': 'Velocidad de Juego',
+      'speed_normal': 'Normal',
+      'speed_fast': 'Rápida',
       // Game Events
       'penalty_three_sixes': '¡Tres 6 seguidos! Penalización para {name}',
       'extra_turn': '¡Turno extra para {name}!',
@@ -193,7 +196,7 @@ class LanguageProvider extends ChangeNotifier {
       // Moderation
       'report_player': 'Report player',
       'block_player': 'Block player',
-      'unblock_player': 'Unblock player',
+      'unblock_player': 'Desbloquear jugador',
       'report_reason': 'Select report reason',
       'offensive_language': 'Offensive language',
       'inappropriate_name': 'Inappropriate name',
@@ -205,6 +208,9 @@ class LanguageProvider extends ChangeNotifier {
       // UX & Settings
       'sound': 'Sound',
       'vibration': 'Vibration',
+      'game_speed': 'Game Speed',
+      'speed_normal': 'Normal',
+      'speed_fast': 'Fast',
       // Game Events
       'penalty_three_sixes': 'Three 6s in a row! Penalty for {name}',
       'extra_turn': 'Extra turn for {name}!',

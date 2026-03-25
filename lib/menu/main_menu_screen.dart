@@ -143,61 +143,82 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 context.translate('settings'),
                 style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.language, color: Colors.white),
-                    title: Text(context.translate('language'), style: const TextStyle(color: Colors.white)),
-                    trailing: DropdownButton<Language>(
-                      dropdownColor: Colors.brown.shade800,
-                      value: context.watch<LanguageProvider>().currentLanguage,
-                      underline: const SizedBox(),
-                      onChanged: (Language? newLang) {
-                        if (newLang != null) {
-                          context.read<LanguageProvider>().setLanguage(newLang);
-                        }
-                      },
-                      items: [
-                        DropdownMenuItem(value: Language.es, child: Text(context.translate('spanish'), style: const TextStyle(color: Colors.white))),
-                        DropdownMenuItem(value: Language.en, child: Text(context.translate('english'), style: const TextStyle(color: Colors.white))),
-                      ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.language, color: Colors.white),
+                      title: Text(context.translate('language'), style: const TextStyle(color: Colors.white)),
+                      trailing: DropdownButton<Language>(
+                        dropdownColor: Colors.brown.shade800,
+                        value: context.watch<LanguageProvider>().currentLanguage,
+                        underline: const SizedBox(),
+                        onChanged: (Language? newLang) {
+                          if (newLang != null) {
+                            context.read<LanguageProvider>().setLanguage(newLang);
+                          }
+                        },
+                        items: [
+                          DropdownMenuItem(value: Language.es, child: Text(context.translate('spanish'), style: const TextStyle(color: Colors.white))),
+                          DropdownMenuItem(value: Language.en, child: Text(context.translate('english'), style: const TextStyle(color: Colors.white))),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Divider(color: Colors.white24),
-                  SwitchListTile(
-                    secondary: const Icon(Icons.volume_up, color: Colors.white70),
-                    title: Text(context.translate('sound'), style: const TextStyle(color: Colors.white70)),
-                    value: PrefsService.soundEnabled,
-                    activeColor: Colors.orange,
-                    onChanged: (bool value) {
-                      setDialogState(() => PrefsService.soundEnabled = value);
-                    },
-                  ),
-                  SwitchListTile(
-                    secondary: const Icon(Icons.vibration, color: Colors.white70),
-                    title: Text(context.translate('vibration'), style: const TextStyle(color: Colors.white70)),
-                    value: PrefsService.vibrationEnabled,
-                    activeColor: Colors.orange,
-                    onChanged: (bool value) {
-                      setDialogState(() => PrefsService.vibrationEnabled = value);
-                    },
-                  ),
-                  const Divider(color: Colors.white24),
-                  ListTile(
-                    leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white70),
-                    title: Text(context.translate('privacy_policy'), style: const TextStyle(color: Colors.white70)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/privacy');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                    title: Text(context.translate('delete_account'), style: const TextStyle(color: Colors.redAccent)),
-                    onTap: () => _confirmDeleteAccount(context),
-                  ),
-                ],
+                    const Divider(color: Colors.white24),
+                    ListTile(
+                      leading: const Icon(Icons.speed, color: Colors.white70),
+                      title: Text(context.translate('game_speed'), style: const TextStyle(color: Colors.white70)),
+                      trailing: DropdownButton<GameSpeed>(
+                        dropdownColor: Colors.brown.shade800,
+                        value: PrefsService.gameSpeed,
+                        underline: const SizedBox(),
+                        onChanged: (GameSpeed? newSpeed) {
+                          if (newSpeed != null) {
+                            setDialogState(() => PrefsService.gameSpeed = newSpeed);
+                          }
+                        },
+                        items: [
+                          DropdownMenuItem(value: GameSpeed.normal, child: Text(context.translate('speed_normal'), style: const TextStyle(color: Colors.white))),
+                          DropdownMenuItem(value: GameSpeed.fast, child: Text(context.translate('speed_fast'), style: const TextStyle(color: Colors.white))),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.white24),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.volume_up, color: Colors.white70),
+                      title: Text(context.translate('sound'), style: const TextStyle(color: Colors.white70)),
+                      value: PrefsService.soundEnabled,
+                      activeColor: Colors.orange,
+                      onChanged: (bool value) {
+                        setDialogState(() => PrefsService.soundEnabled = value);
+                      },
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.vibration, color: Colors.white70),
+                      title: Text(context.translate('vibration'), style: const TextStyle(color: Colors.white70)),
+                      value: PrefsService.vibrationEnabled,
+                      activeColor: Colors.orange,
+                      onChanged: (bool value) {
+                        setDialogState(() => PrefsService.vibrationEnabled = value);
+                      },
+                    ),
+                    const Divider(color: Colors.white24),
+                    ListTile(
+                      leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white70),
+                      title: Text(context.translate('privacy_policy'), style: const TextStyle(color: Colors.white70)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/privacy');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                      title: Text(context.translate('delete_account'), style: const TextStyle(color: Colors.redAccent)),
+                      onTap: () => _confirmDeleteAccount(context),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(

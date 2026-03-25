@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+enum GameSpeed { normal, fast }
+
 class PrefsService {
   static late SharedPreferences _prefs;
 
@@ -55,6 +57,13 @@ class PrefsService {
 
   static bool get vibrationEnabled => _prefs.getBool('vibration_enabled') ?? true;
   static set vibrationEnabled(bool value) => _prefs.setBool('vibration_enabled', value);
+
+  // ⚡ Velocidad de Juego
+  static GameSpeed get gameSpeed {
+    final index = _prefs.getInt('game_speed') ?? 0;
+    return GameSpeed.values[index];
+  }
+  static set gameSpeed(GameSpeed speed) => _prefs.setInt('game_speed', speed.index);
 
   // 🚫 Moderación: Lista de bloqueados persistente
   static List<String> get blockedPlayerIds {

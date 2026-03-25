@@ -103,6 +103,22 @@ class LocalGameController extends GameController {
     }
   }
 
+  Duration get _aiDecisionDelay => PrefsService.gameSpeed == GameSpeed.fast
+      ? const Duration(milliseconds: 400)
+      : const Duration(milliseconds: 1500);
+
+  Duration get _aiSelectionDelay => PrefsService.gameSpeed == GameSpeed.fast
+      ? const Duration(milliseconds: 300)
+      : const Duration(milliseconds: 1000);
+
+  Duration get _stepDelay => PrefsService.gameSpeed == GameSpeed.fast
+      ? const Duration(milliseconds: 80)
+      : const Duration(milliseconds: 200);
+
+  Duration get _eventDelay => PrefsService.gameSpeed == GameSpeed.fast
+      ? const Duration(milliseconds: 400)
+      : const Duration(seconds: 1);
+
   void initializeFromResume(int savedDiceValue) {
     diceValue = savedDiceValue;
     // Sincronizamos el dado individual del jugador actual
@@ -118,7 +134,7 @@ class LocalGameController extends GameController {
     }
 
     if (vsAI && currentPlayer.index != 0 && engine.phase == GamePhase.idle) {
-      Future.delayed(const Duration(milliseconds: 1500), () => rollDice());
+      Future.delayed(_aiDecisionDelay, () => rollDice());
     } else if (vsAI && currentPlayer.index != 0 && engine.phase == GamePhase.choosing_token) {
       _triggerAISelection();
     }
@@ -141,7 +157,7 @@ class LocalGameController extends GameController {
     notifyListeners();
     
     if (vsAI && currentPlayer.index != 0 && engine.phase != GamePhase.finished) {
-      Future.delayed(const Duration(milliseconds: 1500), () => rollDice());
+      Future.delayed(_aiDecisionDelay, () => rollDice());
     }
   }
 
@@ -200,7 +216,7 @@ class LocalGameController extends GameController {
     if (movableTokenIds.isEmpty) {
       engine.events.add(GameEvent(messageKey: 'player_cant_move', args: {'name': currentPlayer.name}));
       notifyListeners();
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(_eventDelay);
       
       if (diceValue == 6) {
         startTurn();
@@ -221,7 +237,7 @@ class LocalGameController extends GameController {
   }
 
   void _triggerAISelection() {
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    Future.delayed(_aiSelectionDelay, () {
       if (movableTokenIds.isEmpty) return;
       int selectedId = movableTokenIds.first;
       if (diceValue == 5) {
@@ -238,7 +254,7 @@ class LocalGameController extends GameController {
   Future<void> _moveStepByStep(int tokenId, int steps) async {
     engine.phase = GamePhase.moving;
     for (int i = 0; i < steps; i++) {
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(_stepDelay);
       engine.stepForward(currentPlayer, tokenId);
       notifyListeners();
       if (currentPlayer.tokens[tokenId].isFinished) {
