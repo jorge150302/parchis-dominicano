@@ -66,7 +66,9 @@ class GameEngine {
     }
     _events.add(GameEvent(
       messageKey: 'penalty_three_sixes', 
-      args: {'name': player.name}
+      args: {'name': player.name},
+      playerId: player.id,
+      type: 'penalty'
     ));
     return true;
   }
@@ -113,7 +115,9 @@ class GameEngine {
       currentPlayer.extraTurns--;
       _events.add(GameEvent(
         messageKey: 'extra_turn', 
-        args: {'name': currentPlayer.name}
+        args: {'name': currentPlayer.name},
+        playerId: currentPlayer.id,
+        type: 'bonus'
       ));
       phase = GamePhase.idle;
       return;
@@ -144,7 +148,9 @@ class GameEngine {
         nextPlayer.consumeSkip();
         _events.add(GameEvent(
           messageKey: 'skip_turn_msg', 
-          args: {'name': nextPlayer.name}
+          args: {'name': nextPlayer.name},
+          playerId: nextPlayer.id,
+          type: 'penalty'
         ));
         continue; 
       }
@@ -167,7 +173,9 @@ class GameEngine {
           player.extraTurns++; 
           _events.add(GameEvent(
             messageKey: 'token_finished_bonus', 
-            args: {'name': player.name}
+            args: {'name': player.name},
+            playerId: player.id,
+            type: 'bonus'
           ));
         } else {
           if (!finisherIds.contains(player.id)) {
@@ -189,7 +197,9 @@ class GameEngine {
         token.reset();
         _events.add(GameEvent(
           messageKey: 'bad_luck_home', 
-          args: {'name': player.name}
+          args: {'name': player.name},
+          playerId: player.id,
+          type: 'penalty'
         ));
         return true;
       case BoardActionType.moveTo:
@@ -197,7 +207,9 @@ class GameEngine {
           token.position = action.targetNumber!;
           _events.add(GameEvent(
             messageKey: 'flying_to_cell', 
-            args: {'name': player.name, 'cell': token.position.toString()}
+            args: {'name': player.name, 'cell': token.position.toString()},
+            playerId: player.id,
+            type: 'move'
           ));
           return true;
         }
@@ -206,14 +218,18 @@ class GameEngine {
         player.addSkip(1);
         _events.add(GameEvent(
           messageKey: 'loses_turn', 
-          args: {'name': player.name}
+          args: {'name': player.name},
+          playerId: player.id,
+          type: 'penalty'
         ));
         return false;
       case BoardActionType.rollAgain:
         player.extraTurns++;
         _events.add(GameEvent(
           messageKey: 'roll_again', 
-          args: {'name': player.name}
+          args: {'name': player.name},
+          playerId: player.id,
+          type: 'bonus'
         ));
         return false;
       default: return false;
@@ -234,7 +250,9 @@ class GameEngine {
           if (!player.isFinished) player.extraTurns++;
           _events.add(GameEvent(
             messageKey: 'captured_player', 
-            args: {'name': player.name, 'other': other.name}
+            args: {'name': player.name, 'other': other.name},
+            playerId: player.id,
+            type: 'bonus'
           ));
           hit = true;
         }

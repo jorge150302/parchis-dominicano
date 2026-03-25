@@ -1,11 +1,13 @@
 import 'dart:convert'; // ✅ Importación necesaria para jsonDecode
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/language_provider.dart';
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
+import '../models/game_event.dart';
 import '../models/player.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/dice_widget.dart';
@@ -37,6 +39,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _isDisconnectDialogShown = false;
   int _lastFinisherCount = 0; 
   final Set<String> _processedEvents = {};
+  final List<ActiveVisualEvent> _activeVisualEvents = [];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
@@ -110,20 +113,41 @@ class _GameScreenState extends State<GameScreen> {
     for (final event in newEvents) {
       if (!_processedEvents.contains(event.id)) {
         _processedEvents.add(event.id);
-        Future.delayed(Duration(milliseconds: newEvents.indexOf(event) * 500), () {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                context.read<LanguageProvider>().translate(event.messageKey, args: event.args), 
-                style: const TextStyle(fontWeight: FontWeight.bold)
+        
+        final playerIndex = controller.players.indexWhere((p) => p.id == event.playerId);
+        if (playerIndex != -1) {
+          const alignments = [Alignment.topLeft, Alignment.topRight, Alignment.bottomLeft, Alignment.bottomRight];
+          final alignment = alignments[playerIndex % alignments.length];
+          
+          setState(() {
+            _activeVisualEvents.add(ActiveVisualEvent(event: event, alignment: alignment));
+          });
+          
+          // Eliminar el evento visual después de la animación (2.5s)
+          Future.delayed(const Duration(milliseconds: 2500), () {
+            if (mounted) {
+              setState(() {
+                _activeVisualEvents.removeWhere((ae) => ae.event.id == event.id);
+              });
+            }
+          });
+        } else {
+          // Eventos globales o sin jugador asignado siguen usando SnackBar por ahora
+          Future.delayed(Duration(milliseconds: newEvents.indexOf(event) * 500), () {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  context.read<LanguageProvider>().translate(event.messageKey, args: event.args), 
+                  style: const TextStyle(fontWeight: FontWeight.bold)
+                ),
+                backgroundColor: Colors.orange.shade800,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
               ),
-              backgroundColor: Colors.orange.shade800,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        });
+            );
+          });
+        }
       }
     }
 
@@ -236,6 +260,7 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ),
                         ..._buildPlayers(controller),
+                        _buildFloatingEvents(),
                         if (isWaiting) _buildWaitingOverlay(),
                       ],
                     ),
@@ -257,6 +282,78 @@ class _GameScreenState extends State<GameScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFloatingEvents() {
+    final Map<Alignment, int> alignmentCounts = {};
+
+    return Stack(
+      children: _activeVisualEvents.map((ae) {
+        final int count = alignmentCounts[ae.alignment] ?? 0;
+        alignmentCounts[ae.alignment] = count + 1;
+
+        final text = context.translate(ae.event.messageKey, args: ae.event.args);
+        Color color = Colors.white;
+        IconData icon = Icons.info;
+        
+        if (ae.event.type == 'penalty') {
+          color = Colors.redAccent;
+          icon = Icons.warning_amber_rounded;
+        } else if (ae.event.type == 'bonus') {
+          color = Colors.greenAccent;
+          icon = Icons.stars;
+        } else if (ae.event.type == 'move') {
+          color = Colors.lightBlueAccent;
+          icon = Icons.flight_takeoff;
+        }
+
+        // Ajuste de offset según el cuadrante
+        double offsetX = ae.alignment.x < 0 ? 20 : -20;
+        double offsetY = ae.alignment.y < 0 ? 120 : -120;
+
+        // Añadimos un desplazamiento extra si hay varios mensajes en la misma esquina
+        double stackOffset = count * 50.0;
+        if (ae.alignment.y > 0) {
+          offsetY -= stackOffset; 
+        } else {
+          offsetY += stackOffset;
+        }
+
+        return Align(
+          alignment: ae.alignment,
+          child: Transform.translate(
+            offset: Offset(offsetX, offsetY),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color.withOpacity(0.7), width: 2),
+                boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10)],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: color, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      text,
+                      style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            )
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .slideY(begin: 0.3, end: -0.3, duration: 2.seconds, curve: Curves.easeOut)
+            .fadeOut(delay: 1.8.seconds, duration: 400.ms),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -656,4 +753,10 @@ class _PlayerCornerWidget extends StatelessWidget {
       ],
     );
   }
+}
+
+class ActiveVisualEvent {
+  final GameEvent event;
+  final Alignment alignment;
+  ActiveVisualEvent({required this.event, required this.alignment});
 }
