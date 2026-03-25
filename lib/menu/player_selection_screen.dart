@@ -1,5 +1,7 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 import '../config/language_provider.dart';
 
 class PlayerSelectionScreen extends StatefulWidget {
@@ -20,6 +22,24 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _updateAINames() {
+    if (selectedPlayers == null) return;
+    final lang = context.read<LanguageProvider>();
+
+    if (vsAI) {
+      List<String> aiNameKeys = ['ai_name_1', 'ai_name_2', 'ai_name_3', 'ai_name_4', 'ai_name_5', 'ai_name_6'];
+      aiNameKeys.shuffle();
+
+      for (int i = 1; i < selectedPlayers!; i++) {
+        _nameControllers[i].text = lang.translate(aiNameKeys[i % aiNameKeys.length]);
+      }
+    } else {
+      for (int i = 1; i < 4; i++) {
+        _nameControllers[i].clear();
+      }
+    }
   }
 
   void _showAIInfo() {
@@ -123,7 +143,12 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                             child: Switch(
                               value: vsAI,
                               activeColor: Colors.orangeAccent,
-                              onChanged: (v) => setState(() => vsAI = v),
+                              onChanged: (v) {
+                                setState(() {
+                                  vsAI = v;
+                                  _updateAINames();
+                                });
+                              },
                             ),
                           ),
                         ],
@@ -145,47 +170,71 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                 
                     const SizedBox(height: 30),
                 
-                    AnimatedOpacity(
-                      opacity: selectedPlayers == null ? 0.5 : 1,
-                      duration: const Duration(milliseconds: 300),
-                      child: ElevatedButton(
-                        onPressed: selectedPlayers == null
-                            ? null
+                    Builder(
+                      builder: (btnContext) {
+                        return ElevatedButton(
+                          onPressed: selectedPlayers == null 
+                            ? null 
                             : () {
-                          List<String> playerNames = [];
-                          int count = vsAI ? 1 : selectedPlayers!;
-                          for (int i = 0; i < count; i++) {
-                            String name = _nameControllers[i].text.trim();
-                            if (name.isEmpty) {
-                              name = '${context.translate('player')} ${i + 1}';
-                            }
-                            playerNames.add(name);
-                          }
-                          // Add AI names if applicable
-                          if (vsAI) {
-                            for (int i = 1; i < selectedPlayers!; i++) {
-                              playerNames.add(context.translate('ai_player_name', args: {'n': '$i'}));
-                            }
-                          }
-                
-                          Navigator.pushNamed(
-                            context,
-                            '/game',
-                            arguments: {
-                              'playerCount': selectedPlayers,
-                              'vsAI': vsAI,
-                              'playerNames': playerNames,
+                              final lang = btnContext.read<LanguageProvider>();
+
+                              int countToValidate = vsAI ? 1 : selectedPlayers!;
+                              bool hasEmptyFields = false;
+
+                              for (int i = 0; i < countToValidate; i++) {
+                                if (_nameControllers[i].text.trim().isEmpty) {
+                                  hasEmptyFields = true;
+                                  break;
+                                }
+                              }
+
+                              if (hasEmptyFields) {
+                                ScaffoldMessenger.of(btnContext).clearSnackBars();
+                                ScaffoldMessenger.of(btnContext).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      lang.translate('all_names_mandatory'),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    ),
+                                    backgroundColor: Colors.redAccent,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 3),
+                                    margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              List<String> playerNames = [];
+                              for (int i = 0; i < selectedPlayers!; i++) {
+                                playerNames.add(_nameControllers[i].text.trim());
+                              }
+
+                              Navigator.pushNamed(
+                                context,
+                                '/game',
+                                arguments: {
+                                  'playerCount': selectedPlayers,
+                                  'vsAI': vsAI,
+                                  'playerNames': playerNames,
+                                },
+                              );
                             },
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orangeAccent,
-                          padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                        ),
-                        child: Text(context.translate('start_game'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      ),
-                    ).animate().fadeIn(delay: 600.ms),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: selectedPlayers == null ? Colors.grey : Colors.orangeAccent,
+                            padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            elevation: 10,
+                          ),
+                          child: Text(
+                            context.translate('start_game'), 
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)
+                          ),
+                        );
+                      }
+                    ).animate(target: selectedPlayers == null ? 0 : 1).fadeIn(delay: 600.ms),
                 
                     const SizedBox(height: 20),
                 
@@ -221,9 +270,9 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
   }
 
   Widget _buildNameInputs() {
-    int count = vsAI ? 1 : selectedPlayers!;
+    int count = selectedPlayers!;
     return Container(
-      width: 300,
+      width: 320,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black45,
@@ -231,22 +280,25 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
       ),
       child: Column(
         children: List.generate(count, (i) {
+          bool isAIField = vsAI && i > 0;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: TextField(
               controller: _nameControllers[i],
-              style: const TextStyle(color: Colors.white),
+              enabled: !isAIField,
+              style: TextStyle(color: isAIField ? Colors.orangeAccent : Colors.white),
               decoration: InputDecoration(
                 labelText: context.translate('player_n_name', args: {'player': '${i + 1}'}),
-                labelStyle: const TextStyle(color: Colors.orangeAccent),
+                labelStyle: TextStyle(color: isAIField ? Colors.orangeAccent.withOpacity(0.7) : Colors.orangeAccent),
+                disabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orangeAccent, width: 0.5)),
                 enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
-                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orangeAccent)),
+                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orangeAccent, width: 2)),
               ),
             ),
           );
         }),
       ),
-    ).animate().fadeIn().scale(begin: const Offset(0.9, 0.9));
+    ).animate().fadeIn().scale(begin: const Offset(0.95, 0.95));
   }
 
   Widget _playerCard(int players) {
@@ -259,7 +311,12 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
     }
 
     return GestureDetector(
-      onTap: () => setState(() => selectedPlayers = players),
+      onTap: () {
+        setState(() {
+          selectedPlayers = players;
+          _updateAINames();
+        });
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         width: 300,

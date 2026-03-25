@@ -47,25 +47,23 @@ class MyApp extends StatelessWidget {
           },
           onGenerateRoute: (settings) {
             if (settings.name == '/game') {
-              final args = settings.arguments;
-              int playersCount = 2;
-              String? roomCode;
-              bool vsAI = false;
-              List<String>? playerNames;
+              final args = settings.arguments as Map<String, dynamic>?;
+              
+              int playersCount = args?['playerCount'] ?? 2;
+              String? roomCode = args?['roomCode'];
+              bool vsAI = args?['vsAI'] ?? false;
+              List<String>? playerNames = args?['playerNames'];
+              bool isResume = args?['isResume'] ?? false;
+              Map<String, dynamic>? savedState = args?['savedState'];
 
-              if (args is int) {
-                playersCount = args;
-              } else if (args is Map<String, dynamic>) {
-                playersCount = args['playerCount'] ?? 2;
-                roomCode = args['roomCode'];
-                vsAI = args['vsAI'] ?? false;
-                playerNames = args['playerNames'];
+              final board = generateBoard(classicActionPositions, classicActions);
+              late final GameEngine engine;
+
+              if (isResume && savedState != null) {
+                engine = GameEngine.fromSavedState(savedState, board);
+              } else {
+                engine = GameEngine(board: board, players: []);
               }
-
-              final engine = GameEngine(
-                board: generateBoard(classicActionPositions, classicActions),
-                players: [],
-              );
 
               return MaterialPageRoute(
                 builder: (context) {
@@ -77,6 +75,7 @@ class MyApp extends StatelessWidget {
                       playerCount: playersCount,
                       roomCode: roomCode,
                       playerNames: playerNames,
+                      isResume: isResume,
                     ),
                   );
                 },

@@ -1,9 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-/// =======================================================
-/// 🎲 CONFIGURACIÓN (future-proof)
-/// =======================================================
 class DiceStyle {
   final int sides;
   final String assetPath;
@@ -12,13 +9,10 @@ class DiceStyle {
   const DiceStyle({
     required this.sides,
     required this.assetPath,
-    this.size = 120, // 🔥 más grande por defecto
+    this.size = 120,
   });
 }
 
-/// =======================================================
-/// 🎲 DICE WIDGET PRO (spin + bounce + sombra + base)
-/// =======================================================
 class DiceWidget extends StatefulWidget {
   final int value;
   final bool rolling;
@@ -45,33 +39,32 @@ class _DiceWidgetState extends State<DiceWidget>
 
   final _random = Random();
 
-  int displayedValue = 1;
+  late int displayedValue;
 
   @override
   void initState() {
     super.initState();
+
+    // Inicializar con el valor actual (útil para la reanudación)
+    displayedValue = widget.value;
 
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 450)
     );
 
-    /// giro continuo
     _rotation = Tween<double>(begin: 0, end: 4 * pi).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
 
-    /// rebote vertical suave
     _bounce = Tween<double>(begin: 0, end: -18).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
 
-    /// squash/stretch tipo físico
     _scale = Tween<double>(begin: 1, end: 1.25).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
 
-    /// caras random mientras rueda
     _controller.addListener(() {
       if (widget.rolling) {
         setState(() {
@@ -80,7 +73,6 @@ class _DiceWidgetState extends State<DiceWidget>
       }
     });
 
-    /// termina → mostrar valor real fijo
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         setState(() {
@@ -89,20 +81,27 @@ class _DiceWidgetState extends State<DiceWidget>
       }
     });
   }
+
   @override
   void didUpdateWidget(covariant DiceWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ✅ empezar a rodar suave (loop continuo)
+    // Si este dado empieza a rodar
     if (widget.rolling && !oldWidget.rolling) {
       _controller.repeat();
     }
 
-    // ✅ terminar suave (no corte brusco)
+    // Si este dado termina de rodar, fijar el valor final
     if (!widget.rolling && oldWidget.rolling) {
       _controller.stop();
-      displayedValue = widget.value;
+      setState(() {
+        displayedValue = widget.value;
+      });
     }
+
+    // ✅ HEMOS ELIMINADO el bloque que sincronizaba el valor automáticamente.
+    // Ahora, si el valor del controlador cambia pero ESTE dado no estaba rodando,
+    // se ignorará el cambio, manteniendo la independencia entre jugadores.
   }
 
   @override

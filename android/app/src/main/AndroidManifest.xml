@@ -7,7 +7,9 @@
         android:label="Parché"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"> <!-- ✅ PERMITE CONEXIONES NO CIFRADAS (ws://) -->
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"> <!-- ✅ DESACTIVA BACKUP PARA EVITAR DATOS VIEJOS -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

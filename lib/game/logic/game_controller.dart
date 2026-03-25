@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +29,6 @@ abstract class GameController extends ChangeNotifier {
 
   List<ChatMessage> chatMessages = [];
   
-  // ✅ Lista de jugadores bloqueados (por ID)
   final Set<String> blockedPlayerIds = {};
 
   GameController({required this.engine});
@@ -54,7 +54,6 @@ abstract class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ✅ Métodos de Moderación
   void toggleBlockPlayer(String playerId) {
     if (blockedPlayerIds.contains(playerId)) {
       blockedPlayerIds.remove(playerId);
@@ -64,9 +63,7 @@ abstract class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void reportPlayer(String reportedId, String reason) {
-    // Implementado en NetworkGameController
-  }
+  void reportPlayer(String reportedId, String reason) {}
 
   Future<void> playFanfare() async {
     await fanfareAudio.play(AssetSource('sounds/fanfarreas.mp3'));
@@ -95,9 +92,44 @@ class LocalGameController extends GameController {
 
   LocalGameController({required super.engine, this.vsAI = false});
 
+  void _saveGame() {
+    if (engine.phase == GamePhase.finished) {
+      PrefsService.savedLocalGame = null;
+    } else {
+      final state = engine.toJson();
+      state['vsAI'] = vsAI;
+      state['diceValue'] = diceValue;
+      PrefsService.savedLocalGame = jsonEncode(state);
+    }
+  }
+
+  void initializeFromResume(int savedDiceValue) {
+    diceValue = savedDiceValue;
+    // Sincronizamos el dado individual del jugador actual
+    currentPlayer.lastDiceValue = savedDiceValue;
+
+    if (engine.phase == GamePhase.choosing_token) {
+      movableTokenIds = engine.getMovableTokenIds(diceValue);
+      inputLocked = false;
+    } else if (engine.phase == GamePhase.moving) {
+      engine.phase = GamePhase.choosing_token;
+      movableTokenIds = engine.getMovableTokenIds(diceValue);
+      inputLocked = false;
+    }
+
+    if (vsAI && currentPlayer.index != 0 && engine.phase == GamePhase.idle) {
+      Future.delayed(const Duration(milliseconds: 1500), () => rollDice());
+    } else if (vsAI && currentPlayer.index != 0 && engine.phase == GamePhase.choosing_token) {
+      _triggerAISelection();
+    }
+
+    notifyListeners();
+  }
+
   @override
   void startTurn() {
     if (engine.phase == GamePhase.finished) {
+      _saveGame();
       notifyListeners();
       return;
     }
@@ -105,6 +137,7 @@ class LocalGameController extends GameController {
     engine.phase = GamePhase.idle;
     movableTokenIds.clear();
     inputLocked = false;
+    _saveGame();
     notifyListeners();
     
     if (vsAI && currentPlayer.index != 0 && engine.phase != GamePhase.finished) {
@@ -126,6 +159,7 @@ class LocalGameController extends GameController {
       engine.nextTurn();
       startTurn();
     } else {
+      _saveGame();
       notifyListeners();
     }
   }
@@ -142,13 +176,15 @@ class LocalGameController extends GameController {
     diceAudio.play(AssetSource('sounds/dice.mp3'));
     for (int i = 0; i < 12; i++) {
       diceValue = random.nextInt(6) + 1;
+      currentPlayer.lastDiceValue = diceValue; // ✅ Actualizamos el dado individual mientras gira
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 60));
     }
 
     rollingDice = false;
     rollingPlayerId = null;
-    
+    currentPlayer.lastDiceValue = diceValue; // ✅ Valor final del dado individual
+
     engine.registerSix(currentPlayer, diceValue);
     
     if (engine.reachedThreeSixes(currentPlayer)) {
@@ -175,22 +211,28 @@ class LocalGameController extends GameController {
     } else {
       engine.phase = GamePhase.choosing_token;
       inputLocked = false;
+      _saveGame();
       notifyListeners();
       
       if (vsAI && currentPlayer.index != 0) {
-        Future.delayed(const Duration(milliseconds: 1000), () {
-          int selectedId = movableTokenIds.first;
-          if (diceValue == 5) {
-            final homeToken = movableTokenIds.indexWhere((id) => currentPlayer.tokens[id].position == 0);
-            if (homeToken != -1) selectedId = movableTokenIds[homeToken];
-          } else {
-            movableTokenIds.sort((a, b) => currentPlayer.tokens[b].position.compareTo(currentPlayer.tokens[a].position));
-            selectedId = movableTokenIds.first;
-          }
-          selectToken(selectedId);
-        });
+        _triggerAISelection();
       }
     }
+  }
+
+  void _triggerAISelection() {
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (movableTokenIds.isEmpty) return;
+      int selectedId = movableTokenIds.first;
+      if (diceValue == 5) {
+        final homeToken = movableTokenIds.indexWhere((id) => currentPlayer.tokens[id].position == 0);
+        if (homeToken != -1) selectedId = movableTokenIds[homeToken];
+      } else {
+        movableTokenIds.sort((a, b) => currentPlayer.tokens[b].position.compareTo(currentPlayer.tokens[a].position));
+        selectedId = movableTokenIds.first;
+      }
+      selectToken(selectedId);
+    });
   }
 
   Future<void> _moveStepByStep(int tokenId, int steps) async {
@@ -214,6 +256,7 @@ class LocalGameController extends GameController {
     final hit = engine.resolveCollisions(currentPlayer, tokenId);
     if (hit || movedByAction) await playSendToHomeSound();
     
+    _saveGame();
     notifyListeners();
   }
 
@@ -426,7 +469,6 @@ class NetworkGameController extends GameController {
   void _handleChatMessage(Map<String, dynamic> data) {
     final senderId = data['senderId'] ?? '';
     
-    // ✅ Si el jugador está bloqueado, ignoramos su mensaje
     if (blockedPlayerIds.contains(senderId)) return;
 
     chatMessages.add(ChatMessage(

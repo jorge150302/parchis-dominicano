@@ -23,7 +23,7 @@ class PrefsService {
   static String get playerName => _prefs.getString('player_name') ?? '';
   static set playerName(String name) => _prefs.setString('player_name', name);
 
-  // 🏠 Sala
+  // 🏠 Sala (Online)
   static String? get lastRoomCode => _prefs.getString('last_room_code');
   static set lastRoomCode(String? code) {
     if (code == null) {
@@ -32,6 +32,18 @@ class PrefsService {
       _prefs.setString('last_room_code', code);
     }
   }
+
+  // 💾 Partida Guardada (Offline)
+  static String? get savedLocalGame => _prefs.getString('saved_local_game');
+  static set savedLocalGame(String? json) {
+    if (json == null) {
+      _prefs.remove('saved_local_game');
+    } else {
+      _prefs.setString('saved_local_game', json);
+    }
+  }
+
+  static bool get hasSavedGame => _prefs.containsKey('saved_local_game');
 
   // 🌐 Idioma
   static String get languageCode => _prefs.getString('language_code') ?? 'es';

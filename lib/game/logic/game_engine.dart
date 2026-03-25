@@ -20,6 +20,25 @@ class GameEngine {
 
   Player get currentPlayer => players[_currentPlayerIndex];
   List<GameEvent> get events => _events;
+  int get currentPlayerIndex => _currentPlayerIndex;
+
+  Map<String, dynamic> toJson() => {
+    'players': players.map((p) => p.toJson()).toList(),
+    'currentPlayerIndex': _currentPlayerIndex,
+    'phase': phase.index,
+    'finisherIds': finisherIds,
+  };
+
+  factory GameEngine.fromSavedState(Map<String, dynamic> json, Board board) {
+    final engine = GameEngine(
+      board: board,
+      players: (json['players'] as List).map((p) => Player.fromJson(p)).toList(),
+    );
+    engine._currentPlayerIndex = json['currentPlayerIndex'];
+    engine.phase = GamePhase.values[json['phase']];
+    engine.finisherIds.addAll(List<String>.from(json['finisherIds']));
+    return engine;
+  }
 
   void setCurrentPlayerById(String id) {
     final index = players.indexWhere((p) => p.id == id);

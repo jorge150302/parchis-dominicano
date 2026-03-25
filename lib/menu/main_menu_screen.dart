@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +40,91 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Cuenta eliminada con éxito.'))
     );
+  }
+
+  // Lógica para reanudar la partida
+  void _resumeGame() {
+    final savedJson = PrefsService.savedLocalGame;
+    if (savedJson != null) {
+      final state = jsonDecode(savedJson);
+      Navigator.pushNamed(
+        context,
+        '/game',
+        arguments: {
+          'playerCount': (state['players'] as List).length,
+          'vsAI': state['vsAI'] ?? false,
+          'isResume': true,
+          'savedState': state,
+        },
+      );
+    }
+  }
+
+  // Diálogo para elegir entre Continuar o Nueva Partida
+  void _handleOfflineClick() {
+    if (PrefsService.hasSavedGame) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.brown.shade900,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(25),
+            side: const BorderSide(color: Colors.orangeAccent, width: 2),
+          ),
+          title: Text(
+            context.translate('offline_mode'),
+            style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            'Tienes una partida pendiente. ¿Qué deseas hacer?', // Podría ir en traducciones
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orangeAccent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _resumeGame();
+                    },
+                    child: Text(
+                      context.translate('continue_game'),
+                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/players');
+                    },
+                    child: Text(
+                      'Iniciar Nueva Partida', // Podría ir en traducciones
+                      style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else {
+      Navigator.pushNamed(context, '/players');
+    }
   }
 
   void _showSettings(BuildContext context) {
@@ -184,83 +270,84 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             ),
             SafeArea(
               child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'PARCHÉ',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 4,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 12,
-                            color: Colors.black54,
-                            offset: Offset(2, 3),
-                          ),
-                        ],
-                      ),
-                    )
-                        .animate()
-                        .fadeIn(duration: 700.ms)
-                        .scale(begin: const Offset(0.8, 0.8))
-                        .slideY(begin: -0.3),
-                    const SizedBox(height: 12),
-                    
-                    // ✅ Aplicado el sombreado negro al subtexto de inicio
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black38,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        context.translate('select_mode'),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'PARCHÉ',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 18,
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w900,
                           color: Colors.white,
-                          fontWeight: FontWeight.w500,
+                          letterSpacing: 4,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 12,
+                              color: Colors.black54,
+                              offset: Offset(2, 3),
+                            ),
+                          ],
                         ),
-                      ),
-                    )
-                        .animate()
-                        .fadeIn(delay: 300.ms)
-                        .slideY(begin: -0.1),
+                      )
+                          .animate()
+                          .fadeIn(duration: 700.ms)
+                          .scale(begin: const Offset(0.8, 0.8))
+                          .slideY(begin: -0.3),
+                      const SizedBox(height: 12),
 
-                    const SizedBox(height: 70),
-                    _MenuButton(
-                      icon: Icons.people_alt_rounded,
-                      title: context.translate('offline_mode'),
-                      subtitle: context.translate('offline_subtitle'),
-                      color: Colors.blueAccent,
-                      onTap: () {
-                        Navigator.pushNamed(context, '/players');
-                      },
-                    )
-                        .animate()
-                        .fadeIn(delay: 600.ms)
-                        .slideX(begin: -0.4)
-                        .scale(begin: const Offset(0.95, 0.95)),
-                    const SizedBox(height: 28),
-                    _MenuButton(
-                      icon: Icons.public,
-                      title: context.translate('online_mode'),
-                      subtitle: context.translate('online_subtitle'),
-                      color: Colors.green,
-                      onTap: () {
-                        Navigator.pushNamed(context, '/online_lobby');
-                      },
-                    )
-                        .animate()
-                        .fadeIn(delay: 900.ms)
-                        .slideX(begin: 0.4)
-                        .scale(begin: const Offset(0.95, 0.95)),
-                  ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black38,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          context.translate('select_mode'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      )
+                          .animate()
+                          .fadeIn(delay: 300.ms)
+                          .slideY(begin: -0.1),
+
+                      const SizedBox(height: 70),
+
+                      _MenuButton(
+                        icon: Icons.people_alt_rounded,
+                        title: context.translate('offline_mode'),
+                        subtitle: context.translate('offline_subtitle'),
+                        color: Colors.blueAccent,
+                        onTap: _handleOfflineClick, // ✅ Cambiado a la nueva lógica
+                      )
+                          .animate()
+                          .fadeIn(delay: 600.ms)
+                          .slideX(begin: -0.4)
+                          .scale(begin: const Offset(0.95, 0.95)),
+                      const SizedBox(height: 28),
+                      _MenuButton(
+                        icon: Icons.public,
+                        title: context.translate('online_mode'),
+                        subtitle: context.translate('online_subtitle'),
+                        color: Colors.green,
+                        onTap: () {
+                          Navigator.pushNamed(context, '/online_lobby');
+                        },
+                      )
+                          .animate()
+                          .fadeIn(delay: 900.ms)
+                          .slideX(begin: 0.4)
+                          .scale(begin: const Offset(0.95, 0.95)),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
             ),

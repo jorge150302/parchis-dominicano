@@ -1,3 +1,4 @@
+import 'dart:convert'; // ✅ Importación necesaria para jsonDecode
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,12 +17,14 @@ class GameScreen extends StatefulWidget {
   final int playerCount;
   final String? roomCode;
   final List<String>? playerNames;
+  final bool isResume;
 
   const GameScreen({
     super.key,
     required this.playerCount,
     this.roomCode,
     this.playerNames,
+    this.isResume = false,
   });
 
   @override
@@ -46,7 +49,14 @@ class _GameScreenState extends State<GameScreen> {
       final controller = context.read<GameController>();
       controller.addListener(_onGameUpdate);
 
-      if (!controller.isOnline && controller.engine.players.isEmpty) {
+      if (widget.isResume && controller is LocalGameController) {
+        // Reanudar lógica del controlador
+        final savedJson = PrefsService.savedLocalGame;
+        if (savedJson != null) {
+          final Map<String, dynamic> state = jsonDecode(savedJson);
+          controller.initializeFromResume(state['diceValue'] ?? 1);
+        }
+      } else if (!controller.isOnline && controller.engine.players.isEmpty) {
         final tokens = ['assets/tokens/red.png', 'assets/tokens/blue.png', 'assets/tokens/green.png', 'assets/tokens/yellow.png'];
         bool vsAI = controller is LocalGameController && controller.vsAI;
 
@@ -161,11 +171,11 @@ class _GameScreenState extends State<GameScreen> {
           side: const BorderSide(color: Colors.orange, width: 2),
         ),
         title: Text(
-          context.translate('exit_game_title'),
+          context.translate('exit_game_title'), 
           style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          context.translate('exit_game_content'),
+          context.translate('exit_game_content'), 
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
@@ -367,7 +377,9 @@ class _GameScreenState extends State<GameScreen> {
               leading: Text('${idx + 1}°', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
               title: Text(
                 p.name, 
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               trailing: Image.asset(p.tokenAsset, width: 30),
             );
@@ -573,6 +585,7 @@ class _PlayerCornerWidget extends StatelessWidget {
         GestureDetector(
           onLongPress: controller.isOnline ? () => _showPlayerOptions(context, controller) : null,
           child: Container(
+            constraints: const BoxConstraints(maxWidth: 140), 
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: isTurn ? Colors.orange : Colors.black45, 
@@ -582,11 +595,15 @@ class _PlayerCornerWidget extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(player.tokenAsset, width: 16, height: 16),
-                const SizedBox(width: 6),
-                Text(
-                  player.name,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                Image.asset(player.tokenAsset, width: 14, height: 14),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    player.name,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
                 ),
                 if (isBlocked) ...[
                   const SizedBox(width: 4),
@@ -624,7 +641,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                     ),
                   ),
                 DiceWidget(
-                  value: controller.diceValue, 
+                  value: player.lastDiceValue, // ✅ CORREGIDO: Usa el valor individual persistido del jugador
                   rolling: isRolling,
                   style: const DiceStyle(sides: 6, size: 50, assetPath: 'assets/dice/classic'),
                 ),

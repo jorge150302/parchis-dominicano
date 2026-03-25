@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Token {
   final int id;
   int position;
@@ -16,6 +18,18 @@ class Token {
     isFinished = false;
     isMoving = false;
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'position': position,
+    'isFinished': isFinished,
+  };
+
+  factory Token.fromJson(Map<String, dynamic> json) => Token(
+    id: json['id'],
+    position: json['position'],
+    isFinished: json['isFinished'],
+  );
 }
 
 class Player {
@@ -23,13 +37,12 @@ class Player {
   final String name;
   final String tokenAsset;
   final int index;
-
   final List<Token> tokens;
-
   int skippedTurns;
   int consecutiveSixes;
   int extraTurns;
   bool isAI;
+  int lastDiceValue; // ✅ Valor individual del dado
 
   Player({
     required this.id,
@@ -41,27 +54,43 @@ class Player {
     this.consecutiveSixes = 0,
     this.extraTurns = 0,
     this.isAI = false,
+    this.lastDiceValue = 1, // ✅ Inicializar en 1
   }) : tokens = List.generate(tokenCount, (i) => Token(id: i));
 
   bool get isFinished => tokens.every((t) => t.isFinished);
 
-  void updateFromNetwork(Map<String, dynamic> data) {
-    // ✅ CORRECCIÓN: Sincronizar todos los estados del servidor
-    extraTurns = data['extraTurns'] ?? extraTurns;
-    skippedTurns = data['skippedTurns'] ?? skippedTurns;
-    consecutiveSixes = data['consecutiveSixes'] ?? consecutiveSixes;
-    isAI = data['isAI'] ?? isAI;
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'tokenAsset': tokenAsset,
+    'index': index,
+    'skippedTurns': skippedTurns,
+    'consecutiveSixes': consecutiveSixes,
+    'extraTurns': extraTurns,
+    'isAI': isAI,
+    'lastDiceValue': lastDiceValue, // ✅ Guardar en JSON
+    'tokens': tokens.map((t) => t.toJson()).toList(),
+  };
 
-    final List? tokensData = data['tokens'];
-    if (tokensData != null) {
-      for (var tData in tokensData) {
-        int tId = tData['id'] ?? 0;
-        if (tId < tokens.length) {
-          tokens[tId].position = tData['position'] ?? tokens[tId].position;
-          tokens[tId].isFinished = tData['isFinished'] ?? tokens[tId].isFinished;
-        }
-      }
+  factory Player.fromJson(Map<String, dynamic> json) {
+    final player = Player(
+      id: json['id'],
+      name: json['name'],
+      tokenAsset: json['tokenAsset'],
+      index: json['index'],
+      tokenCount: (json['tokens'] as List).length,
+      skippedTurns: json['skippedTurns'],
+      consecutiveSixes: json['consecutiveSixes'],
+      extraTurns: json['extraTurns'],
+      isAI: json['isAI'],
+      lastDiceValue: json['lastDiceValue'] ?? 1, // ✅ Cargar de JSON
+    );
+    final List tokensJson = json['tokens'];
+    for (int i = 0; i < tokensJson.length; i++) {
+      player.tokens[i].position = tokensJson[i]['position'];
+      player.tokens[i].isFinished = tokensJson[i]['isFinished'];
     }
+    return player;
   }
 
   void resetToStart() {
@@ -71,6 +100,7 @@ class Player {
     skippedTurns = 0;
     consecutiveSixes = 0;
     extraTurns = 0;
+    lastDiceValue = 1;
   }
 
   void addSkip(int turns) => skippedTurns += turns;
@@ -88,6 +118,7 @@ class Player {
       consecutiveSixes: consecutiveSixes,
       extraTurns: extraTurns,
       isAI: isAI,
+      lastDiceValue: lastDiceValue,
     );
     for (int i = 0; i < tokens.length; i++) {
       p.tokens[i].position = tokens[i].position;
