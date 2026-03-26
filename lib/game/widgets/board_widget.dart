@@ -112,13 +112,11 @@ class _AnimatedCell extends StatelessWidget {
     return 12.0;
   }
 
-  // Obtiene la alineación según el índice de la ficha y el total en la celda
   Alignment _getTokenAlignment(int index, int total) {
     if (total == 1) return Alignment.center;
     if (total == 2) {
       return index == 0 ? const Alignment(-0.45, 0) : const Alignment(0.45, 0);
     }
-    // Para 3 o 4 fichas (esquinas)
     switch (index) {
       case 0: return const Alignment(-0.5, -0.5);
       case 1: return const Alignment(0.5, -0.5);
@@ -136,61 +134,85 @@ class _AnimatedCell extends StatelessWidget {
     final int totalTokens = tokensInCell.length;
     final double tokenSize = totalTokens > 1 ? 16.0 : 20.0;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      margin: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        gradient: hasAction
-            ? const LinearGradient(colors: [Color(0xffffd180), Color(0xffffb74d)])
-            : const LinearGradient(colors: [Colors.white, Color(0xffeeeeee)]),
-        borderRadius: BorderRadius.circular(6),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(1, 2)),
-        ],
-        border: Border.all(color: Colors.black26),
-      ),
-      child: Stack(
-        children: [
-          Center(
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
-                color: hasAction ? Colors.black87 : Colors.black38,
-              ),
-            ),
+    // Lógica de área de toque inteligente:
+    // Si solo hay una ficha seleccionable en toda la celda, permitimos tocar la celda completa.
+    final selectableTokens = tokensInCell.where((data) {
+      final Player p = data['player'];
+      final Token t = data['token'];
+      return controller.engine.phase == GamePhase.choosing_token &&
+             controller.currentPlayer.id == p.id &&
+             controller.movableTokenIds.contains(t.id);
+    }).toList();
+
+    final bool canTapCell = selectableTokens.length == 1;
+
+    return GestureDetector(
+      onTap: canTapCell ? () => controller.selectToken(selectableTokens.first['token'].id) : null,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          gradient: hasAction
+              ? const LinearGradient(colors: [Color(0xffffd180), Color(0xffffb74d)])
+              : const LinearGradient(colors: [Colors.white, Color(0xffeeeeee)]),
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: const [
+            BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(1, 2)),
+          ],
+          border: Border.all(
+            color: canTapCell ? Colors.orangeAccent.withOpacity(0.5) : Colors.black26,
+            width: canTapCell ? 1.5 : 1.0,
           ),
-          // Sub-rejilla de fichas
-          ...tokensInCell.asMap().entries.map((entry) {
-            final int index = entry.key;
-            final Map<String, dynamic> data = entry.value;
-            final Player player = data['player'];
-            final Token token = data['token'];
-            final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
-
-            final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
-                controller.currentPlayer.id == player.id &&
-                controller.movableTokenIds.contains(token.id);
-
-            return Align(
-              alignment: _getTokenAlignment(index, totalTokens),
-              child: Opacity(
-                opacity: isBlocked ? 0.4 : 1.0,
-                child: GestureDetector(
-                  onTap: isSelectable ? () => controller.selectToken(token.id) : null,
-                  child: _TokenWidget(
-                    asset: player.tokenAsset,
-                    isSelectable: isSelectable,
-                    size: tokenSize,
-                  ),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  height: 1.1,
+                  color: hasAction ? Colors.black87 : Colors.black38,
                 ),
               ),
-            );
-          }),
-        ],
+            ),
+            ...tokensInCell.asMap().entries.map((entry) {
+              final int index = entry.key;
+              final Map<String, dynamic> data = entry.value;
+              final Player player = data['player'];
+              final Token token = data['token'];
+              final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
+
+              final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
+                  controller.currentPlayer.id == player.id &&
+                  controller.movableTokenIds.contains(token.id);
+
+              return Align(
+                alignment: _getTokenAlignment(index, totalTokens),
+                child: Opacity(
+                  opacity: isBlocked ? 0.4 : 1.0,
+                  child: GestureDetector(
+                    onTap: isSelectable ? () => controller.selectToken(token.id) : null,
+                    behavior: HitTestBehavior.opaque, // Hace que el área transparente también sea clicable
+                    child: Container(
+                      width: 38, // Área de toque ampliada para el dedo
+                      height: 38,
+                      alignment: Alignment.center,
+                      child: _TokenWidget(
+                        asset: player.tokenAsset,
+                        isSelectable: isSelectable,
+                        size: tokenSize,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

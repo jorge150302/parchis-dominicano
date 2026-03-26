@@ -14,9 +14,7 @@ class HomeZoneWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
     
-    // Fichas en casa (posición 0)
     final tokensAtHome = player.tokens.where((t) => t.position == 0).toList();
-    // Fichas terminadas
     final tokensFinished = player.tokens.where((t) => t.isFinished).toList();
 
     return Container(
@@ -30,7 +28,6 @@ class HomeZoneWidget extends StatelessWidget {
         runSpacing: 4,
         alignment: WrapAlignment.center,
         children: [
-          // Dibujamos las fichas que están en casa
           ...tokensAtHome.map((token) {
             final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
                 controller.currentPlayer.id == player.id &&
@@ -41,16 +38,13 @@ class HomeZoneWidget extends StatelessWidget {
             if (isSelectable) {
               return GestureDetector(
                 onTap: () => controller.selectToken(token.id),
-                child: tWidget.animate(onPlay: (c) => c.repeat())
-                    .scale(begin: const Offset(1, 1), end: const Offset(1.2, 1.2), duration: 500.ms)
-                    .then().scale(begin: const Offset(1.2, 1.2), end: const Offset(1, 1)),
+                child: tWidget,
               );
             }
             return tWidget;
           }),
           
-          // ✅ Punto 2: El verde ocupa el lugar de la ficha (no abajo)
-          ...tokensFinished.map((t) => 
+          ...tokensFinished.map((t) =>
             const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20)
               .animate().scale(curve: Curves.bounceOut)
           ),

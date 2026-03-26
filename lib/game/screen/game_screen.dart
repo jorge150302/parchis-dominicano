@@ -215,7 +215,6 @@ class _GameScreenState extends State<GameScreen> {
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         
-        // Si el juego terminó, ir directo al menú
         if (controller.engine.phase == GamePhase.finished) {
            Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
            return;
@@ -456,48 +455,40 @@ class _GameScreenState extends State<GameScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-          // Si el usuario da "atrás" en el diálogo del podio, ir al menú
-          Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-        },
-        child: AlertDialog(
-          backgroundColor: Colors.brown.shade900,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20), 
-            side: const BorderSide(color: Colors.orange, width: 3),
-          ),
-          title: Center(child: Text(context.translate('podium_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 24))),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: finishers.asMap().entries.map((entry) {
-              int idx = entry.key;
-              Player p = entry.value;
-              return ListTile(
-                leading: Text('${idx + 1}°', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                title: Text(
-                  p.name, 
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: Image.asset(p.tokenAsset, width: 30),
-              );
-            }).toList(),
-          ),
-          actions: [
-            Center(
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10)),
-                onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false), 
-                child: Text(context.translate('back_to_menu'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20), 
+          side: const BorderSide(color: Colors.orange, width: 3),
         ),
+        title: Center(child: Text(context.translate('podium_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 24))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: finishers.asMap().entries.map((entry) {
+            int idx = entry.key;
+            Player p = entry.value;
+            return ListTile(
+              leading: Text('${idx + 1}°', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+              title: Text(
+                p.name, 
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: Image.asset(p.tokenAsset, width: 30),
+            );
+          }).toList(),
+        ),
+        actions: [
+          Center(
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10)),
+              onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false), 
+              child: Text(context.translate('back_to_menu'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
       ),
     );
   }
