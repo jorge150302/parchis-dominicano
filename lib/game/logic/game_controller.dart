@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Para HapticFeedback
+import 'package:flutter/services.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 
@@ -66,9 +66,13 @@ abstract class GameController extends ChangeNotifier {
 
   void reportPlayer(String reportedId, String reason) {}
 
-  // Métodos de utilidad para Sonido y Vibración
+  double get _audioPlaybackRate => PrefsService.gameSpeed == GameSpeed.fast ? 1.6 : 1.0;
+
   Future<void> _playSound(AudioPlayer player, String asset) async {
     if (PrefsService.soundEnabled) {
+      // Forzamos el reinicio al principio para que no se oiga a medias
+      await player.stop();
+      await player.setPlaybackRate(_audioPlaybackRate);
       await player.play(AssetSource(asset));
     }
   }
@@ -81,6 +85,7 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> playFanfare() async {
     await _playSound(fanfareAudio, 'sounds/fanfarreas.mp3');
+    await Future.delayed(Duration(milliseconds: (2000 / _audioPlaybackRate).round()));
   }
 
   Future<void> playSendToHomeSound() async {
@@ -118,19 +123,19 @@ class LocalGameController extends GameController {
   }
 
   Duration get _aiDecisionDelay => PrefsService.gameSpeed == GameSpeed.fast
-      ? const Duration(milliseconds: 400)
-      : const Duration(milliseconds: 1500);
+      ? const Duration(milliseconds: 300)
+      : const Duration(milliseconds: 1200);
 
   Duration get _aiSelectionDelay => PrefsService.gameSpeed == GameSpeed.fast
-      ? const Duration(milliseconds: 300)
-      : const Duration(milliseconds: 1000);
+      ? const Duration(milliseconds: 200)
+      : const Duration(milliseconds: 800);
 
   Duration get _stepDelay => PrefsService.gameSpeed == GameSpeed.fast
-      ? const Duration(milliseconds: 80)
-      : const Duration(milliseconds: 200);
+      ? const Duration(milliseconds: 100)
+      : const Duration(milliseconds: 250);
 
   Duration get _eventDelay => PrefsService.gameSpeed == GameSpeed.fast
-      ? const Duration(milliseconds: 400)
+      ? const Duration(milliseconds: 500)
       : const Duration(seconds: 1);
 
   void initializeFromResume(int savedDiceValue) {
@@ -203,6 +208,7 @@ class LocalGameController extends GameController {
     notifyListeners();
 
     _playSound(diceAudio, 'sounds/dice.mp3');
+
     for (int i = 0; i < 12; i++) {
       diceValue = random.nextInt(6) + 1;
       currentPlayer.lastDiceValue = diceValue;
@@ -210,11 +216,15 @@ class LocalGameController extends GameController {
       await Future.delayed(const Duration(milliseconds: 60));
     }
 
+    if (PrefsService.gameSpeed == GameSpeed.normal) {
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+
     rollingDice = false;
     rollingPlayerId = null;
     currentPlayer.lastDiceValue = diceValue;
 
-    if (diceValue == 6) _vibrate(); // Vibrar al sacar un 6
+    if (diceValue == 6) _vibrate();
 
     engine.registerSix(currentPlayer, diceValue);
     
@@ -307,7 +317,7 @@ class LocalGameController extends GameController {
       notifyListeners();
       if (currentPlayer.tokens[tokenId].isFinished) {
          await playFanfare();
-         _vibrate(); // Vibrar al llegar a meta
+         _vibrate();
          break;
       }
     }
@@ -321,7 +331,8 @@ class LocalGameController extends GameController {
     final hit = engine.resolveCollisions(currentPlayer, tokenId);
     if (hit || movedByAction) {
       await playSendToHomeSound();
-      _vibrate(); // Vibrar al capturar o acción especial
+      _vibrate();
+      await Future.delayed(Duration(milliseconds: (600 / _audioPlaybackRate).round()));
     }
     
     _saveGame();
