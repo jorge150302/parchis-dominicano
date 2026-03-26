@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; 
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 
@@ -70,8 +70,7 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> _playSound(AudioPlayer player, String asset) async {
     if (PrefsService.soundEnabled) {
-      // Forzamos el reinicio al principio para que no se oiga a medias
-      await player.stop();
+      await player.stop(); 
       await player.setPlaybackRate(_audioPlaybackRate);
       await player.play(AssetSource(asset));
     }
@@ -211,7 +210,7 @@ class LocalGameController extends GameController {
 
     for (int i = 0; i < 12; i++) {
       diceValue = random.nextInt(6) + 1;
-      currentPlayer.lastDiceValue = diceValue;
+      currentPlayer.lastDiceValue = diceValue; 
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 60));
     }
@@ -239,7 +238,12 @@ class LocalGameController extends GameController {
     movableTokenIds = engine.getMovableTokenIds(diceValue);
     
     if (movableTokenIds.isEmpty) {
-      engine.events.add(GameEvent(messageKey: 'player_cant_move', args: {'name': currentPlayer.name}));
+      // ✅ FIX: Añadido playerId para que el mensaje sea flotante en la esquina del jugador
+      engine.events.add(GameEvent(
+        messageKey: 'player_cant_move', 
+        playerId: currentPlayer.id,
+        args: {'name': currentPlayer.name}
+      ));
       notifyListeners();
       await Future.delayed(_eventDelay);
       
@@ -289,10 +293,6 @@ class LocalGameController extends GameController {
             if (canCapture) break;
           }
           if (canCapture) priority = 90;
-        }
-
-        if (priority < 80 && diceValue == 5 && token.position == 0) {
-          priority = 80;
         }
 
         if (priority == 0) {
@@ -403,6 +403,8 @@ class NetworkGameController extends GameController {
         _animateRemoteDice(_lastServerDiceValue, rollingPlayerId!);
         break;
       case 'game_event':
+        // ✅ FIX: El evento de no poder mover desde el servidor debería venir con playerId si es posible, 
+        // o lo manejamos aquí si detectamos que es un mensaje de error de turno.
         engine.events.add(GameEvent(messageKey: data['message'] ?? ''));
         notifyListeners();
         break;

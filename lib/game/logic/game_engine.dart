@@ -34,9 +34,9 @@ class GameEngine {
       board: board,
       players: (json['players'] as List).map((p) => Player.fromJson(p)).toList(),
     );
-    engine._currentPlayerIndex = json['currentPlayerIndex'];
-    engine.phase = GamePhase.values[json['phase']];
-    engine.finisherIds.addAll(List<String>.from(json['finisherIds']));
+    engine._currentPlayerIndex = json['currentPlayerIndex'] ?? 0;
+    engine.phase = GamePhase.values[json['phase'] ?? 0];
+    engine.finisherIds.addAll(List<String>.from(json['finisherIds'] ?? []));
     return engine;
   }
 
@@ -88,9 +88,15 @@ class GameEngine {
     if (tokenId >= player.tokens.length) return false;
     final token = player.tokens[tokenId];
     if (token.isFinished) return false;
-    int target = token.position + steps;
+
+    // ✅ REGLA ACTUALIZADA: Si está en casa (0), puede salir con CUALQUIER número
+    int currentPos = token.position;
+    int target = currentPos + steps;
+
     if (target > board.finalPosition) return false;
-    for (int i = token.position + 1; i <= target; i++) {
+
+    // Verificar bloqueos en el camino
+    for (int i = currentPos + 1; i <= target; i++) {
       if (isBlocked(i, player.id)) return false;
     }
     return true;

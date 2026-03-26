@@ -1,4 +1,4 @@
-import 'dart:convert'; // ✅ Importación necesaria para jsonDecode
+import 'dart:convert';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -52,8 +52,9 @@ class _GameScreenState extends State<GameScreen> {
       final controller = context.read<GameController>();
       controller.addListener(_onGameUpdate);
 
+      _lastFinisherCount = controller.engine.finisherIds.length;
+
       if (widget.isResume && controller is LocalGameController) {
-        // Reanudar lógica del controlador
         final savedJson = PrefsService.savedLocalGame;
         if (savedJson != null) {
           final Map<String, dynamic> state = jsonDecode(savedJson);
@@ -106,6 +107,7 @@ class _GameScreenState extends State<GameScreen> {
 
     if (controller.engine.finisherIds.length > _lastFinisherCount) {
       _lastFinisherCount = controller.engine.finisherIds.length;
+      _confettiController.stop();
       _confettiController.play();
     }
 
@@ -123,7 +125,6 @@ class _GameScreenState extends State<GameScreen> {
             _activeVisualEvents.add(ActiveVisualEvent(event: event, alignment: alignment));
           });
           
-          // Eliminar el evento visual después de la animación (2.5s)
           Future.delayed(const Duration(milliseconds: 2500), () {
             if (mounted) {
               setState(() {
@@ -131,28 +132,13 @@ class _GameScreenState extends State<GameScreen> {
               });
             }
           });
-        } else {
-          // Eventos globales o sin jugador asignado siguen usando SnackBar por ahora
-          Future.delayed(Duration(milliseconds: newEvents.indexOf(event) * 500), () {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  context.read<LanguageProvider>().translate(event.messageKey, args: event.args), 
-                  style: const TextStyle(fontWeight: FontWeight.bold)
-                ),
-                backgroundColor: Colors.orange.shade800,
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          });
         }
       }
     }
 
     if (controller.engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
       _isGameFinishedDialogShown = true;
+      _confettiController.stop();
       _confettiController.play();
       _showGameFinishedDialog();
     }
@@ -228,6 +214,13 @@ class _GameScreenState extends State<GameScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        
+        // Si el juego terminó, ir directo al menú
+        if (controller.engine.phase == GamePhase.finished) {
+           Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+           return;
+        }
+
         if (await _confirmExit() && mounted) {
           Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
         }
@@ -308,11 +301,9 @@ class _GameScreenState extends State<GameScreen> {
           icon = Icons.flight_takeoff;
         }
 
-        // Ajuste de offset según el cuadrante
         double offsetX = ae.alignment.x < 0 ? 20 : -20;
         double offsetY = ae.alignment.y < 0 ? 120 : -120;
 
-        // Añadimos un desplazamiento extra si hay varios mensajes en la misma esquina
         double stackOffset = count * 50.0;
         if (ae.alignment.y > 0) {
           offsetY -= stackOffset; 
@@ -421,6 +412,10 @@ class _GameScreenState extends State<GameScreen> {
             child: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
               onPressed: () async {
+                if (controller.engine.phase == GamePhase.finished) {
+                   Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                   return;
+                }
                 if (await _confirmExit()) {
                   if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
                 }
@@ -446,7 +441,10 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _showGameFinishedDialog() {
+  void _showGameFinishedDialog() async {
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+
     final controller = context.read<GameController>();
     final List<String> finisherIds = List.from(controller.engine.finisherIds);
     for (var p in controller.players) {
@@ -458,40 +456,48 @@ class _GameScreenState extends State<GameScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.brown.shade900,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), 
-          side: const BorderSide(color: Colors.orange, width: 3),
-        ),
-        title: Center(child: Text(context.translate('podium_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 24))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: finishers.asMap().entries.map((entry) {
-            int idx = entry.key;
-            Player p = entry.value;
-            return ListTile(
-              leading: Text('${idx + 1}°', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-              title: Text(
-                p.name, 
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: Image.asset(p.tokenAsset, width: 30),
-            );
-          }).toList(),
-        ),
-        actions: [
-          Center(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10)),
-              onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false), 
-              child: Text(context.translate('back_to_menu'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
+      builder: (context) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          // Si el usuario da "atrás" en el diálogo del podio, ir al menú
+          Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+        },
+        child: AlertDialog(
+          backgroundColor: Colors.brown.shade900,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20), 
+            side: const BorderSide(color: Colors.orange, width: 3),
           ),
-          const SizedBox(height: 10),
-        ],
+          title: Center(child: Text(context.translate('podium_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 24))),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: finishers.asMap().entries.map((entry) {
+              int idx = entry.key;
+              Player p = entry.value;
+              return ListTile(
+                leading: Text('${idx + 1}°', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                title: Text(
+                  p.name, 
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: Image.asset(p.tokenAsset, width: 30),
+              );
+            }).toList(),
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10)),
+                onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false), 
+                child: Text(context.translate('back_to_menu'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
       ),
     );
   }
@@ -738,7 +744,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                     ),
                   ),
                 DiceWidget(
-                  value: player.lastDiceValue, // ✅ CORREGIDO: Usa el valor individual persistido del jugador
+                  value: player.lastDiceValue,
                   rolling: isRolling,
                   style: const DiceStyle(sides: 6, size: 50, assetPath: 'assets/dice/classic'),
                 ),
