@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Para HapticFeedback
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 
@@ -65,12 +66,25 @@ abstract class GameController extends ChangeNotifier {
 
   void reportPlayer(String reportedId, String reason) {}
 
+  // Métodos de utilidad para Sonido y Vibración
+  Future<void> _playSound(AudioPlayer player, String asset) async {
+    if (PrefsService.soundEnabled) {
+      await player.play(AssetSource(asset));
+    }
+  }
+
+  Future<void> _vibrate() async {
+    if (PrefsService.vibrationEnabled) {
+      await HapticFeedback.mediumImpact();
+    }
+  }
+
   Future<void> playFanfare() async {
-    await fanfareAudio.play(AssetSource('sounds/fanfarreas.mp3'));
+    await _playSound(fanfareAudio, 'sounds/fanfarreas.mp3');
   }
 
   Future<void> playSendToHomeSound() async {
-    await sendToHomeAudio.play(AssetSource('sounds/send_to_home.mp3'));
+    await _playSound(sendToHomeAudio, 'sounds/send_to_home.mp3');
   }
 
   void startTurn();
@@ -121,7 +135,6 @@ class LocalGameController extends GameController {
 
   void initializeFromResume(int savedDiceValue) {
     diceValue = savedDiceValue;
-    // Sincronizamos el dado individual del jugador actual
     currentPlayer.lastDiceValue = savedDiceValue;
 
     if (engine.phase == GamePhase.choosing_token) {
@@ -189,17 +202,19 @@ class LocalGameController extends GameController {
     rollingPlayerId = currentPlayer.id;
     notifyListeners();
 
-    diceAudio.play(AssetSource('sounds/dice.mp3'));
+    _playSound(diceAudio, 'sounds/dice.mp3');
     for (int i = 0; i < 12; i++) {
       diceValue = random.nextInt(6) + 1;
-      currentPlayer.lastDiceValue = diceValue; // ✅ Actualizamos el dado individual mientras gira
+      currentPlayer.lastDiceValue = diceValue;
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 60));
     }
 
     rollingDice = false;
     rollingPlayerId = null;
-    currentPlayer.lastDiceValue = diceValue; // ✅ Valor final del dado individual
+    currentPlayer.lastDiceValue = diceValue;
+
+    if (diceValue == 6) _vibrate(); // Vibrar al sacar un 6
 
     engine.registerSix(currentPlayer, diceValue);
     
@@ -248,19 +263,15 @@ class LocalGameController extends GameController {
         final token = currentPlayer.tokens[tokenId];
         final targetPos = token.position + diceValue;
 
-        // 1. PRIORIDAD MÁXIMA: Entrar a meta
         if (targetPos == engine.board.finalPosition) {
           priority = 100;
         }
-        // 2. PRIORIDAD ALTA: Capturar a un oponente
         else if (targetPos > 0) {
           bool canCapture = false;
           for (var other in engine.players) {
             if (other.id == currentPlayer.id) continue;
             for (var otherToken in other.tokens) {
               if (!otherToken.isFinished && otherToken.position == targetPos) {
-                // Solo si no es una barrera (el motor ya valida si se puede mover,
-                // pero aquí confirmamos que hay alguien a quien capturar)
                 canCapture = true;
                 break;
               }
@@ -270,12 +281,10 @@ class LocalGameController extends GameController {
           if (canCapture) priority = 90;
         }
 
-        // 3. PRIORIDAD MEDIA: Sacar ficha de casa (si el dado es 5)
         if (priority < 80 && diceValue == 5 && token.position == 0) {
           priority = 80;
         }
 
-        // 4. PRIORIDAD BAJA: Mover la ficha más adelantada (Heurística base)
         if (priority == 0) {
           priority = 10 + token.position;
         }
@@ -298,6 +307,7 @@ class LocalGameController extends GameController {
       notifyListeners();
       if (currentPlayer.tokens[tokenId].isFinished) {
          await playFanfare();
+         _vibrate(); // Vibrar al llegar a meta
          break;
       }
     }
@@ -309,7 +319,10 @@ class LocalGameController extends GameController {
     }
 
     final hit = engine.resolveCollisions(currentPlayer, tokenId);
-    if (hit || movedByAction) await playSendToHomeSound();
+    if (hit || movedByAction) {
+      await playSendToHomeSound();
+      _vibrate(); // Vibrar al capturar o acción especial
+    }
     
     _saveGame();
     notifyListeners();
@@ -355,7 +368,7 @@ class NetworkGameController extends GameController {
     rollingPlayerId = PrefsService.playerId;
     notifyListeners();
     
-    diceAudio.play(AssetSource('sounds/dice.mp3'));
+    _playSound(diceAudio, 'sounds/dice.mp3');
     socketService.send('roll_dice');
   }
 
@@ -483,7 +496,10 @@ class NetworkGameController extends GameController {
     if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
       await Future.delayed(const Duration(milliseconds: 500));
       token.position = targetPos;
-      if (targetPos == 0) await playSendToHomeSound();
+      if (targetPos == 0) {
+        await playSendToHomeSound();
+        _vibrate();
+      }
     } else {
       while (token.position < targetPos) {
         await Future.delayed(const Duration(milliseconds: 250));
@@ -491,6 +507,7 @@ class NetworkGameController extends GameController {
         if (token.position == engine.board.finalPosition) {
           token.isFinished = true;
           await playFanfare();
+          _vibrate();
           break;
         }
         notifyListeners();
@@ -507,7 +524,7 @@ class NetworkGameController extends GameController {
     notifyListeners();
     
     if (pid != PrefsService.playerId) {
-      diceAudio.play(AssetSource('sounds/dice.mp3'));
+      _playSound(diceAudio, 'sounds/dice.mp3');
     }
 
     for (int i = 0; i < 10; i++) {
@@ -517,6 +534,7 @@ class NetworkGameController extends GameController {
     }
     
     diceValue = finalVal;
+    if (diceValue == 6 && pid == PrefsService.playerId) _vibrate();
     rollingDice = false;
     notifyListeners();
   }

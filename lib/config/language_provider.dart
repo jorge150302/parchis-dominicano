@@ -136,6 +136,9 @@ class LanguageProvider extends ChangeNotifier {
       'ai_name_6': 'Flash 🏃',
       'continue_game': 'Continuar Partida',
       'continue_game_subtitle': 'Sigue donde lo dejaste',
+      'pending_game_title': 'Partida Pendiente',
+      'pending_game_message': 'Tienes una partida pendiente. ¿Qué deseas hacer?',
+      'start_new_game': 'Nueva Partida',
     },
     Language.en: {
       'waiting_players': 'Waiting for Players...',
@@ -237,6 +240,9 @@ class LanguageProvider extends ChangeNotifier {
       'ai_name_6': 'Flash 🏃',
       'continue_game': 'Continue Game',
       'continue_game_subtitle': 'Pick up where you left off',
+      'pending_game_title': 'Pending Game',
+      'pending_game_message': 'You have a pending game. What do you want to do?',
+      'start_new_game': 'New Game',
     },
   };
 }

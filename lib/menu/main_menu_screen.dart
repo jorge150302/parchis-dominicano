@@ -72,12 +72,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             side: const BorderSide(color: Colors.orangeAccent, width: 2),
           ),
           title: Text(
-            context.translate('offline_mode'),
+            context.translate('pending_game_title'),
             style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           content: Text(
-            'Tienes una partida pendiente. ¿Qué deseas hacer?',
+            context.translate('pending_game_message'),
             style: const TextStyle(color: Colors.white, fontSize: 16),
             textAlign: TextAlign.center,
           ),
@@ -111,18 +111,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/players');
                     },
-                    child: const Text(
-                      'Iniciar Nueva Partida',
-                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                    child: Text(
+                      context.translate('start_new_game'),
+                      style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
                 const Divider(color: Colors.white24),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Regresar',
-                    style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                  child: Text(
+                    context.translate('back'),
+                    style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
