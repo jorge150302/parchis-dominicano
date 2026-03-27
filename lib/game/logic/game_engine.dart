@@ -75,9 +75,8 @@ class GameEngine {
 
   bool isBlocked(int cellPosition, String searchingPlayerId) {
     if (cellPosition <= 0 || cellPosition >= board.finalPosition) return false;
-    bool isPrivatePath = cellPosition > 68;
+    
     for (var player in players) {
-      if (isPrivatePath && player.id != searchingPlayerId) continue;
       int count = player.tokens.where((t) => t.position == cellPosition && !t.isFinished).length;
       if (count >= 2) return true;
     }
@@ -89,16 +88,17 @@ class GameEngine {
     final token = player.tokens[tokenId];
     if (token.isFinished) return false;
 
-    // ✅ REGLA ACTUALIZADA: Si está en casa (0), puede salir con CUALQUIER número
     int currentPos = token.position;
     int target = currentPos + steps;
 
     if (target > board.finalPosition) return false;
 
-    // Verificar bloqueos en el camino
-    for (int i = currentPos + 1; i <= target; i++) {
+    for (int i = currentPos + 1; i < target; i++) {
       if (isBlocked(i, player.id)) return false;
     }
+
+    if (isBlocked(target, player.id)) return false;
+
     return true;
   }
 
@@ -244,14 +244,13 @@ class GameEngine {
 
   bool resolveCollisions(Player player, int tokenId) {
     final token = player.tokens[tokenId];
-    if (token.isFinished) return false;
-    if (isBlocked(token.position, player.id)) return false;
+    if (token.position == 0 || token.isFinished) return false;
 
     bool hit = false;
     for (final other in players) {
       if (other.id == player.id) continue;
       for (final otherToken in other.tokens) {
-        if (!otherToken.isFinished && otherToken.position == token.position && token.position != 0) {
+        if (!otherToken.isFinished && otherToken.position == token.position) {
           otherToken.reset();
           if (!player.isFinished) player.extraTurns++;
           _events.add(GameEvent(

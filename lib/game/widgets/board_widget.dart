@@ -103,19 +103,16 @@ class _AnimatedCell extends StatelessWidget {
     return cell.number.toString();
   }
 
-  double _getFontSize(String label, bool hasAction) {
-    if (hasAction) {
-      if (label == '1 turno sin jugar' || label == 'Juegue otra vez') return 7.5;
-      if (label == 'INICIO') return 9.0;
-      return 10.0;
-    }
-    return 12.0;
-  }
-
-  Alignment _getTokenAlignment(int index, int total) {
+  // ✅ POSICIONAMIENTO 3D FINAL PARA BLOQUEOS
+  Alignment _getTokenAlignment(int index, int total, bool isBlockade) {
     if (total == 1) return Alignment.center;
     if (total == 2) {
-      return index == 0 ? const Alignment(-0.45, 0) : const Alignment(0.45, 0);
+      if (isBlockade) {
+        // Token 0: Arriba a la izquierda (Atrás)
+        // Token 1: Abajo a la derecha (Adelante)
+        return index == 0 ? const Alignment(-0.5, -0.4) : const Alignment(0.45, 0.4);
+      }
+      return index == 0 ? const Alignment(-0.5, 0.5) : const Alignment(0.5, -0.5);
     }
     switch (index) {
       case 0: return const Alignment(-0.5, -0.5);
@@ -130,12 +127,13 @@ class _AnimatedCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasAction = cell.action != null;
     final label = _getCellLabel(cell);
-    final fontSize = _getFontSize(label, hasAction);
     final int totalTokens = tokensInCell.length;
-    final double tokenSize = totalTokens > 1 ? 16.0 : 20.0;
 
-    // Lógica de área de toque inteligente:
-    // Si solo hay una ficha seleccionable en toda la celda, permitimos tocar la celda completa.
+    final bool isBlockade = totalTokens == 2 &&
+        tokensInCell[0]['player'].id == tokensInCell[1]['player'].id;
+
+    final double tokenSize = isBlockade ? 18.0 : (totalTokens > 1 ? 17.0 : 20.0);
+
     final selectableTokens = tokensInCell.where((data) {
       final Player p = data['player'];
       final Token t = data['token'];
@@ -158,24 +156,24 @@ class _AnimatedCell extends StatelessWidget {
               : const LinearGradient(colors: [Colors.white, Color(0xffeeeeee)]),
           borderRadius: BorderRadius.circular(6),
           boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(1, 2)),
+            BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(1, 1)),
           ],
-          border: Border.all(
-            color: canTapCell ? Colors.orangeAccent.withOpacity(0.5) : Colors.black26,
-            width: canTapCell ? 1.5 : 1.0,
-          ),
+          border: Border.all(color: Colors.black12, width: 0.5),
         ),
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
             Center(
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  height: 1.1,
-                  color: hasAction ? Colors.black87 : Colors.black38,
+              child: Opacity(
+                opacity: isBlockade ? 0.1 : 1.0,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black38,
+                  ),
                 ),
               ),
             ),
@@ -184,30 +182,19 @@ class _AnimatedCell extends StatelessWidget {
               final Map<String, dynamic> data = entry.value;
               final Player player = data['player'];
               final Token token = data['token'];
-              final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
 
               final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
                   controller.currentPlayer.id == player.id &&
                   controller.movableTokenIds.contains(token.id);
 
               return Align(
-                alignment: _getTokenAlignment(index, totalTokens),
-                child: Opacity(
-                  opacity: isBlocked ? 0.4 : 1.0,
-                  child: GestureDetector(
-                    onTap: isSelectable ? () => controller.selectToken(token.id) : null,
-                    behavior: HitTestBehavior.opaque, // Hace que el área transparente también sea clicable
-                    child: Container(
-                      width: 38, // Área de toque ampliada para el dedo
-                      height: 38,
-                      alignment: Alignment.center,
-                      child: _TokenWidget(
-                        asset: player.tokenAsset,
-                        isSelectable: isSelectable,
-                        size: tokenSize,
-                      ),
-                    ),
-                  ),
+                alignment: _getTokenAlignment(index, totalTokens, isBlockade),
+                child: _TokenWidget(
+                  asset: player.tokenAsset,
+                  isSelectable: isSelectable,
+                  size: tokenSize,
+                  isBlockade: isBlockade,
+                  onTap: isSelectable ? () => controller.selectToken(token.id) : null,
                 ),
               );
             }),
@@ -222,50 +209,56 @@ class _TokenWidget extends StatelessWidget {
   final String asset;
   final bool isSelectable;
   final double size;
+  final bool isBlockade;
+  final VoidCallback? onTap;
 
   const _TokenWidget({
     required this.asset,
     required this.isSelectable,
     this.size = 20.0,
+    this.isBlockade = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget token = AnimatedScale(
-      duration: const Duration(milliseconds: 180),
-      scale: 1.1,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutBack,
+    Widget token = GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
         decoration: const BoxDecoration(
+          shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 3,
+              offset: Offset(0, 2),
+            )
           ],
         ),
-        child: Image.asset(asset, width: size, height: size),
+        child: Image.asset(
+          asset,
+          width: size,
+          height: size,
+        ),
       ),
     );
 
     if (isSelectable) {
       return token
           .animate(onPlay: (c) => c.repeat())
-          .moveY(begin: 0, end: -5, duration: 400.ms, curve: Curves.easeInOut)
+          .moveY(begin: 0, end: -4, duration: 500.ms, curve: Curves.easeInOut)
           .then()
-          .moveY(begin: -5, end: 0, duration: 400.ms, curve: Curves.easeInOut)
-          .custom(
-            builder: (context, value, child) => Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.yellow.withValues(alpha: 0.5 * value),
-                    blurRadius: 10 * value, 
-                    spreadRadius: 2 * value
-                  )
-                ],
-              ),
-              child: child,
-            ),
+          .moveY(begin: -4, end: 0, duration: 500.ms, curve: Curves.easeInOut);
+    }
+
+    if (isBlockade) {
+      return token.animate(onPlay: (c) => c.repeat(reverse: true))
+          .scale(
+            begin: const Offset(1, 1),
+            end: const Offset(1.05, 1.05),
+            duration: 1200.ms,
+            curve: Curves.easeInOut
           );
     }
 

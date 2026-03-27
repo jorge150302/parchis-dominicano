@@ -238,7 +238,6 @@ class LocalGameController extends GameController {
     movableTokenIds = engine.getMovableTokenIds(diceValue);
     
     if (movableTokenIds.isEmpty) {
-      // ✅ FIX: Añadido playerId para que el mensaje sea flotante en la esquina del jugador
       engine.events.add(GameEvent(
         messageKey: 'player_cant_move', 
         playerId: currentPlayer.id,
@@ -403,8 +402,6 @@ class NetworkGameController extends GameController {
         _animateRemoteDice(_lastServerDiceValue, rollingPlayerId!);
         break;
       case 'game_event':
-        // ✅ FIX: El evento de no poder mover desde el servidor debería venir con playerId si es posible, 
-        // o lo manejamos aquí si detectamos que es un mensaje de error de turno.
         engine.events.add(GameEvent(messageKey: data['message'] ?? ''));
         notifyListeners();
         break;
