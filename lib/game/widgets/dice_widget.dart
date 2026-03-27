@@ -45,8 +45,8 @@ class _DiceWidgetState extends State<DiceWidget>
   void initState() {
     super.initState();
 
-    // Inicializar con el valor actual (útil para la reanudación)
-    displayedValue = widget.value;
+    // Inicializar con el valor actual
+    displayedValue = widget.value > 0 ? widget.value : 1;
 
     _controller = AnimationController(
       vsync: this,
@@ -99,9 +99,12 @@ class _DiceWidgetState extends State<DiceWidget>
       });
     }
 
-    // ✅ HEMOS ELIMINADO el bloque que sincronizaba el valor automáticamente.
-    // Ahora, si el valor del controlador cambia pero ESTE dado no estaba rodando,
-    // se ignorará el cambio, manteniendo la independencia entre jugadores.
+    // ✅ Sincronizar el valor si cambia externamente mientras NO está rodando
+    if (!widget.rolling && widget.value != oldWidget.value) {
+      setState(() {
+        displayedValue = widget.value;
+      });
+    }
   }
 
   @override

@@ -469,7 +469,9 @@ class NetworkGameController extends GameController {
     
     if (data['lastDiceValue'] != null) {
       _lastServerDiceValue = data['lastDiceValue'];
-      if (!rollingDice) diceValue = _lastServerDiceValue;
+      if (!rollingDice) {
+        diceValue = _lastServerDiceValue;
+      }
     }
 
     if (winnersIds != null) {
@@ -502,6 +504,9 @@ class NetworkGameController extends GameController {
           return p;
         },
       );
+
+      // Sincronizar el valor del dado del jugador si el servidor lo envía
+      player.lastDiceValue = playerData['lastDiceValue'] ?? player.lastDiceValue;
 
       final List? tokensData = playerData['tokens'];
       if (tokensData != null) {
@@ -546,6 +551,12 @@ class NetworkGameController extends GameController {
       engine.setCurrentPlayerById(currentPlayerId);
       if (currentPlayerId == PrefsService.playerId && previousPlayerId != currentPlayerId) {
         _vibrate();
+      }
+      
+      // Sincronizar el dado global con el del jugador actual si no estamos rodando
+      if (!rollingDice) {
+        engine.currentPlayer.lastDiceValue = _lastServerDiceValue;
+        diceValue = _lastServerDiceValue;
       }
     }
 
@@ -607,17 +618,21 @@ class NetworkGameController extends GameController {
     rollingPlayerId = pid;
     notifyListeners();
     
+    final player = engine.players.firstWhere((p) => p.id == pid, orElse: () => currentPlayer);
+
     if (pid != PrefsService.playerId) {
       _playSound(diceAudio, 'sounds/dice.mp3');
     }
 
     for (int i = 0; i < 10; i++) {
       diceValue = random.nextInt(6) + 1;
+      player.lastDiceValue = diceValue; // Actualizar el dado del jugador durante la animación
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 80));
     }
     
     diceValue = finalVal;
+    player.lastDiceValue = finalVal; // Fijar el valor final en el jugador
     if (diceValue == 6 && pid == PrefsService.playerId) _vibrate();
     rollingDice = false;
     notifyListeners();
