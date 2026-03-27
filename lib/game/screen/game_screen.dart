@@ -235,7 +235,9 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
     final socketSrv = context.watch<SocketService>();
-    final bool isWaiting = controller.isOnline && controller.players.length < 2;
+    
+    // CORRECCIÓN: Ahora espera hasta que la lista de jugadores coincida con widget.playerCount
+    final bool isWaiting = controller.isOnline && controller.players.length < widget.playerCount;
 
     return PopScope(
       canPop: false,

@@ -51,7 +51,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         setState(() {
           _isLoading = false;
           _currentRoomCode = joinedCode;
-          _maxPlayersInRoom = data['maxPlayers'];
+          // Guardar maxPlayers si viene del servidor o mantener el que seleccionó el usuario
+          _maxPlayersInRoom = data['maxPlayers'] ?? _maxPlayersInRoom;
         });
         PrefsService.lastRoomCode = joinedCode;
         if (data['reconnected'] == true) _navigateToGame(roomCode: joinedCode);
@@ -59,7 +60,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
       case 'game_state':
         final List players = data['players'] ?? [];
-        final int maxPlayers = data['maxPlayers'] ?? 2;
+        // Priorizar el valor del servidor, si no, el que tenemos guardado, si no, defecto 2.
+        final int maxPlayers = data['maxPlayers'] ?? _maxPlayersInRoom ?? 2;
         final String? phase = data['phase'];
         final String? roomCode = data['roomCode'];
 
@@ -75,7 +77,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         });
 
         if (players.length >= maxPlayers || (phase != null && phase != 'idle' && phase != 'finished')) {
-          _navigateToGame(playerCount: players.length, roomCode: roomCode);
+          _navigateToGame(playerCount: maxPlayers, roomCode: roomCode);
         }
         break;
 
@@ -98,9 +100,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     final targetRoomCode = roomCode ?? _currentRoomCode ?? _roomCodeController.text.trim();
     if (targetRoomCode.isEmpty) return;
 
+    // Priorizar el playerCount pasado o el maxPlayers configurado en la sala
+    final finalPlayerCount = playerCount ?? _maxPlayersInRoom ?? _currentPlayersInRoom;
+
     setState(() => _isLoading = false);
     Navigator.pushReplacementNamed(context, '/game', arguments: {
-      'playerCount': playerCount ?? _currentPlayersInRoom,
+      'playerCount': finalPlayerCount,
       'roomCode': targetRoomCode,
     });
   }
@@ -167,7 +172,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     final int? selected = await _showPlayerCountDialog(context.translate('search_quick_match', listen: false));
     if (selected != null) {
       _lastRequestedPlayers = selected;
-      setState(() { _isLoading = true; _currentRoomCode = null; });
+      setState(() {
+        _isLoading = true;
+        _currentRoomCode = null;
+        _maxPlayersInRoom = selected; // Guardar la preferencia localmente
+      });
       try {
         await socketService.connect(_serverUrl);
         socketService.send('find_match', {'name': PrefsService.playerName, 'maxPlayers': selected});
@@ -210,6 +219,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     );
 
     if (maxPlayers != null) {
+      setState(() => _maxPlayersInRoom = maxPlayers);
       _connectAndCreate(maxPlayers, isPublic);
     }
   }
