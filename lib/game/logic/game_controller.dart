@@ -114,6 +114,8 @@ class LocalGameController extends GameController {
 
   LocalGameController({required super.engine, this.vsAI = false});
 
+  bool get _isHumanTurn => !vsAI || currentPlayer.index == 0;
+
   void _saveGame() {
     if (engine.phase == GamePhase.finished) {
       PrefsService.savedLocalGame = null;
@@ -183,7 +185,7 @@ class LocalGameController extends GameController {
     inputLocked = false;
     _saveGame();
 
-    if (!vsAI || currentPlayer.index == 0) {
+    if (_isHumanTurn) {
       _vibrate();
     }
 
@@ -239,7 +241,7 @@ class LocalGameController extends GameController {
     rollingPlayerId = null;
     currentPlayer.lastDiceValue = diceValue;
 
-    if (diceValue == 6) _vibrate();
+    if (diceValue == 6 && _isHumanTurn) _vibrate();
 
     engine.registerSix(currentPlayer, diceValue);
     
@@ -247,7 +249,7 @@ class LocalGameController extends GameController {
       final cap = engine.penaltyThreeSixes(currentPlayer);
       if (cap != null) _capturedTokenController.add(cap);
       await playSendToHomeSound();
-      _vibrate();
+      if (_isHumanTurn) _vibrate();
       engine.nextTurn();
       startTurn();
       return;
@@ -346,7 +348,7 @@ class LocalGameController extends GameController {
       notifyListeners();
       if (currentPlayer.tokens[tokenId].isFinished) {
          await playFanfare();
-         _vibrate();
+         if (_isHumanTurn) _vibrate();
          break;
       }
     }
@@ -370,12 +372,12 @@ class LocalGameController extends GameController {
         _capturedTokenController.add(cap);
       }
       await playSendToHomeSound();
-      _vibrate();
+      if (_isHumanTurn) _vibrate();
       await Future.delayed(Duration(milliseconds: (600 / _audioPlaybackRate).round()));
     } else if (actionRes.moved) {
        if (actionRes.sentToStart) {
          await playSendToHomeSound();
-         _vibrate();
+         if (_isHumanTurn) _vibrate();
        }
     }
     
@@ -575,8 +577,8 @@ class NetworkGameController extends GameController {
       token.position = targetPos;
       if (targetPos == 0) {
         _capturedTokenController.add(CapturedToken(
-          playerIndex: player.index,
-          asset: player.tokenAsset,
+          playerIndex: player.index, 
+          asset: player.tokenAsset, 
           fromPosition: oldPos
         ));
         await playSendToHomeSound();
