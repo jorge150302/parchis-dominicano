@@ -256,5 +256,8 @@ class LanguageProvider extends ChangeNotifier {
 }
 
 extension LanguageExtension on BuildContext {
-  String translate(String key, {Map<String, String>? args}) => watch<LanguageProvider>().translate(key, args: args);
+  String translate(String key, {Map<String, String>? args, bool listen = true}) {
+    return (listen ? watch<LanguageProvider>() : read<LanguageProvider>())
+        .translate(key, args: args);
+  }
 }

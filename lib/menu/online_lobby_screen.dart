@@ -110,14 +110,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(context.translate('no_matches_found')),
-        content: Text(context.translate('no_matches_content')),
+        title: Text(context.translate('no_matches_found', listen: false)),
+        content: Text(context.translate('no_matches_content', listen: false)),
         actions: [
           Column(
             children: [
               _dialogButton(
                 icon: Icons.videogame_asset,
-                title: context.translate('play_offline'),
+                title: context.translate('play_offline', listen: false),
                 color: Colors.blueAccent,
                 onTap: () {
                   Navigator.pop(context);
@@ -127,7 +127,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               const SizedBox(height: 8),
               _dialogButton(
                 icon: Icons.add_box,
-                title: context.translate('create_my_room'),
+                title: context.translate('create_my_room', listen: false),
                 color: Colors.green,
                 onTap: () {
                   Navigator.pop(context);
@@ -137,7 +137,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               const SizedBox(height: 8),
               _dialogButton(
                 icon: Icons.arrow_back,
-                title: context.translate('back_to_menu'),
+                title: context.translate('back_to_menu', listen: false),
                 color: Colors.grey,
                 onTap: () {
                   Navigator.pop(context);
@@ -164,7 +164,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Future<void> _handleQuickMatch() async {
-    final int? selected = await _showPlayerCountDialog(context.translate('search_quick_match'));
+    final int? selected = await _showPlayerCountDialog(context.translate('search_quick_match', listen: false));
     if (selected != null) {
       _lastRequestedPlayers = selected;
       setState(() { _isLoading = true; _currentRoomCode = null; });
@@ -186,19 +186,19 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: Colors.brown.shade900,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.orange)),
-          title: Text(context.translate('configure_room'), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+          title: Text(context.translate('configure_room', listen: false), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ...[2, 3, 4].map((n) => ListTile(
-                title: Text('$n ${context.translate('players_count')}', style: const TextStyle(color: Colors.white)),
+                title: Text('$n ${context.translate('players_count', listen: false)}', style: const TextStyle(color: Colors.white)),
                 leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
                 onTap: () => Navigator.pop(context, n),
               )),
               const Divider(color: Colors.white24),
               SwitchListTile(
-                title: Text(context.translate('public_room'), style: const TextStyle(fontSize: 14, color: Colors.white)),
-                subtitle: Text(context.translate('public_room_subtitle'), style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                title: Text(context.translate('public_room', listen: false), style: const TextStyle(fontSize: 14, color: Colors.white)),
+                subtitle: Text(context.translate('public_room_subtitle', listen: false), style: const TextStyle(fontSize: 12, color: Colors.white70)),
                 value: isPublic,
                 activeColor: Colors.orange,
                 onChanged: (v) => setDialogState(() => isPublic = v),
@@ -234,7 +234,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [2, 3, 4].map((n) => ListTile(
-            title: Text('$n ${context.translate('players_count')}', style: const TextStyle(color: Colors.white)),
+            title: Text('$n ${context.translate('players_count', listen: false)}', style: const TextStyle(color: Colors.white)),
             leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
             onTap: () => Navigator.pop(context, n),
           )).toList(),
@@ -245,7 +245,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   Future<void> _connectAndJoin({String? manualCode}) async {
     final code = manualCode ?? _roomCodeController.text.trim();
-    if (code.isEmpty) return _showError(context.translate('name_code_error'));
+    if (code.isEmpty) return _showError(context.translate('name_code_error', listen: false));
     
     if (manualCode != null) _roomCodeController.text = manualCode;
     setState(() => _isLoading = true);
@@ -378,20 +378,20 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               children: [
                 Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
                 const SizedBox(height: 20),
-                Text(context.translate('play_with_friends'), style: const TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(context.translate('play_with_friends', listen: false), style: const TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 30),
                 _actionButton(
-                  title: context.translate('create_new_room'),
+                  title: context.translate('create_new_room', listen: false),
                   color: Colors.green.shade600,
                   onTap: () { Navigator.pop(context); _handleCreateGame(); },
                 ),
                 const SizedBox(height: 20),
                 const Divider(color: Colors.white24),
                 const SizedBox(height: 20),
-                _customTextField(controller: _roomCodeController, hint: context.translate('private_code'), icon: Icons.vpn_key, isCode: true),
+                _customTextField(controller: _roomCodeController, hint: context.translate('private_code', listen: false), icon: Icons.vpn_key, isCode: true),
                 const SizedBox(height: 15),
                 _actionButton(
-                  title: context.translate('join_by_code'),
+                  title: context.translate('join_by_code', listen: false),
                   color: Colors.orange.shade800,
                   onTap: () { Navigator.pop(context); _connectAndJoin(); },
                 ),
