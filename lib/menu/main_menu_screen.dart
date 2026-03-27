@@ -25,6 +25,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         _handleAccountDeleted();
       }
     });
+
+    // Solicitar nombre si no existe
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (PrefsService.playerName.isEmpty) {
+        _showNameDialog();
+      }
+    });
   }
 
   @override
@@ -42,7 +49,48 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
-  // Lógica para reanudar la partida
+  void _showNameDialog() {
+    final TextEditingController nameController = TextEditingController(text: PrefsService.playerName);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: Text(
+          context.translate('enter_name_title') ?? '¿Cómo te llamas?',
+          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: nameController,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: context.translate('name_hint'),
+            hintStyle: const TextStyle(color: Colors.white54),
+            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orange)),
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () {
+              if (nameController.text.trim().isNotEmpty) {
+                setState(() {
+                  PrefsService.playerName = nameController.text.trim();
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _resumeGame() {
     final savedJson = PrefsService.savedLocalGame;
     if (savedJson != null) {
@@ -60,7 +108,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     }
   }
 
-  // Diálogo para elegir entre Continuar o Nueva Partida
   void _handleOfflineClick() {
     if (PrefsService.hasSavedGame) {
       showDialog(
@@ -274,6 +321,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String playerName = PrefsService.playerName;
+
     return Scaffold(
       body: SizedBox.expand(
         child: Stack(
@@ -297,6 +346,35 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 onPressed: () => _showSettings(context),
               ).animate().fadeIn(delay: 500.ms).scale(),
             ),
+            if (playerName.isNotEmpty)
+              Positioned(
+                top: 50,
+                left: 20,
+                child: GestureDetector(
+                  onTap: _showNameDialog,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.person, color: Colors.orangeAccent, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          playerName,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.edit, color: Colors.white54, size: 12),
+                      ],
+                    ),
+                  ),
+                ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
+              ),
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
@@ -413,7 +491,7 @@ class _MenuButton extends StatelessWidget {
           horizontal: 22,
         ),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.88),
+          color: Colors.white.withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(32),
           boxShadow: const [
             BoxShadow(

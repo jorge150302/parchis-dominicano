@@ -14,7 +14,6 @@ class OnlineLobbyScreen extends StatefulWidget {
 }
 
 class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
-  late final TextEditingController _nameController;
   final _roomCodeController = TextEditingController();
   late final StreamSubscription _socketSubscription;
   bool _isLoading = false;
@@ -28,7 +27,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: PrefsService.playerName);
     _socketSubscription = socketService.events.listen(_handleServerEvent);
 
     _roomCodeController.addListener(() {
@@ -166,17 +164,13 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Future<void> _handleQuickMatch() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return _showError(context.translate('enter_name_error'));
-
     final int? selected = await _showPlayerCountDialog(context.translate('search_quick_match'));
     if (selected != null) {
       _lastRequestedPlayers = selected;
-      PrefsService.playerName = name;
       setState(() { _isLoading = true; _currentRoomCode = null; });
       try {
         await socketService.connect(_serverUrl);
-        socketService.send('find_match', {'name': name, 'maxPlayers': selected});
+        socketService.send('find_match', {'name': PrefsService.playerName, 'maxPlayers': selected});
       } catch (e) {
         setState(() => _isLoading = false);
         _showError('No se pudo conectar: $e');
@@ -185,28 +179,28 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Future<void> _handleCreateGame() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return _showError(context.translate('enter_name_error'));
-
     bool isPublic = true;
     int? maxPlayers = await showDialog<int>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(context.translate('configure_room')),
+          backgroundColor: Colors.brown.shade900,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.orange)),
+          title: Text(context.translate('configure_room'), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ...[2, 3, 4].map((n) => ListTile(
-                title: Text('$n ${context.translate('players_count')}'),
+                title: Text('$n ${context.translate('players_count')}', style: const TextStyle(color: Colors.white)),
                 leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
                 onTap: () => Navigator.pop(context, n),
               )),
-              const Divider(),
+              const Divider(color: Colors.white24),
               SwitchListTile(
-                title: Text(context.translate('public_room'), style: const TextStyle(fontSize: 14)),
-                subtitle: Text(context.translate('public_room_subtitle'), style: const TextStyle(fontSize: 12)),
+                title: Text(context.translate('public_room'), style: const TextStyle(fontSize: 14, color: Colors.white)),
+                subtitle: Text(context.translate('public_room_subtitle'), style: const TextStyle(fontSize: 12, color: Colors.white70)),
                 value: isPublic,
+                activeColor: Colors.orange,
                 onChanged: (v) => setDialogState(() => isPublic = v),
               ),
             ],
@@ -221,12 +215,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Future<void> _connectAndCreate(int maxPlayers, bool isPublic) async {
-    final name = _nameController.text.trim();
-    PrefsService.playerName = name;
     setState(() => _isLoading = true);
     try {
       await socketService.connect(_serverUrl);
-      socketService.send('create_game', {'name': name, 'maxPlayers': maxPlayers, 'isPublic': isPublic});
+      socketService.send('create_game', {'name': PrefsService.playerName, 'maxPlayers': maxPlayers, 'isPublic': isPublic});
     } catch (e) {
       setState(() => _isLoading = false);
       _showError('No se pudo conectar: $e');
@@ -237,11 +229,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     return showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        backgroundColor: Colors.brown.shade900,
+        title: Text(title, style: const TextStyle(color: Colors.orange)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [2, 3, 4].map((n) => ListTile(
-            title: Text('$n ${context.translate('players_count')}'),
+            title: Text('$n ${context.translate('players_count')}', style: const TextStyle(color: Colors.white)),
             leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
             onTap: () => Navigator.pop(context, n),
           )).toList(),
@@ -251,20 +244,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Future<void> _connectAndJoin({String? manualCode}) async {
-    final name = _nameController.text.trim();
     final code = manualCode ?? _roomCodeController.text.trim();
+    if (code.isEmpty) return _showError(context.translate('name_code_error'));
     
-    // ✅ Restauramos la validación de nombre y código
-    if (name.isEmpty || code.isEmpty) {
-      return _showError(context.translate('name_code_error'));
-    }
-    
-    PrefsService.playerName = name;
     if (manualCode != null) _roomCodeController.text = manualCode;
     setState(() => _isLoading = true);
     try {
       await socketService.connect(_serverUrl);
-      socketService.send('join_game', {'roomCode': code, 'name': name});
+      socketService.send('join_game', {'roomCode': code, 'name': PrefsService.playerName});
     } catch (e) {
       setState(() => _isLoading = false);
       _showError('Error de conexión: $e');
@@ -278,7 +265,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final lastCode = PrefsService.lastRoomCode;
-    final bool isCodeValid = _roomCodeController.text.trim().length >= 4;
 
     return Scaffold(
       body: Stack(
@@ -302,37 +288,47 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                       child: Text(context.translate('multiplayer_online'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
                     ).animate().fadeIn(delay: 200.ms),
                     const SizedBox(height: 40),
+
                     if (_currentRoomCode != null)
                       _buildWaitingRoom()
                     else ...[
-                      if (lastCode != null && !_isLoading)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: _actionButton(title: '${context.translate('rejoin_match')}: $lastCode', color: Colors.orange.shade700, onTap: () => _connectAndJoin(manualCode: lastCode)).animate(onPlay: (c) => c.repeat()).shimmer(duration: 1500.ms),
-                        ),
-                      _customTextField(controller: _nameController, hint: context.translate('name_hint'), icon: Icons.person).animate().fadeIn(delay: 400.ms).slideX(begin: -0.2),
-                      const SizedBox(height: 30),
                       if (_isLoading)
                         const CircularProgressIndicator(color: Colors.orangeAccent)
                       else ...[
-                        _actionButton(title: context.translate('quick_match'), color: Colors.blueAccent, onTap: _handleQuickMatch).animate().fadeIn(delay: 600.ms).scale(),
-                        const SizedBox(height: 15),
-                        _actionButton(title: context.translate('create_new_room'), color: Colors.green.shade600, onTap: _handleCreateGame).animate().fadeIn(delay: 700.ms).scale(),
+                        if (lastCode != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: _lobbyCard(
+                              icon: Icons.history,
+                              title: context.translate('rejoin_match'),
+                              subtitle: lastCode,
+                              color: Colors.orange.shade700,
+                              onTap: () => _connectAndJoin(manualCode: lastCode),
+                            ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
+                          ),
+
+                        _lobbyCard(
+                          icon: Icons.bolt,
+                          title: context.translate('quick_match'),
+                          subtitle: context.translate('quick_match_subtitle'),
+                          color: Colors.blueAccent,
+                          onTap: _handleQuickMatch,
+                        ).animate().fadeIn(delay: 400.ms).slideX(begin: -0.2),
+
+                        const SizedBox(height: 20),
+
+                        _lobbyCard(
+                          icon: Icons.group_add,
+                          title: context.translate('play_with_friends'),
+                          subtitle: context.translate('play_with_friends_subtitle'),
+                          color: Colors.green.shade600,
+                          onTap: _showPrivateOptions,
+                        ).animate().fadeIn(delay: 600.ms).slideX(begin: 0.2),
                       ],
-                      const SizedBox(height: 30),
-                      const Divider(color: Colors.white38),
-                      const SizedBox(height: 30),
-                      _customTextField(controller: _roomCodeController, hint: context.translate('private_code'), icon: Icons.vpn_key, isCode: true).animate().fadeIn(delay: 800.ms).slideX(begin: 0.2),
-                      const SizedBox(height: 15),
-                      _actionButton(
-                        title: context.translate('join_by_code'),
-                        color: isCodeValid ? Colors.orange.shade800 : Colors.black45,
-                        textColor: isCodeValid ? Colors.white : Colors.white38,
-                        // ✅ Permitimos el tap siempre para mostrar el error de "nombre vacío" si es necesario
-                        onTap: () => _connectAndJoin(),
-                      ).animate().fadeIn(delay: 1000.ms).scale(),
                     ],
+
                     const SizedBox(height: 40),
+
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.black45,
@@ -358,6 +354,82 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showPrivateOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.brown.shade900,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            border: Border.all(color: Colors.orangeAccent, width: 2),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 20),
+                Text(context.translate('play_with_friends'), style: const TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 30),
+                _actionButton(
+                  title: context.translate('create_new_room'),
+                  color: Colors.green.shade600,
+                  onTap: () { Navigator.pop(context); _handleCreateGame(); },
+                ),
+                const SizedBox(height: 20),
+                const Divider(color: Colors.white24),
+                const SizedBox(height: 20),
+                _customTextField(controller: _roomCodeController, hint: context.translate('private_code'), icon: Icons.vpn_key, isCode: true),
+                const SizedBox(height: 15),
+                _actionButton(
+                  title: context.translate('join_by_code'),
+                  color: Colors.orange.shade800,
+                  onTap: () { Navigator.pop(context); _connectAndJoin(); },
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _lobbyCard({required IconData icon, required String title, required String subtitle, required Color color, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(radius: 25, backgroundColor: color, child: Icon(icon, color: Colors.white, size: 28)),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  Text(subtitle, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black26),
+          ],
+        ),
       ),
     );
   }
@@ -416,7 +488,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
     _roomCodeController.dispose();
     _socketSubscription.cancel();
     super.dispose();

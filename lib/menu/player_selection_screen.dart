@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../config/language_provider.dart';
+import '../service/prefs_service.dart';
 
 class PlayerSelectionScreen extends StatefulWidget {
   const PlayerSelectionScreen({super.key});
@@ -15,6 +16,13 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
   int? selectedPlayers;
   bool vsAI = false;
   final List<TextEditingController> _nameControllers = List.generate(4, (_) => TextEditingController());
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicializar el nombre del primer jugador con el guardado en Prefs
+    _nameControllers[0].text = PrefsService.playerName;
+  }
 
   @override
   void dispose() {
@@ -37,7 +45,8 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
       }
     } else {
       for (int i = 1; i < 4; i++) {
-        _nameControllers[i].clear();
+        // No borrar el nombre del primer jugador
+        if (i > 0) _nameControllers[i].clear();
       }
     }
   }
@@ -289,7 +298,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
               style: TextStyle(color: isAIField ? Colors.orangeAccent : Colors.white),
               decoration: InputDecoration(
                 labelText: context.translate('player_n_name', args: {'player': '${i + 1}'}),
-                labelStyle: TextStyle(color: isAIField ? Colors.orangeAccent.withOpacity(0.7) : Colors.orangeAccent),
+                labelStyle: TextStyle(color: isAIField ? Colors.orangeAccent.withValues(alpha: 0.7) : Colors.orangeAccent),
                 disabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orangeAccent, width: 0.5)),
                 enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
                 focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orangeAccent, width: 2)),
@@ -322,9 +331,9 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
         width: 300,
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.orange.withOpacity(0.9) : Colors.white.withOpacity(0.85),
+          color: isSelected ? Colors.orange.withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(30),
-          boxShadow: [BoxShadow(color: isSelected ? Colors.orange.withOpacity(0.6) : Colors.black26, blurRadius: 16, offset: const Offset(0, 6))],
+          boxShadow: [BoxShadow(color: isSelected ? Colors.orange.withValues(alpha: 0.6) : Colors.black26, blurRadius: 16, offset: const Offset(0, 6))],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
