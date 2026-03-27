@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../config/language_provider.dart';
 import '../logic/game_controller.dart';
@@ -40,7 +42,9 @@ class _GameScreenState extends State<GameScreen> {
   int _lastFinisherCount = 0; 
   final Set<String> _processedEvents = {};
   final List<ActiveVisualEvent> _activeVisualEvents = [];
+  final List<_FlyingToken> _flyingTokens = [];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  StreamSubscription? _captureSubscription;
 
   @override
   void initState() {
@@ -51,6 +55,7 @@ class _GameScreenState extends State<GameScreen> {
       if (!mounted) return;
       final controller = context.read<GameController>();
       controller.addListener(_onGameUpdate);
+      _captureSubscription = controller.onTokenCaptured.listen(_onTokenCaptured);
 
       _lastFinisherCount = controller.engine.finisherIds.length;
 
@@ -90,7 +95,29 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _confettiController.dispose();
+    _captureSubscription?.cancel();
     super.dispose();
+  }
+
+  void _onTokenCaptured(CapturedToken captured) {
+    if (!mounted) return;
+    final id = const Uuid().v4();
+    setState(() {
+      _flyingTokens.add(_FlyingToken(
+        id: id,
+        asset: captured.asset,
+        fromCell: captured.fromPosition,
+        playerIndex: captured.playerIndex,
+      ));
+    });
+
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _flyingTokens.removeWhere((t) => t.id == id);
+        });
+      }
+    });
   }
 
   void _onGameUpdate() {
@@ -252,6 +279,7 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ),
                         ..._buildPlayers(controller),
+                        ..._buildFlyingTokens(),
                         _buildFloatingEvents(),
                         if (isWaiting) _buildWaitingOverlay(),
                       ],
@@ -275,6 +303,43 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildFlyingTokens() {
+    return _flyingTokens.map((ft) {
+      // Cálculo de posición relativa en el tablero (10x10)
+      final realIndex = 100 - ft.fromCell;
+      final row = realIndex ~/ 10;
+      final zigzagCol = realIndex % 10;
+      final col = row.isOdd ? (9 - zigzagCol) : zigzagCol;
+
+      final startX = (col - 4.5) * 0.2; // Normalizado de -1 a 1 aproximadamente
+      final startY = (row - 4.5) * 0.2;
+
+      // Destino basado en el índice del jugador
+      final targets = [
+        const Alignment(-0.9, -0.9), // P0
+        const Alignment(0.9, -0.9),  // P1
+        const Alignment(-0.9, 0.9),  // P2
+        const Alignment(0.9, 0.9),   // P3
+      ];
+      final target = targets[ft.playerIndex % targets.length];
+
+      return Center(
+        child: FractionalTranslation(
+          translation: Offset(startX, startY),
+          child: Image.asset(ft.asset, width: 24, height: 24),
+        ),
+      )
+      .animate()
+      .move(
+        end: Offset(target.x * 150, target.y * 300), // Aproximación visual al Home
+        duration: 800.ms,
+        curve: Curves.easeInOutSine,
+      )
+      .scale(begin: const Offset(1, 1), end: const Offset(0.5, 0.5))
+      .fadeOut();
+    }).toList();
   }
 
   Widget _buildFloatingEvents() {
@@ -320,8 +385,8 @@ class _GameScreenState extends State<GameScreen> {
               decoration: BoxDecoration(
                 color: Colors.black87,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.7), width: 2),
-                boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10)],
+                border: Border.all(color: color.withValues(alpha: 0.7), width: 2),
+                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10)],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -756,4 +821,12 @@ class ActiveVisualEvent {
   final GameEvent event;
   final Alignment alignment;
   ActiveVisualEvent({required this.event, required this.alignment});
+}
+
+class _FlyingToken {
+  final String id;
+  final String asset;
+  final int fromCell;
+  final int playerIndex;
+  _FlyingToken({required this.id, required this.asset, required this.fromCell, required this.playerIndex});
 }

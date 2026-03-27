@@ -6,6 +6,20 @@ import '../models/player.dart';
 
 enum GamePhase { idle, rolling, choosing_token, moving, finished }
 
+class CapturedToken {
+  final int playerIndex;
+  final String asset;
+  final int fromPosition;
+  CapturedToken({required this.playerIndex, required this.asset, required this.fromPosition});
+}
+
+class ActionResult {
+  final bool moved;
+  final int? fromPos;
+  final bool sentToStart;
+  ActionResult({required this.moved, this.fromPos, this.sentToStart = false});
+}
+
 class GameEngine {
   final Board board;
   final List<Player> players;
@@ -57,20 +71,25 @@ class GameEngine {
 
   bool reachedThreeSixes(Player player) => player.consecutiveSixes >= 3;
 
-  bool penaltyThreeSixes(Player player) {
+  CapturedToken? penaltyThreeSixes(Player player) {
     for (var token in player.tokens) {
       if (token.position > 0 && !token.isFinished) {
+        int oldPos = token.position;
         token.reset();
-        break;
+        _events.add(GameEvent(
+          messageKey: 'penalty_three_sixes', 
+          args: {'name': player.name},
+          playerId: player.id,
+          type: 'penalty'
+        ));
+        return CapturedToken(
+          playerIndex: player.index, 
+          asset: player.tokenAsset, 
+          fromPosition: oldPos
+        );
       }
     }
-    _events.add(GameEvent(
-      messageKey: 'penalty_three_sixes', 
-      args: {'name': player.name},
-      playerId: player.id,
-      type: 'penalty'
-    ));
-    return true;
+    return null;
   }
 
   bool isBlocked(int cellPosition, String searchingPlayerId) {
@@ -192,14 +211,15 @@ class GameEngine {
     }
   }
 
-  bool applyCellAction(Player player, int tokenId) {
+  ActionResult applyCellAction(Player player, int tokenId) {
     final token = player.tokens[tokenId];
     final cell = board.getCell(token.position);
     final action = cell.action;
-    if (action == null) return false;
+    if (action == null) return ActionResult(moved: false);
 
     switch (action.type) {
       case BoardActionType.goToStart:
+        int oldPos = token.position;
         token.reset();
         _events.add(GameEvent(
           messageKey: 'bad_luck_home', 
@@ -207,7 +227,7 @@ class GameEngine {
           playerId: player.id,
           type: 'penalty'
         ));
-        return true;
+        return ActionResult(moved: true, sentToStart: true, fromPos: oldPos);
       case BoardActionType.moveTo:
         if (!isBlocked(action.targetNumber!, player.id)) {
           token.position = action.targetNumber!;
@@ -217,9 +237,9 @@ class GameEngine {
             playerId: player.id,
             type: 'move'
           ));
-          return true;
+          return ActionResult(moved: true);
         }
-        return false;
+        return ActionResult(moved: false);
       case BoardActionType.skipTurn:
         player.addSkip(1);
         _events.add(GameEvent(
@@ -228,7 +248,7 @@ class GameEngine {
           playerId: player.id,
           type: 'penalty'
         ));
-        return false;
+        return ActionResult(moved: false);
       case BoardActionType.rollAgain:
         player.extraTurns++;
         _events.add(GameEvent(
@@ -237,20 +257,25 @@ class GameEngine {
           playerId: player.id,
           type: 'bonus'
         ));
-        return false;
-      default: return false;
+        return ActionResult(moved: false);
+      default: return ActionResult(moved: false);
     }
   }
 
-  bool resolveCollisions(Player player, int tokenId) {
+  List<CapturedToken> resolveCollisions(Player player, int tokenId) {
     final token = player.tokens[tokenId];
-    if (token.position == 0 || token.isFinished) return false;
+    if (token.position == 0 || token.isFinished) return [];
 
-    bool hit = false;
+    List<CapturedToken> captured = [];
     for (final other in players) {
       if (other.id == player.id) continue;
       for (final otherToken in other.tokens) {
         if (!otherToken.isFinished && otherToken.position == token.position) {
+          captured.add(CapturedToken(
+            playerIndex: other.index,
+            asset: other.tokenAsset,
+            fromPosition: otherToken.position,
+          ));
           otherToken.reset();
           if (!player.isFinished) player.extraTurns++;
           _events.add(GameEvent(
@@ -259,11 +284,10 @@ class GameEngine {
             playerId: player.id,
             type: 'bonus'
           ));
-          hit = true;
         }
       }
     }
-    return hit;
+    return captured;
   }
 
   void clearEvents() => _events.clear();

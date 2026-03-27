@@ -32,6 +32,9 @@ abstract class GameController extends ChangeNotifier {
   
   final Set<String> blockedPlayerIds = {};
 
+  final StreamController<CapturedToken> _capturedTokenController = StreamController<CapturedToken>.broadcast();
+  Stream<CapturedToken> get onTokenCaptured => _capturedTokenController.stream;
+
   GameController({required this.engine});
 
   List<Player> get players => engine.players;
@@ -78,7 +81,7 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> _vibrate() async {
     if (PrefsService.vibrationEnabled) {
-      await HapticFeedback.mediumImpact();
+      await HapticFeedback.lightImpact();
     }
   }
 
@@ -101,6 +104,7 @@ abstract class GameController extends ChangeNotifier {
     diceAudio.dispose();
     fanfareAudio.dispose();
     sendToHomeAudio.dispose();
+    _capturedTokenController.close();
     super.dispose();
   }
 }
@@ -137,6 +141,11 @@ class LocalGameController extends GameController {
       ? const Duration(milliseconds: 500)
       : const Duration(seconds: 1);
 
+  int get _autoMoveDelayMs {
+    int baseDelay = PrefsService.autoMoveDelayMs;
+    return PrefsService.gameSpeed == GameSpeed.fast ? (baseDelay ~/ 2) : baseDelay;
+  }
+
   void initializeFromResume(int savedDiceValue) {
     diceValue = savedDiceValue;
     currentPlayer.lastDiceValue = savedDiceValue;
@@ -144,10 +153,12 @@ class LocalGameController extends GameController {
     if (engine.phase == GamePhase.choosing_token) {
       movableTokenIds = engine.getMovableTokenIds(diceValue);
       inputLocked = false;
+      _checkAutoMove();
     } else if (engine.phase == GamePhase.moving) {
       engine.phase = GamePhase.choosing_token;
       movableTokenIds = engine.getMovableTokenIds(diceValue);
       inputLocked = false;
+      _checkAutoMove();
     }
 
     if (vsAI && currentPlayer.index != 0 && engine.phase == GamePhase.idle) {
@@ -171,6 +182,11 @@ class LocalGameController extends GameController {
     movableTokenIds.clear();
     inputLocked = false;
     _saveGame();
+
+    if (!vsAI || currentPlayer.index == 0) {
+      _vibrate();
+    }
+
     notifyListeners();
     
     if (vsAI && currentPlayer.index != 0 && engine.phase != GamePhase.finished) {
@@ -228,8 +244,10 @@ class LocalGameController extends GameController {
     engine.registerSix(currentPlayer, diceValue);
     
     if (engine.reachedThreeSixes(currentPlayer)) {
-      engine.penaltyThreeSixes(currentPlayer);
+      final cap = engine.penaltyThreeSixes(currentPlayer);
+      if (cap != null) _capturedTokenController.add(cap);
       await playSendToHomeSound();
+      _vibrate();
       engine.nextTurn();
       startTurn();
       return;
@@ -260,7 +278,19 @@ class LocalGameController extends GameController {
       
       if (vsAI && currentPlayer.index != 0) {
         _triggerAISelection();
+      } else {
+        _checkAutoMove();
       }
+    }
+  }
+
+  void _checkAutoMove() {
+    if (PrefsService.autoMoveEnabled && movableTokenIds.length == 1) {
+      Future.delayed(Duration(milliseconds: _autoMoveDelayMs), () {
+        if (engine.phase == GamePhase.choosing_token && movableTokenIds.length == 1 && !inputLocked) {
+          selectToken(movableTokenIds.first);
+        }
+      });
     }
   }
 
@@ -321,17 +351,32 @@ class LocalGameController extends GameController {
       }
     }
     
-    final movedByAction = engine.applyCellAction(currentPlayer, tokenId);
-    if (movedByAction) {
+    final actionRes = engine.applyCellAction(currentPlayer, tokenId);
+    if (actionRes.moved) {
+       if (actionRes.sentToStart && actionRes.fromPos != null) {
+          _capturedTokenController.add(CapturedToken(
+            playerIndex: currentPlayer.index,
+            asset: currentPlayer.tokenAsset,
+            fromPosition: actionRes.fromPos!
+          ));
+       }
        notifyListeners();
        await Future.delayed(const Duration(milliseconds: 500));
     }
 
-    final hit = engine.resolveCollisions(currentPlayer, tokenId);
-    if (hit || movedByAction) {
+    final captured = engine.resolveCollisions(currentPlayer, tokenId);
+    if (captured.isNotEmpty) {
+      for (var cap in captured) {
+        _capturedTokenController.add(cap);
+      }
       await playSendToHomeSound();
       _vibrate();
       await Future.delayed(Duration(milliseconds: (600 / _audioPlaybackRate).round()));
+    } else if (actionRes.moved) {
+       if (actionRes.sentToStart) {
+         await playSendToHomeSound();
+         _vibrate();
+       }
     }
     
     _saveGame();
@@ -482,6 +527,7 @@ class NetworkGameController extends GameController {
       engine.phase = GamePhase.choosing_token;
       if (currentPlayerId == PrefsService.playerId) {
         movableTokenIds = engine.getMovableTokenIds(_lastServerDiceValue);
+        _checkAutoMove();
       }
     } else if (phaseStr == 'rolling') {
       engine.phase = GamePhase.idle;
@@ -493,8 +539,28 @@ class NetworkGameController extends GameController {
       engine.phase = GamePhase.finished;
     }
 
-    if (currentPlayerId != null) engine.setCurrentPlayerById(currentPlayerId);
+    final String? previousPlayerId = engine.currentPlayer.id;
+    if (currentPlayerId != null) {
+      engine.setCurrentPlayerById(currentPlayerId);
+      if (currentPlayerId == PrefsService.playerId && previousPlayerId != currentPlayerId) {
+        _vibrate();
+      }
+    }
+
     notifyListeners();
+  }
+
+  void _checkAutoMove() {
+    if (PrefsService.autoMoveEnabled && movableTokenIds.length == 1 && isMyTurn) {
+      int delay = PrefsService.autoMoveDelayMs;
+      if (PrefsService.gameSpeed == GameSpeed.fast) delay = delay ~/ 2;
+
+      Future.delayed(Duration(milliseconds: delay), () {
+        if (engine.phase == GamePhase.choosing_token && movableTokenIds.length == 1 && isMyTurn) {
+          selectToken(movableTokenIds.first);
+        }
+      });
+    }
   }
 
   Future<void> _animateTokenMovement(Player player, int tokenId, int targetPos) async {
@@ -504,9 +570,15 @@ class NetworkGameController extends GameController {
     final token = player.tokens[tokenId];
     
     if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
+      int oldPos = token.position;
       await Future.delayed(const Duration(milliseconds: 500));
       token.position = targetPos;
       if (targetPos == 0) {
+        _capturedTokenController.add(CapturedToken(
+          playerIndex: player.index,
+          asset: player.tokenAsset,
+          fromPosition: oldPos
+        ));
         await playSendToHomeSound();
         _vibrate();
       }
@@ -547,6 +619,10 @@ class NetworkGameController extends GameController {
     if (diceValue == 6 && pid == PrefsService.playerId) _vibrate();
     rollingDice = false;
     notifyListeners();
+
+    if (pid == PrefsService.playerId) {
+        _checkAutoMove();
+    }
   }
 
   void _handleChatMessage(Map<String, dynamic> data) {

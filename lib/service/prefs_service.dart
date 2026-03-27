@@ -65,6 +65,13 @@ class PrefsService {
   }
   static set gameSpeed(GameSpeed speed) => _prefs.setInt('game_speed', speed.index);
 
+  // 🤖 Selección Automática
+  static bool get autoMoveEnabled => _prefs.getBool('auto_move_enabled') ?? true;
+  static set autoMoveEnabled(bool value) => _prefs.setBool('auto_move_enabled', value);
+
+  static int get autoMoveDelayMs => _prefs.getInt('auto_move_delay_ms') ?? 600;
+  static set autoMoveDelayMs(int value) => _prefs.setInt('auto_move_delay_ms', value);
+
   // 🚫 Moderación: Lista de bloqueados persistente
   static List<String> get blockedPlayerIds {
     String? json = _prefs.getString('blocked_players');
