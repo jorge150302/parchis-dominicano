@@ -731,7 +731,7 @@ class _PlayerCornerWidget extends StatelessWidget {
   }
 
   void _showQuickChat(BuildContext context, GameController controller) {
-    final options = ["¡Buena jugada!", "¡Rayos!", "🤣", "👍", "¡Hola!", "💤"];
+    final options = ["¡Buena jugada!", "¡Rayos!", "🤣", "👍", "¡Hola!", "💤", "¡Juega rápido!"];
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.brown.shade900,
