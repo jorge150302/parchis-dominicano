@@ -17,6 +17,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   final _roomCodeController = TextEditingController();
   late final StreamSubscription _socketSubscription;
   bool _isLoading = false;
+  bool _isNavigating = false;
   String? _currentRoomCode;
   int? _maxPlayersInRoom;
   int _currentPlayersInRoom = 0;
@@ -39,71 +40,92 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   void _handleServerEvent(Map<String, dynamic> event) {
-    if (!mounted) return;
+    if (!mounted || _isNavigating) return;
 
     final eventName = event['event'];
     final data = event['data'] ?? {};
 
+    debugPrint('📡 Lobby Event: $eventName | Phase: ${data['phase']}');
+
     switch (eventName) {
       case 'game_created':
       case 'game_joined':
+      case 'match_found':
         final String joinedCode = data['roomCode'] ?? _roomCodeController.text.trim();
         setState(() {
           _isLoading = false;
           _currentRoomCode = joinedCode;
-          // Guardar maxPlayers si viene del servidor o mantener el que seleccionó el usuario
           _maxPlayersInRoom = data['maxPlayers'] ?? _maxPlayersInRoom;
         });
         PrefsService.lastRoomCode = joinedCode;
-        if (data['reconnected'] == true) _navigateToGame(roomCode: joinedCode);
+
+        final String? phase = data['phase'];
+        if (data['reconnected'] == true || (phase != null && phase != 'idle' && phase != 'waiting')) {
+          _navigateToGame(roomCode: joinedCode, playerCount: data['maxPlayers']);
+        }
+        break;
+
+      case 'game_start':
+        _navigateToGame(roomCode: data['roomCode'] ?? _currentRoomCode, playerCount: data['maxPlayers']);
         break;
 
       case 'game_state':
         final List players = data['players'] ?? [];
-        // Priorizar el valor del servidor, si no, el que tenemos guardado, si no, defecto 2.
         final int maxPlayers = data['maxPlayers'] ?? _maxPlayersInRoom ?? 2;
         final String? phase = data['phase'];
-        final String? roomCode = data['roomCode'];
+        final String? roomCode = data['roomCode'] ?? _currentRoomCode;
 
         setState(() {
           _isLoading = false;
           _currentPlayersInRoom = players.length;
           _maxPlayersInRoom = maxPlayers;
-          if (_currentRoomCode == null && roomCode != null) {
-            _currentRoomCode = roomCode;
-            _roomCodeController.text = roomCode;
-            PrefsService.lastRoomCode = roomCode;
-          }
+          if (_currentRoomCode == null && roomCode != null) _currentRoomCode = roomCode;
         });
 
-        if (players.length >= maxPlayers || (phase != null && phase != 'idle' && phase != 'finished')) {
+        // Navegación si la sala está llena o el servidor ya cambió de fase
+        final bool isFull = players.length >= maxPlayers;
+        final bool hasStarted = phase != null && phase != 'idle' && phase != 'waiting' && phase != 'finished';
+
+        if (isFull || hasStarted) {
+          debugPrint('🚀 Transición detectada vía State: Full=$isFull, Phase=$phase');
           _navigateToGame(playerCount: maxPlayers, roomCode: roomCode);
         }
         break;
 
       case 'error':
         setState(() => _isLoading = false);
-        final String message = data['message'] ?? '';
         final String? code = data['code'];
-
         if (code == 'MATCH_NOT_FOUND') {
           _showMatchNotFoundOptions();
         } else {
-          _showError(message);
+          _showError(data['message'] ?? 'Error desconocido');
+        }
+        break;
+
+      default:
+        // DETECCIÓN PROACTIVA:
+        // Si recibimos eventos de juego (dados, turnos, chat, timer) y estamos en una sala,
+        // significa que la partida ya empezó y perdimos el evento de transición.
+        final gameEvents = ['dice_result', 'timer_update', 'game_event', 'chat'];
+        if (gameEvents.contains(eventName) && _currentRoomCode != null) {
+          debugPrint('⚡ Partida en marcha detectada vía evento "$eventName". Sincronizando...');
+          _navigateToGame();
         }
         break;
     }
   }
 
   void _navigateToGame({int? playerCount, String? roomCode}) {
-    if (!mounted) return;
+    if (!mounted || _isNavigating) return;
+
     final targetRoomCode = roomCode ?? _currentRoomCode ?? _roomCodeController.text.trim();
     if (targetRoomCode.isEmpty) return;
 
-    // Priorizar el playerCount pasado o el maxPlayers configurado en la sala
+    _isNavigating = true;
     final finalPlayerCount = playerCount ?? _maxPlayersInRoom ?? _currentPlayersInRoom;
 
-    setState(() => _isLoading = false);
+    debugPrint('🎮 Entrando a partida: $targetRoomCode ($finalPlayerCount jugadores)');
+
     Navigator.pushReplacementNamed(context, '/game', arguments: {
       'playerCount': finalPlayerCount,
       'roomCode': targetRoomCode,
@@ -115,21 +137,13 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(context.translate('no_matches_found', listen: false)),
-        content: Text(context.translate('no_matches_content', listen: false)),
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.orange)),
+        title: Text(context.translate('no_matches_found', listen: false), style: const TextStyle(color: Colors.orange)),
+        content: Text(context.translate('no_matches_content', listen: false), style: const TextStyle(color: Colors.white)),
         actions: [
           Column(
             children: [
-              _dialogButton(
-                icon: Icons.videogame_asset,
-                title: context.translate('play_offline', listen: false),
-                color: Colors.blueAccent,
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushReplacementNamed(context, '/players');
-                },
-              ),
-              const SizedBox(height: 8),
               _dialogButton(
                 icon: Icons.add_box,
                 title: context.translate('create_my_room', listen: false),
@@ -137,6 +151,16 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   _connectAndCreate(_lastRequestedPlayers ?? 4, true);
+                },
+              ),
+              const SizedBox(height: 8),
+              _dialogButton(
+                icon: Icons.videogame_asset,
+                title: context.translate('play_offline', listen: false),
+                color: Colors.blueAccent,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushReplacementNamed(context, '/players');
                 },
               ),
               const SizedBox(height: 8),
@@ -163,7 +187,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         onPressed: onTap,
         icon: Icon(icon, size: 18),
         label: Text(title),
-        style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     );
   }
@@ -175,7 +204,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       setState(() {
         _isLoading = true;
         _currentRoomCode = null;
-        _maxPlayersInRoom = selected; // Guardar la preferencia localmente
+        _maxPlayersInRoom = selected;
       });
       try {
         await socketService.connect(_serverUrl);
@@ -225,7 +254,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Future<void> _connectAndCreate(int maxPlayers, bool isPublic) async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _maxPlayersInRoom = maxPlayers;
+    });
     try {
       await socketService.connect(_serverUrl);
       socketService.send('create_game', {'name': PrefsService.playerName, 'maxPlayers': maxPlayers, 'isPublic': isPublic});
@@ -240,6 +272,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.orange)),
         title: Text(title, style: const TextStyle(color: Colors.orange)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -303,7 +336,13 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                       _buildWaitingRoom()
                     else ...[
                       if (_isLoading)
-                        const CircularProgressIndicator(color: Colors.orangeAccent)
+                        const Column(
+                          children: [
+                            CircularProgressIndicator(color: Colors.orangeAccent),
+                            SizedBox(height: 15),
+                            Text('Buscando partida...', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                          ],
+                        )
                       else ...[
                         if (lastCode != null)
                           Padding(
@@ -466,6 +505,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           const LinearProgressIndicator(backgroundColor: Colors.white10, color: Colors.orangeAccent),
           const SizedBox(height: 15),
           Text(context.translate('waiting_room_subtitle'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic)),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: () => socketService.send('request_sync'),
+            icon: const Icon(Icons.sync, color: Colors.white54, size: 16),
+            label: const Text('SINCRONIZAR', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ),
         ],
       ),
     ).animate().fadeIn().scale();
