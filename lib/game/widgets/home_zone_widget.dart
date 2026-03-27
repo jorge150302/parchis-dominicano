@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/player.dart';
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
+import 'board_widget.dart'; // Importamos para usar TokenWidget
 
 class HomeZoneWidget extends StatelessWidget {
   final Player player;
@@ -33,15 +34,12 @@ class HomeZoneWidget extends StatelessWidget {
                 controller.currentPlayer.id == player.id &&
                 controller.movableTokenIds.contains(token.id);
 
-            Widget tWidget = Image.asset(player.tokenAsset, width: 20, height: 20);
-
-            if (isSelectable) {
-              return GestureDetector(
-                onTap: () => controller.selectToken(token.id),
-                child: tWidget,
-              );
-            }
-            return tWidget;
+            return TokenWidget(
+              asset: player.tokenAsset,
+              isSelectable: isSelectable,
+              size: 20,
+              onTap: isSelectable ? () => controller.selectToken(token.id) : null,
+            );
           }),
           
           ...tokensFinished.map((t) =>

@@ -103,13 +103,10 @@ class _AnimatedCell extends StatelessWidget {
     return cell.number.toString();
   }
 
-  // ✅ POSICIONAMIENTO 3D FINAL PARA BLOQUEOS
   Alignment _getTokenAlignment(int index, int total, bool isBlockade) {
     if (total == 1) return Alignment.center;
     if (total == 2) {
       if (isBlockade) {
-        // Token 0: Arriba a la izquierda (Atrás)
-        // Token 1: Abajo a la derecha (Adelante)
         return index == 0 ? const Alignment(-0.5, -0.4) : const Alignment(0.45, 0.4);
       }
       return index == 0 ? const Alignment(-0.5, 0.5) : const Alignment(0.5, -0.5);
@@ -189,7 +186,7 @@ class _AnimatedCell extends StatelessWidget {
 
               return Align(
                 alignment: _getTokenAlignment(index, totalTokens, isBlockade),
-                child: _TokenWidget(
+                child: TokenWidget(
                   asset: player.tokenAsset,
                   isSelectable: isSelectable,
                   size: tokenSize,
@@ -205,14 +202,15 @@ class _AnimatedCell extends StatelessWidget {
   }
 }
 
-class _TokenWidget extends StatelessWidget {
+class TokenWidget extends StatelessWidget {
   final String asset;
   final bool isSelectable;
   final double size;
   final bool isBlockade;
   final VoidCallback? onTap;
 
-  const _TokenWidget({
+  const TokenWidget({
+    super.key,
     required this.asset,
     required this.isSelectable,
     this.size = 20.0,
@@ -226,10 +224,16 @@ class _TokenWidget extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(
+            if (isSelectable)
+              BoxShadow(
+                color: Colors.yellow.withOpacity(0.7),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            const BoxShadow(
               color: Colors.black26,
               blurRadius: 3,
               offset: Offset(0, 2),
@@ -249,7 +253,9 @@ class _TokenWidget extends StatelessWidget {
           .animate(onPlay: (c) => c.repeat())
           .moveY(begin: 0, end: -4, duration: 500.ms, curve: Curves.easeInOut)
           .then()
-          .moveY(begin: -4, end: 0, duration: 500.ms, curve: Curves.easeInOut);
+          .moveY(begin: -4, end: 0, duration: 500.ms, curve: Curves.easeInOut)
+          .animate(onPlay: (c) => c.repeat())
+          .shimmer(duration: 1200.ms, color: Colors.yellow.withOpacity(0.3));
     }
 
     if (isBlockade) {
