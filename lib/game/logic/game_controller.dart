@@ -31,6 +31,10 @@ abstract class GameController extends ChangeNotifier {
   List<ChatMessage> chatMessages = [];
   
   final Set<String> blockedPlayerIds = {};
+  
+  // Mensajes rápidos activos (ID jugador -> Mensaje)
+  final Map<String, String> playerQuickMessages = {};
+  final Map<String, Timer> _quickMessageTimers = {};
 
   final StreamController<CapturedToken> _capturedTokenController = StreamController<CapturedToken>.broadcast();
   Stream<CapturedToken> get onTokenCaptured => _capturedTokenController.stream;
@@ -98,6 +102,19 @@ abstract class GameController extends ChangeNotifier {
   Future<void> rollDice();
   void selectToken(int tokenId); 
   void sendChatMessage(String message);
+  void sendQuickChat(String message);
+
+  void setQuickMessage(String playerId, String message) {
+    _quickMessageTimers[playerId]?.cancel();
+    playerQuickMessages[playerId] = message;
+    notifyListeners();
+
+    _quickMessageTimers[playerId] = Timer(const Duration(seconds: 3), () {
+      playerQuickMessages.remove(playerId);
+      _quickMessageTimers.remove(playerId);
+      notifyListeners();
+    });
+  }
 
   @override
   void dispose() {
@@ -105,6 +122,9 @@ abstract class GameController extends ChangeNotifier {
     fanfareAudio.dispose();
     sendToHomeAudio.dispose();
     _capturedTokenController.close();
+    for (var timer in _quickMessageTimers.values) {
+      timer.cancel();
+    }
     super.dispose();
   }
 }
@@ -387,6 +407,11 @@ class LocalGameController extends GameController {
 
   @override
   void sendChatMessage(String message) {}
+  
+  @override
+  void sendQuickChat(String message) {
+    setQuickMessage(currentPlayer.id, message);
+  }
 }
 
 class NetworkGameController extends GameController {
@@ -458,6 +483,13 @@ class NetworkGameController extends GameController {
         notifyListeners();
         break;
       case 'chat': _handleChatMessage(data); break;
+      case 'quick_chat': 
+        final String pid = data['senderId'] ?? '';
+        final String msg = data['message'] ?? '';
+        if (pid.isNotEmpty && msg.isNotEmpty && !blockedPlayerIds.contains(pid)) {
+          setQuickMessage(pid, msg);
+        }
+        break;
     }
   }
 
@@ -658,6 +690,12 @@ class NetworkGameController extends GameController {
 
   @override
   void sendChatMessage(String message) => socketService.send('chat_message', {'message': message});
+  
+  @override
+  void sendQuickChat(String message) {
+    socketService.send('quick_chat', {'message': message});
+    setQuickMessage(PrefsService.playerId, message);
+  }
 
   @override
   void dispose() {

@@ -730,6 +730,46 @@ class _PlayerCornerWidget extends StatelessWidget {
     );
   }
 
+  void _showQuickChat(BuildContext context, GameController controller) {
+    final options = ["¡Buena jugada!", "¡Rayos!", "🤣", "👍", "¡Hola!", "💤"];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.brown.shade900,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: GridView.builder(
+          shrinkWrap: true,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisExtent: 60,
+          ),
+          itemCount: options.length,
+          itemBuilder: (context, idx) => InkWell(
+            onTap: () {
+              controller.sendQuickChat(options[idx]);
+              Navigator.pop(context);
+            },
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+                ),
+                child: Text(
+                  options[idx],
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
@@ -738,41 +778,82 @@ class _PlayerCornerWidget extends StatelessWidget {
     final bool isRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
     final bool canTap = isTurn && isMe && controller.engine.phase == GamePhase.idle && !controller.rollingDice;
     final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
+    final String? activeMessage = controller.playerQuickMessages[player.id];
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        GestureDetector(
-          onLongPress: controller.isOnline ? () => _showPlayerOptions(context, controller) : null,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 140), 
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isTurn ? Colors.orange : Colors.black45, 
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isBlocked ? Colors.red : Colors.white24),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            GestureDetector(
+              onLongPress: controller.isOnline ? () => _showPlayerOptions(context, controller) : null,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 140), 
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isTurn ? Colors.orange : Colors.black45, 
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isBlocked ? Colors.red : Colors.white24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(player.tokenAsset, width: 14, height: 14),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        player.name,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
+                    if (isBlocked) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.block, size: 14, color: Colors.red),
+                    ]
+                  ],
+                ),
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(player.tokenAsset, width: 14, height: 14),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    player.name,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+            
+            if (activeMessage != null)
+              Positioned(
+                top: -40,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                    ),
+                    child: Text(
+                      activeMessage,
+                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ).animate().scale(duration: 200.ms, curve: Curves.easeOutBack).shake(delay: 200.ms),
+                ),
+              ),
+
+            if (isMe && controller.isOnline)
+              Positioned(
+                bottom: -10,
+                right: -10,
+                child: GestureDetector(
+                  onTap: () => _showQuickChat(context, controller),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle),
+                    child: const Icon(Icons.insert_emoticon, size: 16, color: Colors.white),
                   ),
                 ),
-                if (isBlocked) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.block, size: 14, color: Colors.red),
-                ]
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
         const SizedBox(height: 4), 
         
