@@ -22,6 +22,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   int? _maxPlayersInRoom;
   int _currentPlayersInRoom = 0;
   int? _lastRequestedPlayers;
+  bool _showTransitionOverlay = false;
 
   final String _serverUrl = Env.serverUrl;
 
@@ -104,8 +105,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
       default:
         // DETECCIÓN PROACTIVA:
-        // Si recibimos eventos de juego (dados, turnos, chat, timer) y estamos en una sala,
-        // significa que la partida ya empezó y perdimos el evento de transición.
         final gameEvents = ['dice_result', 'timer_update', 'game_event', 'chat'];
         if (gameEvents.contains(eventName) && _currentRoomCode != null) {
           debugPrint('⚡ Partida en marcha detectada vía evento "$eventName". Sincronizando...');
@@ -115,13 +114,20 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     }
   }
 
-  void _navigateToGame({int? playerCount, String? roomCode}) {
+  void _navigateToGame({int? playerCount, String? roomCode}) async {
     if (!mounted || _isNavigating) return;
 
     final targetRoomCode = roomCode ?? _currentRoomCode ?? _roomCodeController.text.trim();
     if (targetRoomCode.isEmpty) return;
 
+    setState(() => _showTransitionOverlay = true);
     _isNavigating = true;
+
+    // Pequeña pausa para que la animación se vea
+    await Future.delayed(const Duration(milliseconds: 1200));
+
+    if (!mounted) return;
+
     final finalPlayerCount = playerCount ?? _maxPlayersInRoom ?? _currentPlayersInRoom;
 
     debugPrint('🎮 Entrando a partida: $targetRoomCode ($finalPlayerCount jugadores)');
@@ -402,9 +408,38 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               ),
             ),
           ),
+          if (_showTransitionOverlay) _buildTransitionOverlay(),
         ],
       ),
     );
+  }
+
+  Widget _buildTransitionOverlay() {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.videogame_asset, color: Colors.orangeAccent, size: 80)
+                .animate(onPlay: (c) => c.repeat())
+                .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 600.ms, curve: Curves.easeInOut)
+                .then()
+                .scale(begin: const Offset(1.2, 1.2), end: const Offset(0.8, 0.8), duration: 600.ms),
+            const SizedBox(height: 30),
+            const Text(
+              "¡PARTIDA ENCONTRADA!",
+              style: TextStyle(color: Colors.orangeAccent, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 2),
+            ).animate().fadeIn().shimmer(delay: 400.ms),
+            const SizedBox(height: 10),
+            const Text(
+              "Preparando el tablero...",
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ).animate().fadeIn(delay: 600.ms),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 400.ms);
   }
 
   void _showPrivateOptions() {
