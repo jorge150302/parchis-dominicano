@@ -236,7 +236,6 @@ class _GameScreenState extends State<GameScreen> {
     final controller = context.watch<GameController>();
     final socketSrv = context.watch<SocketService>();
     
-    // CORRECCIÓN: Ahora espera hasta que la lista de jugadores coincida con widget.playerCount
     final bool isWaiting = controller.isOnline && controller.players.length < widget.playerCount;
 
     return PopScope(
@@ -309,21 +308,19 @@ class _GameScreenState extends State<GameScreen> {
 
   List<Widget> _buildFlyingTokens() {
     return _flyingTokens.map((ft) {
-      // Cálculo de posición relativa en el tablero (10x10)
       final realIndex = 100 - ft.fromCell;
       final row = realIndex ~/ 10;
       final zigzagCol = realIndex % 10;
       final col = row.isOdd ? (9 - zigzagCol) : zigzagCol;
 
-      final startX = (col - 4.5) * 0.2; // Normalizado de -1 a 1 aproximadamente
+      final startX = (col - 4.5) * 0.2; 
       final startY = (row - 4.5) * 0.2;
 
-      // Destino basado en el índice del jugador
       final targets = [
-        const Alignment(-0.9, -0.9), // P0
-        const Alignment(0.9, -0.9),  // P1
-        const Alignment(-0.9, 0.9),  // P2
-        const Alignment(0.9, 0.9),   // P3
+        const Alignment(-0.9, -0.9), 
+        const Alignment(0.9, -0.9),  
+        const Alignment(-0.9, 0.9),  
+        const Alignment(0.9, 0.9),   
       ];
       final target = targets[ft.playerIndex % targets.length];
 
@@ -335,7 +332,7 @@ class _GameScreenState extends State<GameScreen> {
       )
       .animate()
       .move(
-        end: Offset(target.x * 150, target.y * 300), // Aproximación visual al Home
+        end: Offset(target.x * 150, target.y * 300),
         duration: 800.ms,
         curve: Curves.easeInOutSine,
       )
@@ -842,14 +839,14 @@ class _PlayerCornerWidget extends StatelessWidget {
 
             if (isMe && controller.isOnline)
               Positioned(
-                bottom: -10,
-                right: -10,
+                top: -12,
+                right: -12,
                 child: GestureDetector(
                   onTap: () => _showQuickChat(context, controller),
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle),
-                    child: const Icon(Icons.insert_emoticon, size: 16, color: Colors.white),
+                    decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                    child: const Icon(Icons.insert_emoticon, size: 18, color: Colors.white),
                   ),
                 ),
               ),
