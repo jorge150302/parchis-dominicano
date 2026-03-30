@@ -35,7 +35,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       if (mounted) setState(() {});
     });
 
-    if (PrefsService.lastRoomCode != null) {
+    if (PrefsService.lastRoomCode != null && PrefsService.lastRoomCode!.isNotEmpty) {
       _roomCodeController.text = PrefsService.lastRoomCode!;
     }
   }
@@ -53,16 +53,19 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       case 'game_joined':
       case 'match_found':
         final String joinedCode = data['roomCode'] ?? _roomCodeController.text.trim();
+        if (joinedCode.isNotEmpty) {
+           PrefsService.lastRoomCode = joinedCode;
+        }
+
         setState(() {
           _isLoading = false;
-          _currentRoomCode = joinedCode;
+          _currentRoomCode = joinedCode.isNotEmpty ? joinedCode : _currentRoomCode;
           _maxPlayersInRoom = data['maxPlayers'] ?? _maxPlayersInRoom;
         });
-        PrefsService.lastRoomCode = joinedCode;
 
         final String? phase = data['phase'];
         if (data['reconnected'] == true || (phase != null && phase != 'idle' && phase != 'waiting')) {
-          _navigateToGame(roomCode: joinedCode, playerCount: data['maxPlayers']);
+          _navigateToGame(roomCode: joinedCode.isNotEmpty ? joinedCode : null, playerCount: data['maxPlayers']);
         }
         break;
 
@@ -75,6 +78,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         final int maxPlayers = data['maxPlayers'] ?? _maxPlayersInRoom ?? 2;
         final String? phase = data['phase'];
         final String? roomCode = data['roomCode'] ?? _currentRoomCode;
+
+        if (roomCode != null && roomCode.isNotEmpty) {
+          PrefsService.lastRoomCode = roomCode;
+        }
 
         setState(() {
           _isLoading = false;
@@ -293,14 +300,23 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Future<void> _connectAndJoin({String? manualCode}) async {
-    final code = manualCode ?? _roomCodeController.text.trim();
-    if (code.isEmpty) return _showError(context.translate('name_code_error', listen: false));
+    if (manualCode != null && manualCode.isNotEmpty) {
+      _roomCodeController.text = manualCode;
+    }
+
+    final code = _roomCodeController.text.trim();
     
-    if (manualCode != null) _roomCodeController.text = manualCode;
+    if (code.isEmpty) {
+      return _showError(context.translate('name_code_error', listen: false));
+    }
+    
     setState(() => _isLoading = true);
     try {
       await socketService.connect(_serverUrl);
-      socketService.send('join_game', {'roomCode': code, 'name': PrefsService.playerName});
+      socketService.send('join_game', {
+        'roomCode': code, 
+        'name': PrefsService.playerName
+      });
     } catch (e) {
       setState(() => _isLoading = false);
       _showError('Error de conexión: $e');
@@ -350,7 +366,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                           ],
                         )
                       else ...[
-                        if (lastCode != null)
+                        if (lastCode != null && lastCode.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 20),
                             child: _lobbyCard(
