@@ -96,6 +96,7 @@ class GameEngine {
     if (cellPosition <= 0 || cellPosition >= board.finalPosition) return false;
     
     for (var player in players) {
+      // ✅ MODIFICACIÓN: Ignorar tokens que ya están en la meta (isFinished)
       int count = player.tokens.where((t) => t.position == cellPosition && !t.isFinished).length;
       if (count >= 2) return true;
     }
@@ -213,6 +214,9 @@ class GameEngine {
 
   ActionResult applyCellAction(Player player, int tokenId) {
     final token = player.tokens[tokenId];
+    // ✅ MODIFICACIÓN: Si el token ya terminó, no aplicar acciones de celda
+    if (token.isFinished) return ActionResult(moved: false);
+
     final cell = board.getCell(token.position);
     final action = cell.action;
     if (action == null) return ActionResult(moved: false);
@@ -231,6 +235,12 @@ class GameEngine {
       case BoardActionType.moveTo:
         if (!isBlocked(action.targetNumber!, player.id)) {
           token.position = action.targetNumber!;
+          
+          // ✅ MODIFICACIÓN: Marcar como terminado si el salto llega a la casilla final
+          if (token.position == board.finalPosition) {
+            token.isFinished = true;
+          }
+
           _events.add(GameEvent(
             messageKey: 'flying_to_cell', 
             args: {'name': player.name, 'cell': token.position.toString()},
@@ -264,12 +274,14 @@ class GameEngine {
 
   List<CapturedToken> resolveCollisions(Player player, int tokenId) {
     final token = player.tokens[tokenId];
+    // ✅ MODIFICACIÓN: Los tokens en la meta no colisionan
     if (token.position == 0 || token.isFinished) return [];
 
     List<CapturedToken> captured = [];
     for (final other in players) {
       if (other.id == player.id) continue;
       for (final otherToken in other.tokens) {
+        // ✅ MODIFICACIÓN: Ignorar tokens enemigos que ya terminaron (isFinished)
         if (!otherToken.isFinished && otherToken.position == token.position) {
           captured.add(CapturedToken(
             playerIndex: other.index,
