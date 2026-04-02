@@ -49,7 +49,8 @@ class _BoardWidgetState extends State<BoardWidget> {
           final List<Map<String, dynamic>> tokensInCell = [];
           for (var player in widget.players) {
             for (var token in player.tokens) {
-              if (token.position == cell.number && !token.isFinished && token.position > 0) {
+              // Solo mostramos fichas que están en esta posición, son mayores a 0 y NO han terminado
+              if (token.position == cell.number && token.position > 0 && !token.isFinished) {
                 tokensInCell.add({
                   'player': player,
                   'token': token,
@@ -229,7 +230,7 @@ class TokenWidget extends StatelessWidget {
           boxShadow: [
             if (isSelectable)
               BoxShadow(
-                color: Colors.yellow.withOpacity(0.7),
+                color: Colors.yellow.withValues(alpha: 0.7),
                 blurRadius: 10,
                 spreadRadius: 2,
               ),
@@ -255,7 +256,7 @@ class TokenWidget extends StatelessWidget {
           .then()
           .moveY(begin: -4, end: 0, duration: 500.ms, curve: Curves.easeInOut)
           .animate(onPlay: (c) => c.repeat())
-          .shimmer(duration: 1200.ms, color: Colors.yellow.withOpacity(0.3));
+          .shimmer(duration: 1200.ms, color: Colors.yellow.withValues(alpha: 0.3));
     }
 
     if (isBlockade) {

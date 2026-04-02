@@ -42,7 +42,8 @@ class Player {
   int consecutiveSixes;
   int extraTurns;
   bool isAI;
-  int lastDiceValue; // ✅ Valor individual del dado
+  bool isAutoPlaying; // ✅ Recuperado: Modo AFK
+  int lastDiceValue;
 
   Player({
     required this.id,
@@ -54,7 +55,8 @@ class Player {
     this.consecutiveSixes = 0,
     this.extraTurns = 0,
     this.isAI = false,
-    this.lastDiceValue = 1, // ✅ Inicializar en 1
+    this.isAutoPlaying = false, // ✅ Inicializar
+    this.lastDiceValue = 1,
   }) : tokens = List.generate(tokenCount, (i) => Token(id: i));
 
   bool get isFinished => tokens.every((t) => t.isFinished);
@@ -68,7 +70,8 @@ class Player {
     'consecutiveSixes': consecutiveSixes,
     'extraTurns': extraTurns,
     'isAI': isAI,
-    'lastDiceValue': lastDiceValue, // ✅ Guardar en JSON
+    'isAutoPlaying': isAutoPlaying, // ✅ Sincronizar
+    'lastDiceValue': lastDiceValue,
     'tokens': tokens.map((t) => t.toJson()).toList(),
   };
 
@@ -83,7 +86,8 @@ class Player {
       consecutiveSixes: json['consecutiveSixes'],
       extraTurns: json['extraTurns'],
       isAI: json['isAI'],
-      lastDiceValue: json['lastDiceValue'] ?? 1, // ✅ Cargar de JSON
+      isAutoPlaying: json['isAutoPlaying'] ?? false, // ✅ Cargar
+      lastDiceValue: json['lastDiceValue'] ?? 1,
     );
     final List tokensJson = json['tokens'];
     for (int i = 0; i < tokensJson.length; i++) {
@@ -101,6 +105,7 @@ class Player {
     consecutiveSixes = 0;
     extraTurns = 0;
     lastDiceValue = 1;
+    isAutoPlaying = false;
   }
 
   void addSkip(int turns) => skippedTurns += turns;
@@ -118,6 +123,7 @@ class Player {
       consecutiveSixes: consecutiveSixes,
       extraTurns: extraTurns,
       isAI: isAI,
+      isAutoPlaying: isAutoPlaying,
       lastDiceValue: lastDiceValue,
     );
     for (int i = 0; i < tokens.length; i++) {
