@@ -630,6 +630,13 @@ class NetworkGameController extends GameController {
             playerId: engine.currentPlayer.id,
             args: {'name': engine.currentPlayer.name}
           ));
+          
+          // ✅ CORRECCIÓN: Avisar al servidor para pasar el turno
+          Future.delayed(const Duration(seconds: 2), () {
+            if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
+              socketService.send('skip_turn');
+            }
+          });
         }
 
         _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);

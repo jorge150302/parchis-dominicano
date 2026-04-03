@@ -49,8 +49,11 @@ class _BoardWidgetState extends State<BoardWidget> {
           final List<Map<String, dynamic>> tokensInCell = [];
           for (var player in widget.players) {
             for (var token in player.tokens) {
-              // Solo mostramos fichas que están en esta posición, son mayores a 0 y NO han terminado
-              if (token.position == cell.number && token.position > 0 && !token.isFinished) {
+              // ✅ CORRECCIÓN: No mostrar fichas que han terminado o están en la casilla final
+              if (token.position == cell.number &&
+                  token.position > 0 &&
+                  token.position < widget.board.finalPosition &&
+                  !token.isFinished) {
                 tokensInCell.add({
                   'player': player,
                   'token': token,
