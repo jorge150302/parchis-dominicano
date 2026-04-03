@@ -22,6 +22,7 @@ abstract class GameController extends ChangeNotifier {
 
   double turnProgress = 1.0;
   int secondsRemaining = 20;
+  int maxPlayers = 0; 
 
   final AudioPlayer diceAudio = AudioPlayer();
   final AudioPlayer fanfareAudio = AudioPlayer();
@@ -32,7 +33,6 @@ abstract class GameController extends ChangeNotifier {
   
   final Set<String> blockedPlayerIds = {};
   
-  // Mensajes rápidos activos (ID jugador -> Mensaje)
   final Map<String, String> playerQuickMessages = {};
   final Map<String, Timer> _quickMessageTimers = {};
 
@@ -59,6 +59,7 @@ abstract class GameController extends ChangeNotifier {
 
   void setPlayers(List<Player> newPlayers) {
     engine.players..clear()..addAll(newPlayers);
+    if (maxPlayers == 0) maxPlayers = newPlayers.length;
     notifyListeners();
   }
 
@@ -103,6 +104,7 @@ abstract class GameController extends ChangeNotifier {
   void selectToken(int tokenId); 
   void sendChatMessage(String message);
   void sendQuickChat(String message);
+  void toggleAutoPlay(bool value);
 
   void setQuickMessage(String playerId, String message) {
     _quickMessageTimers[playerId]?.cancel();
@@ -168,6 +170,16 @@ class LocalGameController extends GameController {
     return PrefsService.gameSpeed == GameSpeed.fast ? (baseDelay ~/ 2) : baseDelay;
   }
 
+  @override
+  void toggleAutoPlay(bool value) {
+    if (isMyTurn) {
+      currentPlayer.isAutoPlaying = value;
+      notifyListeners();
+      if (value && engine.phase == GamePhase.idle) rollDice();
+      else if (value && engine.phase == GamePhase.choosing_token) _checkAutoMove(force: true);
+    }
+  }
+
   void initializeFromResume(int savedDiceValue) {
     diceValue = savedDiceValue;
     currentPlayer.lastDiceValue = savedDiceValue;
@@ -183,9 +195,9 @@ class LocalGameController extends GameController {
       _checkAutoMove();
     }
 
-    if (vsAI && currentPlayer.index != 0 && engine.phase == GamePhase.idle) {
+    if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase == GamePhase.idle) {
       Future.delayed(_aiDecisionDelay, () => rollDice());
-    } else if (vsAI && currentPlayer.index != 0 && engine.phase == GamePhase.choosing_token) {
+    } else if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase == GamePhase.choosing_token) {
       _triggerAISelection();
     }
 
@@ -211,7 +223,7 @@ class LocalGameController extends GameController {
 
     notifyListeners();
     
-    if (vsAI && currentPlayer.index != 0 && engine.phase != GamePhase.finished) {
+    if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase != GamePhase.finished) {
       Future.delayed(_aiDecisionDelay, () => rollDice());
     }
   }
@@ -298,7 +310,7 @@ class LocalGameController extends GameController {
       _saveGame();
       notifyListeners();
       
-      if (vsAI && currentPlayer.index != 0) {
+      if (vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) {
         _triggerAISelection();
       } else {
         _checkAutoMove();
@@ -306,11 +318,12 @@ class LocalGameController extends GameController {
     }
   }
 
-  void _checkAutoMove() {
-    if (PrefsService.autoMoveEnabled && movableTokenIds.length == 1) {
+  void _checkAutoMove({bool force = false}) {
+    if (force || (PrefsService.autoMoveEnabled && movableTokenIds.length == 1)) {
       Future.delayed(Duration(milliseconds: _autoMoveDelayMs), () {
-        if (engine.phase == GamePhase.choosing_token && movableTokenIds.length == 1 && !inputLocked) {
-          selectToken(movableTokenIds.first);
+        if (engine.phase == GamePhase.choosing_token && (force || movableTokenIds.length == 1) && !inputLocked) {
+          if (force) _triggerAISelection();
+          else selectToken(movableTokenIds.first);
         }
       });
     }
@@ -320,8 +333,7 @@ class LocalGameController extends GameController {
     Future.delayed(_aiSelectionDelay, () {
       if (movableTokenIds.isEmpty) return;
 
-      int selectedId = movableTokenIds.first;
-      int maxPriority = -1;
+      int selectedId = movableTokenIds.first;      int maxPriority = -1;
 
       for (int tokenId in movableTokenIds) {
         int priority = 0;
@@ -434,8 +446,25 @@ class NetworkGameController extends GameController {
   void startTurn() => notifyListeners();
 
   @override
+  void toggleAutoPlay(bool value) {
+    final me = engine.players.firstWhere((p) => p.id == PrefsService.playerId, orElse: () => currentPlayer);
+    me.isAutoPlaying = value;
+    notifyListeners();
+    socketService.send('toggle_auto_play', {'value': value});
+    
+    if (value && isMyTurn) {
+      if (engine.phase == GamePhase.idle) {
+        Future.delayed(const Duration(seconds: 3), () => rollDice());
+      } else if (engine.phase == GamePhase.choosing_token) {
+        _checkAutoMove(forcedByAFK: true);
+      }
+    }
+  }
+
+  @override
   void selectToken(int tokenId) {
-    if (!isMyTurn || engine.phase != GamePhase.choosing_token) return;
+    if (!isMyTurn || engine.phase != GamePhase.choosing_token || !movableTokenIds.contains(tokenId)) return;
+    
     socketService.send('move_token', {'tokenId': tokenId});
     engine.phase = GamePhase.moving;
     movableTokenIds.clear();
@@ -480,6 +509,11 @@ class NetworkGameController extends GameController {
       case 'timer_update':
         secondsRemaining = data['seconds'] ?? 20;
         turnProgress = secondsRemaining / 20.0;
+        
+        if (secondsRemaining == 0 && isMyTurn && !currentPlayer.isAutoPlaying) {
+          toggleAutoPlay(true);
+        }
+        
         notifyListeners();
         break;
       case 'chat': _handleChatMessage(data); break;
@@ -499,6 +533,10 @@ class NetworkGameController extends GameController {
     final String? phaseStr = data['phase'];
     final List? winnersIds = data['winners']; 
     
+    if (data['maxPlayers'] != null) {
+      maxPlayers = data['maxPlayers'];
+    }
+
     if (data['lastDiceValue'] != null) {
       _lastServerDiceValue = data['lastDiceValue'];
       if (!rollingDice) {
@@ -537,8 +575,8 @@ class NetworkGameController extends GameController {
         },
       );
 
-      // Sincronizar el valor del dado del jugador si el servidor lo envía
       player.lastDiceValue = playerData['lastDiceValue'] ?? player.lastDiceValue;
+      player.isAutoPlaying = playerData['isAutoPlaying'] ?? player.isAutoPlaying;
 
       final List? tokensData = playerData['tokens'];
       if (tokensData != null) {
@@ -551,6 +589,12 @@ class NetworkGameController extends GameController {
             final token = player.tokens[tId];
             String animKey = "${player.id}_$tId";
 
+            // Sincronizar posición forzada para terminados para evitar que desaparezcan del tablero
+            if (serverIsFinished) {
+              token.position = engine.board.finalPosition;
+              token.isFinished = true;
+            }
+
             if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
               _animateTokenMovement(player, tId, serverPos);
             } else if (!_animatingTokens.contains(animKey)) {
@@ -562,11 +606,33 @@ class NetworkGameController extends GameController {
       player.isAI = playerData['isAI'] ?? player.isAI;
     }
 
+    final String? previousPlayerId = engine.currentPlayer.id;
+    if (currentPlayerId != null) {
+      engine.setCurrentPlayerById(currentPlayerId);
+      if (currentPlayerId == PrefsService.playerId && previousPlayerId != currentPlayerId) {
+        _vibrate();
+      }
+
+      if (!rollingDice) {
+        engine.currentPlayer.lastDiceValue = _lastServerDiceValue;
+        diceValue = _lastServerDiceValue;
+      }
+    }
+
     if (phaseStr == 'choosing_token') {
       engine.phase = GamePhase.choosing_token;
       if (currentPlayerId == PrefsService.playerId) {
         movableTokenIds = engine.getMovableTokenIds(_lastServerDiceValue);
-        _checkAutoMove();
+
+        if (movableTokenIds.isEmpty) {
+          engine.events.add(GameEvent(
+            messageKey: 'player_cant_move',
+            playerId: engine.currentPlayer.id,
+            args: {'name': engine.currentPlayer.name}
+          ));
+        }
+
+        _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
       }
     } else if (phaseStr == 'rolling') {
       engine.phase = GamePhase.idle;
@@ -578,31 +644,26 @@ class NetworkGameController extends GameController {
       engine.phase = GamePhase.finished;
     }
 
-    final String? previousPlayerId = engine.currentPlayer.id;
-    if (currentPlayerId != null) {
-      engine.setCurrentPlayerById(currentPlayerId);
-      if (currentPlayerId == PrefsService.playerId && previousPlayerId != currentPlayerId) {
-        _vibrate();
-      }
-      
-      // Sincronizar el dado global con el del jugador actual si no estamos rodando
-      if (!rollingDice) {
-        engine.currentPlayer.lastDiceValue = _lastServerDiceValue;
-        diceValue = _lastServerDiceValue;
-      }
+    if (currentPlayerId != null && currentPlayerId == PrefsService.playerId && engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle && isMyTurn) {
+          rollDice();
+        }
+      });
     }
 
     notifyListeners();
   }
 
-  void _checkAutoMove() {
-    if (PrefsService.autoMoveEnabled && movableTokenIds.length == 1 && isMyTurn) {
-      int delay = PrefsService.autoMoveDelayMs;
-      if (PrefsService.gameSpeed == GameSpeed.fast) delay = delay ~/ 2;
-
-      Future.delayed(Duration(milliseconds: delay), () {
-        if (engine.phase == GamePhase.choosing_token && movableTokenIds.length == 1 && isMyTurn) {
-          selectToken(movableTokenIds.first);
+  void _checkAutoMove({bool forcedByAFK = false}) {
+    if ((forcedByAFK || (PrefsService.autoMoveEnabled && movableTokenIds.length == 1)) && isMyTurn) {
+      int delayMs = forcedByAFK ? 3000 : PrefsService.autoMoveDelayMs;
+      
+      Future.delayed(Duration(milliseconds: delayMs), () {
+        if (engine.phase == GamePhase.choosing_token && (forcedByAFK || movableTokenIds.length == 1) && isMyTurn) {
+          if (movableTokenIds.isNotEmpty) {
+            selectToken(movableTokenIds.first);
+          }
         }
       });
     }
@@ -617,7 +678,14 @@ class NetworkGameController extends GameController {
     if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
       int oldPos = token.position;
       await Future.delayed(const Duration(milliseconds: 500));
-      token.position = targetPos;
+
+      if (targetPos >= engine.board.finalPosition) {
+        token.position = engine.board.finalPosition;
+        token.isFinished = true;
+      } else {
+        token.position = targetPos;
+      }
+
       if (targetPos == 0) {
         _capturedTokenController.add(CapturedToken(
           playerIndex: player.index, 
@@ -631,8 +699,11 @@ class NetworkGameController extends GameController {
       while (token.position < targetPos) {
         await Future.delayed(const Duration(milliseconds: 250));
         token.position++;
-        if (token.position == engine.board.finalPosition) {
+        
+        if (token.position >= engine.board.finalPosition) {
+          token.position = engine.board.finalPosition;
           token.isFinished = true;
+          notifyListeners();
           await playFanfare();
           _vibrate();
           break;
@@ -658,19 +729,19 @@ class NetworkGameController extends GameController {
 
     for (int i = 0; i < 10; i++) {
       diceValue = random.nextInt(6) + 1;
-      player.lastDiceValue = diceValue; // Actualizar el dado del jugador durante la animación
+      player.lastDiceValue = diceValue; 
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 80));
     }
     
     diceValue = finalVal;
-    player.lastDiceValue = finalVal; // Fijar el valor final en el jugador
+    player.lastDiceValue = finalVal;
     if (diceValue == 6 && pid == PrefsService.playerId) _vibrate();
     rollingDice = false;
     notifyListeners();
 
     if (pid == PrefsService.playerId) {
-        _checkAutoMove();
+        _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
     }
   }
 
