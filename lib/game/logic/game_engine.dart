@@ -190,10 +190,15 @@ class GameEngine {
 
   void stepForward(Player player, int tokenId) {
     final token = player.tokens[tokenId];
+    if (token.isFinished) return;
+
     if (token.position < board.finalPosition) {
       token.position++;
-      if (token.position == board.finalPosition) {
+      
+      if (token.position >= board.finalPosition) {
         token.isFinished = true;
+        token.position = -1; // Meta alcanzada
+        
         if (!player.isFinished) {
           player.extraTurns++; 
           _events.add(GameEvent(
@@ -213,7 +218,7 @@ class GameEngine {
 
   ActionResult applyCellAction(Player player, int tokenId) {
     final token = player.tokens[tokenId];
-    if (token.isFinished) return ActionResult(moved: false);
+    if (token.isFinished || token.position <= 0) return ActionResult(moved: false);
 
     final cell = board.getCell(token.position);
     final action = cell.action;
@@ -233,8 +238,10 @@ class GameEngine {
       case BoardActionType.moveTo:
         if (!isBlocked(action.targetNumber!, player.id)) {
           token.position = action.targetNumber!;
-          if (token.position == board.finalPosition) {
+          
+          if (token.position >= board.finalPosition) {
             token.isFinished = true;
+            token.position = -1;
           }
 
           _events.add(GameEvent(
@@ -270,15 +277,17 @@ class GameEngine {
 
   List<CapturedToken> resolveCollisions(Player player, int tokenId) {
     final token = player.tokens[tokenId];
-    // ✅ CORRECCIÓN: Las fichas en la casilla final NO colisionan ni capturan a nadie
-    if (token.position == 0 || token.position >= board.finalPosition || token.isFinished) return [];
+    
+    // Si la ficha no está en el tablero (está en meta -1 o casa 0), no captura.
+    if (token.position <= 0) return [];
 
     List<CapturedToken> captured = [];
     for (final other in players) {
       if (other.id == player.id) continue;
       for (final otherToken in other.tokens) {
-        // ✅ CORRECCIÓN: Ignorar tokens enemigos que ya terminaron (isFinished) o están en la meta
-        if (!otherToken.isFinished && otherToken.position < board.finalPosition && otherToken.position == token.position) {
+        // La comparación simple es suficiente:
+        // Si otherToken está en meta (-1) o casa (0), nunca será igual a una posición válida (1..N)
+        if (otherToken.position == token.position) {
           captured.add(CapturedToken(
             playerIndex: other.index,
             asset: other.tokenAsset,

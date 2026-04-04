@@ -340,7 +340,7 @@ class LocalGameController extends GameController {
         final token = currentPlayer.tokens[tokenId];
         final targetPos = token.position + diceValue;
 
-        if (targetPos == engine.board.finalPosition) {
+        if (targetPos >= engine.board.finalPosition) {
           priority = 100;
         }
         else if (targetPos > 0) {
@@ -589,13 +589,13 @@ class NetworkGameController extends GameController {
             final token = player.tokens[tId];
             String animKey = "${player.id}_$tId";
 
-            // Sincronizar posición forzada para terminados para evitar que desaparezcan del tablero
-            if (serverIsFinished) {
-              token.position = engine.board.finalPosition;
+            // ✅ LÓGICA DE SINCRONIZACIÓN -1:
+            // Si el servidor dice que terminó (isFinished o pos >= meta), localmente forzamos a -1.
+            if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
+              token.position = -1;
               token.isFinished = true;
-            }
-
-            if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
+            } else if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
+              // Si no ha terminado, animamos el movimiento normal
               _animateTokenMovement(player, tId, serverPos);
             } else if (!_animatingTokens.contains(animKey)) {
               token.isFinished = serverIsFinished;
@@ -631,7 +631,6 @@ class NetworkGameController extends GameController {
             args: {'name': engine.currentPlayer.name}
           ));
           
-          // ✅ CORRECCIÓN: Avisar al servidor para pasar el turno
           Future.delayed(const Duration(seconds: 2), () {
             if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
               socketService.send('skip_turn');
@@ -682,12 +681,27 @@ class NetworkGameController extends GameController {
     
     final token = player.tokens[tokenId];
     
-    if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
+    if (targetPos > token.position) {
+      while (token.position < targetPos) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        token.position++;
+        
+        if (token.position >= engine.board.finalPosition) {
+          token.position = -1; // ✅ Cambiamos a -1 al terminar la animación
+          token.isFinished = true;
+          notifyListeners();
+          await playFanfare();
+          _vibrate();
+          break;
+        }
+        notifyListeners();
+      }
+    } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
       int oldPos = token.position;
       await Future.delayed(const Duration(milliseconds: 500));
 
-      if (targetPos >= engine.board.finalPosition) {
-        token.position = engine.board.finalPosition;
+      if (targetPos >= engine.board.finalPosition || targetPos == -1) {
+        token.position = -1;
         token.isFinished = true;
       } else {
         token.position = targetPos;
@@ -701,21 +715,6 @@ class NetworkGameController extends GameController {
         ));
         await playSendToHomeSound();
         _vibrate();
-      }
-    } else {
-      while (token.position < targetPos) {
-        await Future.delayed(const Duration(milliseconds: 250));
-        token.position++;
-        
-        if (token.position >= engine.board.finalPosition) {
-          token.position = engine.board.finalPosition;
-          token.isFinished = true;
-          notifyListeners();
-          await playFanfare();
-          _vibrate();
-          break;
-        }
-        notifyListeners();
       }
     }
     
