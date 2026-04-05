@@ -197,7 +197,7 @@ class GameEngine {
       
       if (token.position >= board.finalPosition) {
         token.isFinished = true;
-        token.position = -1; // Meta alcanzada
+        token.position = -1; // Meta alcanzada universal
         
         if (!player.isFinished) {
           player.extraTurns++; 
@@ -278,15 +278,19 @@ class GameEngine {
   List<CapturedToken> resolveCollisions(Player player, int tokenId) {
     final token = player.tokens[tokenId];
     
-    // Si la ficha no está en el tablero (está en meta -1 o casa 0), no captura.
-    if (token.position <= 0) return [];
+    // REGLA DE ORO: Si la ficha que se movió está en meta (-1) o casa (0), 
+    // bajo NINGUNA circunstancia puede capturar a nadie.
+    if (token.isFinished || token.position <= 0) return [];
 
     List<CapturedToken> captured = [];
     for (final other in players) {
       if (other.id == player.id) continue;
       for (final otherToken in other.tokens) {
-        // La comparación simple es suficiente:
-        // Si otherToken está en meta (-1) o casa (0), nunca será igual a una posición válida (1..N)
+        
+        // PROTECCIÓN TOTAL: Una ficha que ya terminó (isFinished) o está en -1
+        // es INMUNE a las comparaciones de posición.
+        if (otherToken.isFinished || otherToken.position == -1) continue;
+
         if (otherToken.position == token.position) {
           captured.add(CapturedToken(
             playerIndex: other.index,

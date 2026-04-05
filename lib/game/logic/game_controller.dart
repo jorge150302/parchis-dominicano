@@ -589,13 +589,18 @@ class NetworkGameController extends GameController {
             final token = player.tokens[tId];
             String animKey = "${player.id}_$tId";
 
-            // ✅ LÓGICA DE SINCRONIZACIÓN -1:
-            // Si el servidor dice que terminó (isFinished o pos >= meta), localmente forzamos a -1.
+            // ✅ ESCUDO DE SINCRONIZACIÓN:
+            // Si la ficha ya está terminada localmente, bloqueamos cualquier cambio de posición
+            // que intente enviarla de vuelta al inicio (evita el rebote visual).
+            if (token.isFinished) {
+              token.position = -1; // Nos aseguramos que siempre sea -1
+              continue; 
+            }
+
             if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
               token.position = -1;
               token.isFinished = true;
             } else if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
-              // Si no ha terminado, animamos el movimiento normal
               _animateTokenMovement(player, tId, serverPos);
             } else if (!_animatingTokens.contains(animKey)) {
               token.isFinished = serverIsFinished;
@@ -681,13 +686,19 @@ class NetworkGameController extends GameController {
     
     final token = player.tokens[tokenId];
     
+    // ✅ BLOQUEO EN ANIMACIÓN: Si ya terminó, no permitimos que inicie ninguna animación
+    if (token.isFinished) {
+      _animatingTokens.remove(animKey);
+      return;
+    }
+
     if (targetPos > token.position) {
       while (token.position < targetPos) {
         await Future.delayed(const Duration(milliseconds: 250));
         token.position++;
         
         if (token.position >= engine.board.finalPosition) {
-          token.position = -1; // ✅ Cambiamos a -1 al terminar la animación
+          token.position = -1; 
           token.isFinished = true;
           notifyListeners();
           await playFanfare();
@@ -697,6 +708,12 @@ class NetworkGameController extends GameController {
         notifyListeners();
       }
     } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
+      // ✅ Si es un "salto" al home (0), pero la ficha local dice que terminó, IGNORAMOS
+      if (targetPos == 0 && token.isFinished) {
+         _animatingTokens.remove(animKey);
+         return;
+      }
+
       int oldPos = token.position;
       await Future.delayed(const Duration(milliseconds: 500));
 

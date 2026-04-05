@@ -2,27 +2,51 @@ import 'dart:convert';
 
 class Token {
   final int id;
-  int position;
-  bool isFinished;
+  int _position;
+  bool _isFinished;
   bool isMoving;
 
   Token({
     required this.id,
-    this.position = 0,
-    this.isFinished = false,
+    int position = 0,
+    bool isFinished = false,
     this.isMoving = false,
-  });
+  })  : _position = position,
+        _isFinished = isFinished;
+
+  // ✅ Getters
+  int get position => _position;
+  bool get isFinished => _isFinished;
+
+  // ✅ Setters con candado
+  set position(int val) {
+    if (_isFinished && val != -1) return; // Si terminó, solo aceptamos -1
+    _position = val;
+  }
+
+  set isFinished(bool val) {
+    if (_isFinished && !val) return; // Una vez true, no puede volver a false (excepto reset total)
+    _isFinished = val;
+  }
 
   void reset() {
-    position = 0;
-    isFinished = false;
+    if (_isFinished) return; // No se puede capturar una ficha terminada
+    _position = 0;
+    _isFinished = false;
+    isMoving = false;
+  }
+
+  // Para reinicio completo de partida
+  void forceReset() {
+    _position = 0;
+    _isFinished = false;
     isMoving = false;
   }
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'position': position,
-    'isFinished': isFinished,
+    'position': _position,
+    'isFinished': _isFinished,
   };
 
   factory Token.fromJson(Map<String, dynamic> json) => Token(
@@ -42,7 +66,7 @@ class Player {
   int consecutiveSixes;
   int extraTurns;
   bool isAI;
-  bool isAutoPlaying; // ✅ Recuperado: Modo AFK
+  bool isAutoPlaying;
   int lastDiceValue;
 
   Player({
@@ -55,7 +79,7 @@ class Player {
     this.consecutiveSixes = 0,
     this.extraTurns = 0,
     this.isAI = false,
-    this.isAutoPlaying = false, // ✅ Inicializar
+    this.isAutoPlaying = false,
     this.lastDiceValue = 1,
   }) : tokens = List.generate(tokenCount, (i) => Token(id: i));
 
@@ -70,7 +94,7 @@ class Player {
     'consecutiveSixes': consecutiveSixes,
     'extraTurns': extraTurns,
     'isAI': isAI,
-    'isAutoPlaying': isAutoPlaying, // ✅ Sincronizar
+    'isAutoPlaying': isAutoPlaying,
     'lastDiceValue': lastDiceValue,
     'tokens': tokens.map((t) => t.toJson()).toList(),
   };
@@ -86,7 +110,7 @@ class Player {
       consecutiveSixes: json['consecutiveSixes'],
       extraTurns: json['extraTurns'],
       isAI: json['isAI'],
-      isAutoPlaying: json['isAutoPlaying'] ?? false, // ✅ Cargar
+      isAutoPlaying: json['isAutoPlaying'] ?? false,
       lastDiceValue: json['lastDiceValue'] ?? 1,
     );
     final List tokensJson = json['tokens'];
@@ -99,7 +123,7 @@ class Player {
 
   void resetToStart() {
     for (var token in tokens) {
-      token.reset();
+      token.forceReset();
     }
     skippedTurns = 0;
     consecutiveSixes = 0;

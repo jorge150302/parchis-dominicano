@@ -16,10 +16,13 @@ class HomeZoneWidget extends StatelessWidget {
     final controller = context.watch<GameController>();
     final isCurrentPlayer = controller.currentPlayer.id == player.id;
     
-    final tokensAtHome = player.tokens.where((t) => t.position == 0).toList();
+    // ✅ CORRECCIÓN CRÍTICA: Una ficha en el home SOLO se cuenta si NO ha terminado.
+    // Esto evita que fichas terminadas "resuciten" visualmente si su posición vuelve a 0.
+    final tokensAtHome = player.tokens.where((t) => t.position == 0 && !t.isFinished).toList();
+
+    // Las fichas terminadas solo muestran su check.
     final tokensFinished = player.tokens.where((t) => t.isFinished).toList();
 
-    // Color temático basado en el asset o índice si no hay un color explícito
     final baseColor = _getPlayerColor(player.index);
 
     Widget content = AnimatedContainer(
@@ -66,6 +69,7 @@ class HomeZoneWidget extends StatelessWidget {
             runSpacing: 4,
             alignment: WrapAlignment.center,
             children: [
+              // ✅ Solo dibujamos las fichas que realmente están esperando salir
               ...tokensAtHome.map((token) {
                 final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
                     isCurrentPlayer &&
@@ -79,6 +83,7 @@ class HomeZoneWidget extends StatelessWidget {
                 );
               }),
               
+              // ✅ Solo dibujamos los checks para las que ya ganaron
               ...tokensFinished.map((t) =>
                 const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20)
                   .animate().scale(curve: Curves.bounceOut)
