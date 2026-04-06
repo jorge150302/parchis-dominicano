@@ -92,7 +92,6 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> playFanfare() async {
     await _playSound(fanfareAudio, 'sounds/fanfarreas.mp3');
-    await Future.delayed(Duration(milliseconds: (2000 / _audioPlaybackRate).round()));
   }
 
   Future<void> playSendToHomeSound() async {
@@ -588,18 +587,21 @@ class NetworkGameController extends GameController {
           if (tId < player.tokens.length) {
             final token = player.tokens[tId];
             String animKey = "${player.id}_$tId";
+            bool wasFinished = token.isFinished;
 
             // ✅ ESCUDO DE SINCRONIZACIÓN:
-            // Si la ficha ya está terminada localmente, bloqueamos cualquier cambio de posición
-            // que intente enviarla de vuelta al inicio (evita el rebote visual).
             if (token.isFinished) {
-              token.position = -1; // Nos aseguramos que siempre sea -1
+              token.position = -1; 
               continue; 
             }
 
             if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
               token.position = -1;
               token.isFinished = true;
+              if (!wasFinished) {
+                playFanfare();
+                _vibrate();
+              }
             } else if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
               _animateTokenMovement(player, tId, serverPos);
             } else if (!_animatingTokens.contains(animKey)) {
@@ -720,6 +722,8 @@ class NetworkGameController extends GameController {
       if (targetPos >= engine.board.finalPosition || targetPos == -1) {
         token.position = -1;
         token.isFinished = true;
+        await playFanfare();
+        _vibrate();
       } else {
         token.position = targetPos;
       }
