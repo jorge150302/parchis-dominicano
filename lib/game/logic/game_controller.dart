@@ -655,6 +655,8 @@ class NetworkGameController extends GameController {
       engine.phase = GamePhase.moving;
     } else if (phaseStr == 'finished') {
       engine.phase = GamePhase.finished;
+      // ✅ LIMPIAR EL CÓDIGO DE RECONEXIÓN
+      PrefsService.lastRoomCode = null;
     }
 
     if (currentPlayerId != null && currentPlayerId == PrefsService.playerId && engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle) {
