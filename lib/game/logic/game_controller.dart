@@ -601,6 +601,13 @@ class NetworkGameController extends GameController {
               if (!wasFinished) {
                 playFanfare();
                 _vibrate();
+                // Notificar que el jugador terminó una ficha
+                engine.events.add(GameEvent(
+                  messageKey: 'token_finished_bonus',
+                  args: {'name': player.name},
+                  playerId: player.id,
+                  type: 'bonus'
+                ));
               }
             } else if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
               _animateTokenMovement(player, tId, serverPos);
@@ -718,6 +725,14 @@ class NetworkGameController extends GameController {
           token.position = -1; 
           token.isFinished = true;
           notifyListeners();
+          
+          engine.events.add(GameEvent(
+            messageKey: 'token_finished_bonus',
+            args: {'name': player.name},
+            playerId: player.id,
+            type: 'bonus'
+          ));
+          
           await playFanfare();
           _vibrate();
           break;
@@ -737,13 +752,39 @@ class NetworkGameController extends GameController {
       if (targetPos >= engine.board.finalPosition || targetPos == -1) {
         token.position = -1;
         token.isFinished = true;
+        
+        engine.events.add(GameEvent(
+          messageKey: 'token_finished_bonus',
+          args: {'name': player.name},
+          playerId: player.id,
+          type: 'bonus'
+        ));
+
         await playFanfare();
         _vibrate();
       } else {
         token.position = targetPos;
+        
+        // Si el salto no es a 0 ni a meta, puede ser una acción de celda
+        if (targetPos > 0) {
+           engine.events.add(GameEvent(
+            messageKey: 'flying_to_cell', 
+            args: {'name': player.name, 'cell': targetPos.toString()},
+            playerId: player.id,
+            type: 'move'
+          ));
+        }
       }
 
       if (targetPos == 0) {
+        // EVENTO DE CAPTURA
+        engine.events.add(GameEvent(
+          messageKey: 'captured_player',
+          args: {'name': player.name, 'other': '?'},
+          playerId: player.id,
+          type: 'penalty'
+        ));
+
         _capturedTokenController.add(CapturedToken(
           playerIndex: player.index, 
           asset: player.tokenAsset, 
