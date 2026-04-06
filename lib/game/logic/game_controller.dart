@@ -631,12 +631,9 @@ class NetworkGameController extends GameController {
       if (currentPlayerId == PrefsService.playerId) {
         movableTokenIds = engine.getMovableTokenIds(_lastServerDiceValue);
 
-        if (movableTokenIds.isEmpty) {
-          engine.events.add(GameEvent(
-            messageKey: 'player_cant_move',
-            playerId: engine.currentPlayer.id,
-            args: {'name': engine.currentPlayer.name}
-          ));
+        // Solo lanzamos el evento si no estamos animando el dado para no interferir
+        if (movableTokenIds.isEmpty && !rollingDice) {
+          _addCantMoveEvent();
           
           Future.delayed(const Duration(seconds: 2), () {
             if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
@@ -645,17 +642,21 @@ class NetworkGameController extends GameController {
           });
         }
 
-        _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
+        if (!rollingDice) {
+          _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
+        }
       }
     } else if (phaseStr == 'rolling') {
       engine.phase = GamePhase.idle;
       movableTokenIds.clear();
-      rollingDice = false;
+      // ✅ No cortamos la animación si hay una en curso para evitar que el dado deje de girar
+      if (rollingPlayerId == null) {
+        rollingDice = false;
+      }
     } else if (phaseStr == 'moving') {
       engine.phase = GamePhase.moving;
     } else if (phaseStr == 'finished') {
       engine.phase = GamePhase.finished;
-      // ✅ LIMPIAR EL CÓDIGO DE RECONEXIÓN
       PrefsService.lastRoomCode = null;
     }
 
@@ -667,6 +668,18 @@ class NetworkGameController extends GameController {
       });
     }
 
+    notifyListeners();
+  }
+
+  void _addCantMoveEvent() {
+    // Evitar duplicados
+    if (engine.events.any((e) => e.messageKey == 'player_cant_move')) return;
+    
+    engine.events.add(GameEvent(
+      messageKey: 'player_cant_move',
+      playerId: engine.currentPlayer.id,
+      args: {'name': engine.currentPlayer.name}
+    ));
     notifyListeners();
   }
 
@@ -766,11 +779,24 @@ class NetworkGameController extends GameController {
     diceValue = finalVal;
     player.lastDiceValue = finalVal;
     if (diceValue == 6 && pid == PrefsService.playerId) _vibrate();
+    
+    // ✅ Reseteo cuidadoso de estados al terminar animación
     rollingDice = false;
+    rollingPlayerId = null;
     notifyListeners();
 
-    if (pid == PrefsService.playerId) {
-        _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
+    // Si era mi turno, comprobamos si no puedo moverme después de que el dado deje de girar
+    if (pid == PrefsService.playerId && engine.phase == GamePhase.choosing_token) {
+        if (movableTokenIds.isEmpty) {
+          _addCantMoveEvent();
+          Future.delayed(const Duration(seconds: 3), () {
+            if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
+              socketService.send('skip_turn');
+            }
+          });
+        } else {
+          _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
+        }
     }
   }
 
