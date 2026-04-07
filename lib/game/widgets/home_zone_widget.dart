@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:frontend_parchis/service/prefs_service.dart'; // ✅ Importado para identificar al jugador local
 import '../models/player.dart';
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
@@ -14,10 +15,19 @@ class HomeZoneWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
-    final isCurrentPlayer = controller.currentPlayer.id == player.id;
+    
+    // ✅ DETERMINAR SI ESTA ZONA TIENE EL TURNO
+    final isTurnOfThisZone = controller.currentPlayer.id == player.id;
+
+    // ✅ DETERMINAR SI ESTA ZONA ME PERTENECE A MÍ (LOCAL)
+    final bool isMe = controller.isOnline 
+        ? player.id == PrefsService.playerId 
+        : true; // En modo local, todas las zonas son "mías" en cuanto a visibilidad de turno
+
+    // ✅ SOLO MOSTRAR "TU TURNO" SI ES EL TURNO DE ESTA ZONA Y SOY YO
+    final bool shouldShowTurnIndicator = isTurnOfThisZone && isMe;
     
     // ✅ CORRECCIÓN CRÍTICA: Una ficha en el home SOLO se cuenta si NO ha terminado.
-    // Esto evita que fichas terminadas "resuciten" visualmente si su posición vuelve a 0.
     final tokensAtHome = player.tokens.where((t) => t.position == 0 && !t.isFinished).toList();
 
     // Las fichas terminadas solo muestran su check.
@@ -29,15 +39,15 @@ class HomeZoneWidget extends StatelessWidget {
       duration: const Duration(milliseconds: 500),
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: isCurrentPlayer 
+        color: isTurnOfThisZone 
             ? baseColor.withValues(alpha: 0.15)
             : Colors.black.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isCurrentPlayer ? baseColor : Colors.transparent,
+          color: isTurnOfThisZone ? baseColor : Colors.transparent,
           width: 2,
         ),
-        boxShadow: isCurrentPlayer ? [
+        boxShadow: isTurnOfThisZone ? [
           BoxShadow(
             color: baseColor.withValues(alpha: 0.3),
             blurRadius: 12,
@@ -48,7 +58,7 @@ class HomeZoneWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (isCurrentPlayer)
+          if (shouldShowTurnIndicator) // ✅ Usamos el nuevo indicador corregido
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: const Text(
@@ -69,10 +79,10 @@ class HomeZoneWidget extends StatelessWidget {
             runSpacing: 4,
             alignment: WrapAlignment.center,
             children: [
-              // ✅ Solo dibujamos las fichas que realmente están esperando salir
               ...tokensAtHome.map((token) {
                 final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
-                    isCurrentPlayer &&
+                    isTurnOfThisZone &&
+                    isMe && // ✅ Solo puedo seleccionar mis propias fichas
                     controller.movableTokenIds.contains(token.id);
 
                 return TokenWidget(
@@ -83,7 +93,6 @@ class HomeZoneWidget extends StatelessWidget {
                 );
               }),
               
-              // ✅ Solo dibujamos los checks para las que ya ganaron
               ...tokensFinished.map((t) =>
                 const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20)
                   .animate().scale(curve: Curves.bounceOut)
@@ -94,7 +103,7 @@ class HomeZoneWidget extends StatelessWidget {
       ),
     );
 
-    if (isCurrentPlayer) {
+    if (isTurnOfThisZone) {
       return content.animate(onPlay: (c) => c.repeat())
         .shimmer(
           duration: 2.seconds,
