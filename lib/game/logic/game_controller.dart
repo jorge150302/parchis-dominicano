@@ -231,8 +231,19 @@ class LocalGameController extends GameController {
 
   @override
   void selectToken(int tokenId) async {
-    if (engine.phase != GamePhase.choosing_token || !movableTokenIds.contains(tokenId) || inputLocked) return;
+    if (engine.phase != GamePhase.choosing_token || inputLocked) return;
     
+    if (!movableTokenIds.contains(tokenId)) {
+      engine.events.add(GameEvent(
+        messageKey: 'player_cant_move',
+        playerId: currentPlayer.id,
+        type: 'penalty',
+        args: {'name': currentPlayer.name}
+      ));
+      notifyListeners();
+      return;
+    }
+
     inputLocked = true;
     movableTokenIds.clear();
     await _moveStepByStep(tokenId, diceValue);
@@ -294,6 +305,7 @@ class LocalGameController extends GameController {
       engine.events.add(GameEvent(
         messageKey: 'player_cant_move', 
         playerId: currentPlayer.id,
+        type: 'penalty',
         args: {'name': currentPlayer.name}
       ));
       notifyListeners();
@@ -464,7 +476,12 @@ class NetworkGameController extends GameController {
 
   @override
   void selectToken(int tokenId) {
-    if (!isMyTurn || engine.phase != GamePhase.choosing_token || !movableTokenIds.contains(tokenId)) return;
+    if (!isMyTurn || engine.phase != GamePhase.choosing_token) return;
+    
+    if (!movableTokenIds.contains(tokenId)) {
+      _addCantMoveEvent();
+      return;
+    }
     
     socketService.send('move_token', {'tokenId': tokenId});
     engine.phase = GamePhase.moving;
@@ -504,7 +521,13 @@ class NetworkGameController extends GameController {
         _animateRemoteDice(_lastServerDiceValue, rollingPlayerId!);
         break;
       case 'game_event':
-        engine.events.add(GameEvent(messageKey: data['message'] ?? ''));
+        final String msgKey = data['message'] ?? '';
+        engine.events.add(GameEvent(
+          messageKey: msgKey,
+          playerId: data['playerId'] ?? engine.currentPlayer.id,
+          type: data['type'] ?? (msgKey == 'player_cant_move' ? 'penalty' : null),
+          args: data['args'] != null ? Map<String, String>.from(data['args']) : (msgKey == 'player_cant_move' ? {'name': engine.currentPlayer.name} : null),
+        ));
         notifyListeners();
         break;
       case 'timer_update':
@@ -661,7 +684,7 @@ class NetworkGameController extends GameController {
 
         // Solo lanzamos el evento si no estamos animando el dado para no interferir
         if (movableTokenIds.isEmpty && !rollingDice) {
-          _addCantMoveEvent();
+          _addCantMoveEvent(engine.currentPlayer);
           
           Future.delayed(const Duration(seconds: 2), () {
             if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
@@ -699,14 +722,16 @@ class NetworkGameController extends GameController {
     notifyListeners();
   }
 
-  void _addCantMoveEvent() {
+  void _addCantMoveEvent([Player? player]) {
+    final p = player ?? engine.currentPlayer;
     // Evitar duplicados
-    if (engine.events.any((e) => e.messageKey == 'player_cant_move')) return;
+    if (engine.events.any((e) => e.messageKey == 'player_cant_move' && e.playerId == p.id)) return;
     
     engine.events.add(GameEvent(
       messageKey: 'player_cant_move',
-      playerId: engine.currentPlayer.id,
-      args: {'name': engine.currentPlayer.name}
+      playerId: p.id,
+      type: 'penalty',
+      args: {'name': p.name}
     ));
     notifyListeners();
   }
@@ -848,16 +873,28 @@ class NetworkGameController extends GameController {
     notifyListeners();
 
     // Si era mi turno, comprobamos si no puedo moverme después de que el dado deje de girar
-    if (pid == PrefsService.playerId && engine.phase == GamePhase.choosing_token) {
-        if (movableTokenIds.isEmpty) {
-          _addCantMoveEvent();
-          Future.delayed(const Duration(seconds: 3), () {
-            if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
-              socketService.send('skip_turn');
-            }
-          });
+    if (pid == PrefsService.playerId) {
+        // Calculamos localmente sobre el jugador que acaba de lanzar
+        final me = engine.players.firstWhere((p) => p.id == pid, orElse: () => engine.currentPlayer);
+        final myMovable = <int>[];
+        for (int i = 0; i < me.tokens.length; i++) {
+           if (engine.canMoveToken(me, i, finalVal)) myMovable.add(i);
+        }
+
+        if (myMovable.isEmpty) {
+          _addCantMoveEvent(me);
+          if (engine.phase == GamePhase.choosing_token && engine.currentPlayer.id == PrefsService.playerId) {
+            Future.delayed(const Duration(seconds: 3), () {
+              if (engine.phase == GamePhase.choosing_token && isMyTurn) {
+                socketService.send('skip_turn');
+              }
+            });
+          }
         } else {
-          _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
+          if (engine.phase == GamePhase.choosing_token && engine.currentPlayer.id == PrefsService.playerId) {
+            movableTokenIds = myMovable;
+            _checkAutoMove(forcedByAFK: engine.currentPlayer.isAutoPlaying);
+          }
         }
     }
   }
