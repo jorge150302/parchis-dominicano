@@ -283,6 +283,16 @@ class _GameScreenState extends State<GameScreen> {
                         ..._buildFlyingTokens(),
                         _buildFloatingEvents(),
                         if (isWaiting) _buildWaitingOverlay(),
+
+                        // ✅ BOTÓN DE RETOMAR CONTROL (Solo si Auto-Play está activo)
+                        if (controller.isOnline && controller.currentPlayer.id == PrefsService.playerId && controller.currentPlayer.isAutoPlaying)
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 100),
+                              child: _buildAutoPlayOverlay(controller),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -303,6 +313,38 @@ class _GameScreenState extends State<GameScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAutoPlayOverlay(GameController controller) {
+    return GestureDetector(
+      onTap: () => controller.toggleAutoPlay(false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.smart_toy, color: Colors.white),
+            const SizedBox(width: 12),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.translate('auto_play_active') ?? 'MODO IA ACTIVO', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(context.translate('tap_to_resume') ?? 'Toca para retomar control', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              ],
+            ),
+          ],
+        ),
+      ).animate(onPlay: (c) => c.repeat())
+       .shimmer(duration: 1500.ms, color: Colors.white24)
+       .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 1000.ms, curve: Curves.easeInOut),
     );
   }
 
@@ -886,7 +928,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                    .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 500.ms, curve: Curves.easeInOut)
                    .then()
                    .scale(begin: const Offset(1.1, 1.1), end: const Offset(1, 1), duration: 500.ms, curve: Curves.easeInOut),
-                DiceWidget(
+                 DiceWidget(
                   value: player.lastDiceValue,
                   rolling: isRolling,
                   style: const DiceStyle(sides: 6, size: 50, assetPath: 'assets/dice/classic'),
