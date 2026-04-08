@@ -777,6 +777,10 @@ class _PlayerCornerWidget extends StatelessWidget {
     final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
     final String? activeMessage = controller.playerQuickMessages[player.id];
 
+    // ✅ Lógica de tiempo crítico (Advertencia Visual)
+    final bool isCriticalTime = isTurn && controller.isOnline && controller.secondsRemaining < 5;
+    final Color timerColor = isCriticalTime ? Colors.red : Colors.orangeAccent;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -790,7 +794,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 140), 
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isTurn ? Colors.orange : Colors.black45, 
+                  color: isTurn ? (isCriticalTime ? Colors.red : Colors.orange) : Colors.black45, 
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: isBlocked ? Colors.red : Colors.white24),
                 ),
@@ -875,10 +879,13 @@ class _PlayerCornerWidget extends StatelessWidget {
                     child: CircularProgressIndicator(
                       value: controller.turnProgress,
                       strokeWidth: 4,
-                      color: Colors.orangeAccent,
+                      color: timerColor,
                       backgroundColor: Colors.white10,
                     ),
-                  ),
+                  ).animate(target: isCriticalTime ? 1 : 0, onPlay: (c) => c.repeat())
+                   .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 500.ms, curve: Curves.easeInOut)
+                   .then()
+                   .scale(begin: const Offset(1.1, 1.1), end: const Offset(1, 1), duration: 500.ms, curve: Curves.easeInOut),
                 DiceWidget(
                   value: player.lastDiceValue,
                   rolling: isRolling,
