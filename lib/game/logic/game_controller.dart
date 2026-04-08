@@ -10,6 +10,8 @@ import 'package:frontend_parchis/service/prefs_service.dart';
 import '../models/game_event.dart';
 import '../models/player.dart';
 import 'game_engine.dart';
+import 'board_generator.dart';
+import 'board_presets.dart';
 
 abstract class GameController extends ChangeNotifier {
   final GameEngine engine;
@@ -531,7 +533,21 @@ class NetworkGameController extends GameController {
     final String? currentPlayerId = data['currentPlayerId'];
     final String? phaseStr = data['phase'];
     final List? winnersIds = data['winners']; 
+    final int? serverBoardSize = data['boardSize']; // 👈 Autoridad del servidor
     
+    // ✅ SINCRONIZACIÓN DINÁMICA DEL TABLERO (Solo Online)
+    if (serverBoardSize != null && serverBoardSize != engine.board.cells.length) {
+      debugPrint('📐 Redimensionando tablero online a $serverBoardSize casillas');
+      // Regeneramos el tablero interno para que coincida con el servidor
+      final newBoard = generateBoard(classicActionPositions, classicActions, totalCells: serverBoardSize);
+      // Actualizamos la referencia en el motor (esto es seguro porque el motor usa board.finalPosition)
+      // Nota: engine.board es final, pero podemos reasignar si el motor lo permite o recrearlo.
+      // Para este proyecto, el motor permite que las fichas se muevan según el board que tiene.
+      // Reemplazamos la lista de celdas internamente si es posible o asumimos el nuevo tamaño.
+      engine.board.cells.clear();
+      engine.board.cells.addAll(newBoard.cells);
+    }
+
     if (data['maxPlayers'] != null) {
       maxPlayers = data['maxPlayers'];
     }
@@ -595,19 +611,24 @@ class NetworkGameController extends GameController {
               continue; 
             }
 
+            // Autoridad del servidor sobre el fin de ficha
             if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
-              token.position = -1;
-              token.isFinished = true;
-              if (!wasFinished) {
-                playFanfare();
-                _vibrate();
-                // Notificar que el jugador terminó una ficha
-                engine.events.add(GameEvent(
-                  messageKey: 'token_finished_bonus',
-                  args: {'name': player.name},
-                  playerId: player.id,
-                  type: 'bonus'
-                ));
+              // Si aún no terminó localmente, animamos el último paso si hay diferencia
+              if (!wasFinished && token.position != -1 && !_animatingTokens.contains(animKey)) {
+                 _animateTokenMovement(player, tId, engine.board.finalPosition);
+              } else {
+                token.position = -1;
+                token.isFinished = true;
+                if (!wasFinished) {
+                  playFanfare();
+                  _vibrate();
+                  engine.events.add(GameEvent(
+                    messageKey: 'token_finished_bonus',
+                    args: {'name': player.name},
+                    playerId: player.id,
+                    type: 'bonus'
+                  ));
+                }
               }
             } else if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
               _animateTokenMovement(player, tId, serverPos);

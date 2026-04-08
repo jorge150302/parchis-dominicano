@@ -2,9 +2,8 @@ import '../models/board.dart';
 import '../models/cell.dart';
 import '../models/board_action.dart';
 
-Board generateBoard(List<int> actionPositions, List<BoardAction> actions) {
+Board generateBoard(List<int> actionPositions, List<BoardAction> actions, {int totalCells = 100}) {
   List<Cell> cells = [];
-  int totalCells = 10; // 🧪 REDUCIDO A 10 PARA PRUEBAS ULTRA RÁPIDAS
   int actionIndex = 0;
 
   for (int i = 1; i <= totalCells; i++) {
@@ -18,6 +17,7 @@ Board generateBoard(List<int> actionPositions, List<BoardAction> actions) {
     } else {
       cells.add(Cell(number: i));
     }
+    // Limpieza de índices por si hay acciones duplicadas o fuera de rango
     while (actionIndex < actionPositions.length && actionPositions[actionIndex] <= i) {
       actionIndex++;
     }
