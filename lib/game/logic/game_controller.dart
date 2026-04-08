@@ -467,7 +467,7 @@ class NetworkGameController extends GameController {
     
     if (value && isMyTurn) {
       if (engine.phase == GamePhase.idle) {
-        Future.delayed(const Duration(seconds: 3), () => rollDice());
+        Future.delayed(const Duration(seconds: 6), () => rollDice());
       } else if (engine.phase == GamePhase.choosing_token) {
         _checkAutoMove(forcedByAFK: true);
       }
@@ -556,17 +556,10 @@ class NetworkGameController extends GameController {
     final String? currentPlayerId = data['currentPlayerId'];
     final String? phaseStr = data['phase'];
     final List? winnersIds = data['winners']; 
-    final int? serverBoardSize = data['boardSize']; // 👈 Autoridad del servidor
+    final int? serverBoardSize = data['boardSize']; 
     
-    // ✅ SINCRONIZACIÓN DINÁMICA DEL TABLERO (Solo Online)
     if (serverBoardSize != null && serverBoardSize != engine.board.cells.length) {
-      debugPrint('📐 Redimensionando tablero online a $serverBoardSize casillas');
-      // Regeneramos el tablero interno para que coincida con el servidor
       final newBoard = generateBoard(classicActionPositions, classicActions, totalCells: serverBoardSize);
-      // Actualizamos la referencia en el motor (esto es seguro porque el motor usa board.finalPosition)
-      // Nota: engine.board es final, pero podemos reasignar si el motor lo permite o recrearlo.
-      // Para este proyecto, el motor permite que las fichas se muevan según el board que tiene.
-      // Reemplazamos la lista de celdas internamente si es posible o asumimos el nuevo tamaño.
       engine.board.cells.clear();
       engine.board.cells.addAll(newBoard.cells);
     }
@@ -628,15 +621,12 @@ class NetworkGameController extends GameController {
             String animKey = "${player.id}_$tId";
             bool wasFinished = token.isFinished;
 
-            // ✅ ESCUDO DE SINCRONIZACIÓN:
             if (token.isFinished) {
               token.position = -1; 
               continue; 
             }
 
-            // Autoridad del servidor sobre el fin de ficha
             if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
-              // Si aún no terminó localmente, animamos el último paso si hay diferencia
               if (!wasFinished && token.position != -1 && !_animatingTokens.contains(animKey)) {
                  _animateTokenMovement(player, tId, engine.board.finalPosition);
               } else {
@@ -682,7 +672,6 @@ class NetworkGameController extends GameController {
       if (currentPlayerId == PrefsService.playerId) {
         movableTokenIds = engine.getMovableTokenIds(_lastServerDiceValue);
 
-        // Solo lanzamos el evento si no estamos animando el dado para no interferir
         if (movableTokenIds.isEmpty && !rollingDice) {
           _addCantMoveEvent(engine.currentPlayer);
           
@@ -700,7 +689,6 @@ class NetworkGameController extends GameController {
     } else if (phaseStr == 'rolling') {
       engine.phase = GamePhase.idle;
       movableTokenIds.clear();
-      // ✅ No cortamos la animación si hay una en curso para evitar que el dado deje de girar
       if (rollingPlayerId == null) {
         rollingDice = false;
       }
@@ -712,7 +700,7 @@ class NetworkGameController extends GameController {
     }
 
     if (currentPlayerId != null && currentPlayerId == PrefsService.playerId && engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle) {
-      Future.delayed(const Duration(seconds: 3), () {
+      Future.delayed(const Duration(seconds: 6), () {
         if (engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle && isMyTurn) {
           rollDice();
         }
@@ -724,7 +712,6 @@ class NetworkGameController extends GameController {
 
   void _addCantMoveEvent([Player? player]) {
     final p = player ?? engine.currentPlayer;
-    // Evitar duplicados
     if (engine.events.any((e) => e.messageKey == 'player_cant_move' && e.playerId == p.id)) return;
     
     engine.events.add(GameEvent(
@@ -738,7 +725,7 @@ class NetworkGameController extends GameController {
 
   void _checkAutoMove({bool forcedByAFK = false}) {
     if ((forcedByAFK || (PrefsService.autoMoveEnabled && movableTokenIds.length == 1)) && isMyTurn) {
-      int delayMs = forcedByAFK ? 3000 : PrefsService.autoMoveDelayMs;
+      int delayMs = forcedByAFK ? 6000 : PrefsService.autoMoveDelayMs;
       
       Future.delayed(Duration(milliseconds: delayMs), () {
         if (engine.phase == GamePhase.choosing_token && (forcedByAFK || movableTokenIds.length == 1) && isMyTurn) {
@@ -756,7 +743,6 @@ class NetworkGameController extends GameController {
     
     final token = player.tokens[tokenId];
     
-    // ✅ BLOQUEO EN ANIMACIÓN: Si ya terminó, no permitimos que inicie ninguna animación
     if (token.isFinished) {
       _animatingTokens.remove(animKey);
       return;
@@ -786,7 +772,6 @@ class NetworkGameController extends GameController {
         notifyListeners();
       }
     } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
-      // ✅ Si es un "salto" al home (0), pero la ficha local dice que terminó, IGNORAMOS
       if (targetPos == 0 && token.isFinished) {
          _animatingTokens.remove(animKey);
          return;
@@ -810,8 +795,6 @@ class NetworkGameController extends GameController {
         _vibrate();
       } else {
         token.position = targetPos;
-        
-        // Si el salto no es a 0 ni a meta, puede ser una acción de celda
         if (targetPos > 0) {
            engine.events.add(GameEvent(
             messageKey: 'flying_to_cell', 
@@ -823,7 +806,6 @@ class NetworkGameController extends GameController {
       }
 
       if (targetPos == 0) {
-        // EVENTO DE CAPTURA
         engine.events.add(GameEvent(
           messageKey: 'captured_player',
           args: {'name': player.name, 'other': '?'},
@@ -867,14 +849,11 @@ class NetworkGameController extends GameController {
     player.lastDiceValue = finalVal;
     if (diceValue == 6 && pid == PrefsService.playerId) _vibrate();
     
-    // ✅ Reseteo cuidadoso de estados al terminar animación
     rollingDice = false;
     rollingPlayerId = null;
     notifyListeners();
 
-    // Si era mi turno, comprobamos si no puedo moverme después de que el dado deje de girar
     if (pid == PrefsService.playerId) {
-        // Calculamos localmente sobre el jugador que acaba de lanzar
         final me = engine.players.firstWhere((p) => p.id == pid, orElse: () => engine.currentPlayer);
         final myMovable = <int>[];
         for (int i = 0; i < me.tokens.length; i++) {
@@ -884,7 +863,7 @@ class NetworkGameController extends GameController {
         if (myMovable.isEmpty) {
           _addCantMoveEvent(me);
           if (engine.phase == GamePhase.choosing_token && engine.currentPlayer.id == PrefsService.playerId) {
-            Future.delayed(const Duration(seconds: 3), () {
+            Future.delayed(const Duration(seconds: 6), () {
               if (engine.phase == GamePhase.choosing_token && isMyTurn) {
                 socketService.send('skip_turn');
               }

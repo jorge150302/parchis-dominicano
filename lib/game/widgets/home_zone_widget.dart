@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:frontend_parchis/service/prefs_service.dart'; // ✅ Importado para identificar al jugador local
+import 'package:frontend_parchis/service/prefs_service.dart'; 
 import '../models/player.dart';
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
-import 'board_widget.dart'; // Importamos para usar TokenWidget
+import 'board_widget.dart';
 
 class HomeZoneWidget extends StatelessWidget {
   final Player player;
@@ -15,24 +15,14 @@ class HomeZoneWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
-    
-    // ✅ DETERMINAR SI ESTA ZONA TIENE EL TURNO
     final isTurnOfThisZone = controller.currentPlayer.id == player.id;
 
-    // ✅ DETERMINAR SI ESTA ZONA ME PERTENECE A MÍ (LOCAL)
     final bool isMe = controller.isOnline 
         ? player.id == PrefsService.playerId 
-        : true; // En modo local, todas las zonas son "mías" en cuanto a visibilidad de turno
+        : true;
 
-    // ✅ SOLO MOSTRAR "TU TURNO" SI ES EL TURNO DE ESTA ZONA Y SOY YO
-    final bool shouldShowTurnIndicator = isTurnOfThisZone && isMe;
-    
-    // ✅ CORRECCIÓN CRÍTICA: Una ficha en el home SOLO se cuenta si NO ha terminado.
     final tokensAtHome = player.tokens.where((t) => t.position == 0 && !t.isFinished).toList();
-
-    // Las fichas terminadas solo muestran su check.
     final tokensFinished = player.tokens.where((t) => t.isFinished).toList();
-
     final baseColor = _getPlayerColor(player.index);
 
     Widget content = AnimatedContainer(
@@ -58,22 +48,7 @@ class HomeZoneWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (shouldShowTurnIndicator) // ✅ Usamos el nuevo indicador corregido
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: const Text(
-                "TU TURNO",
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 1.2,
-                ),
-              ).animate(onPlay: (c) => c.repeat())
-               .fadeIn(duration: 600.ms)
-               .then()
-               .fadeOut(duration: 600.ms),
-            ),
+          // ❌ El título "TU TURNO" se ha movido a _PlayerCornerWidget para integrar el modo Auto
           Wrap(
             spacing: 4,
             runSpacing: 4,
@@ -82,7 +57,7 @@ class HomeZoneWidget extends StatelessWidget {
               ...tokensAtHome.map((token) {
                 final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
                     isTurnOfThisZone &&
-                    isMe && // ✅ Solo puedo seleccionar mis propias fichas
+                    isMe &&
                     controller.movableTokenIds.contains(token.id);
 
                 return TokenWidget(

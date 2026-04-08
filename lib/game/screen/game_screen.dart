@@ -283,16 +283,6 @@ class _GameScreenState extends State<GameScreen> {
                         ..._buildFlyingTokens(),
                         _buildFloatingEvents(),
                         if (isWaiting) _buildWaitingOverlay(),
-
-                        // ✅ BOTÓN DE RETOMAR CONTROL (Solo si Auto-Play está activo)
-                        if (controller.isOnline && controller.currentPlayer.id == PrefsService.playerId && controller.currentPlayer.isAutoPlaying)
-                          Align(
-                            alignment: Alignment.bottomCenter,
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 100),
-                              child: _buildAutoPlayOverlay(controller),
-                            ),
-                          ),
                       ],
                     ),
                   ),
@@ -313,38 +303,6 @@ class _GameScreenState extends State<GameScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildAutoPlayOverlay(GameController controller) {
-    return GestureDetector(
-      onTap: () => controller.toggleAutoPlay(false),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.smart_toy, color: Colors.white),
-            const SizedBox(width: 12),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(context.translate('auto_play_active') ?? 'MODO IA ACTIVO', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                Text(context.translate('tap_to_resume') ?? 'Toca para retomar control', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              ],
-            ),
-          ],
-        ),
-      ).animate(onPlay: (c) => c.repeat())
-       .shimmer(duration: 1500.ms, color: Colors.white24)
-       .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 1000.ms, curve: Curves.easeInOut),
     );
   }
 
@@ -819,7 +777,6 @@ class _PlayerCornerWidget extends StatelessWidget {
     final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
     final String? activeMessage = controller.playerQuickMessages[player.id];
 
-    // ✅ Lógica de tiempo crítico (Advertencia Visual)
     final bool isCriticalTime = isTurn && controller.isOnline && controller.secondsRemaining < 5;
     final Color timerColor = isCriticalTime ? Colors.red : Colors.orangeAccent;
 
@@ -853,6 +810,10 @@ class _PlayerCornerWidget extends StatelessWidget {
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                     ),
+                    if (player.isAutoPlaying) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.smart_toy, size: 14, color: Colors.white70),
+                    ],
                     if (isBlocked) ...[
                       const SizedBox(width: 4),
                       const Icon(Icons.block, size: 14, color: Colors.red),
@@ -903,37 +864,79 @@ class _PlayerCornerWidget extends StatelessWidget {
         if (!player.isFinished)
           GestureDetector(
             onTap: canTap ? controller.rollDice : null,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4), 
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                if (isTurn && controller.isOnline)
-                  SizedBox(
-                    width: 58,
-                    height: 58,
-                    child: CircularProgressIndicator(
-                      value: controller.turnProgress,
-                      strokeWidth: 4,
-                      color: timerColor,
-                      backgroundColor: Colors.white10,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ✅ INDICADORES INTEGRADOS EN EL MISMO RECUADRO
+                  if (isMe && (isTurn || player.isAutoPlaying))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: player.isAutoPlaying
+                        ? GestureDetector(
+                            onTap: () => controller.toggleAutoPlay(false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white, width: 1),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text("AUTO", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  SizedBox(width: 4),
+                                  Icon(Icons.check_box, color: Colors.white, size: 14),
+                                ],
+                              ),
+                            ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
+                          )
+                        : const Text(
+                            "TU TURNO",
+                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+                          ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms).then().fadeOut(duration: 600.ms),
                     ),
-                  ).animate(target: isCriticalTime ? 1 : 0, onPlay: (c) => c.repeat())
-                   .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 500.ms, curve: Curves.easeInOut)
-                   .then()
-                   .scale(begin: const Offset(1.1, 1.1), end: const Offset(1, 1), duration: 500.ms, curve: Curves.easeInOut),
-                 DiceWidget(
-                  value: player.lastDiceValue,
-                  rolling: isRolling,
-                  style: const DiceStyle(sides: 6, size: 50, assetPath: 'assets/dice/classic'),
-                ),
-              ],
+
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4), 
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      if (isTurn && controller.isOnline)
+                        SizedBox(
+                          width: 58,
+                          height: 58,
+                          child: CircularProgressIndicator(
+                            value: controller.turnProgress,
+                            strokeWidth: 4,
+                            color: timerColor,
+                            backgroundColor: Colors.white10,
+                          ),
+                        ).animate(target: isCriticalTime ? 1 : 0, onPlay: (c) => c.repeat())
+                         .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 500.ms, curve: Curves.easeInOut)
+                         .then()
+                         .scale(begin: const Offset(1.1, 1.1), end: const Offset(1, 1), duration: 500.ms, curve: Curves.easeInOut),
+                      DiceWidget(
+                        value: player.lastDiceValue,
+                        rolling: isRolling,
+                        style: const DiceStyle(sides: 6, size: 50, assetPath: 'assets/dice/classic'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           )
         else
