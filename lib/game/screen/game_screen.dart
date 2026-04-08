@@ -810,10 +810,6 @@ class _PlayerCornerWidget extends StatelessWidget {
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                     ),
-                    if (player.isAutoPlaying) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.smart_toy, size: 14, color: Colors.white70),
-                    ],
                     if (isBlocked) ...[
                       const SizedBox(width: 4),
                       const Icon(Icons.block, size: 14, color: Colors.red),
