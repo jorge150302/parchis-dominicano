@@ -20,6 +20,7 @@ dependencies:
   uuid: ^4.2.1 
   url_launcher: ^6.2.5 
   cupertino_icons: ^1.0.8
+  share_plus: ^10.1.0
 
 dev_dependencies:
   flutter_test:

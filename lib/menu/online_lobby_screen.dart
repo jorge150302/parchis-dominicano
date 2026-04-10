@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/config/env.dart';
@@ -327,6 +329,17 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
+  void _copyToClipboard(String text, {String? successMsg}) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(successMsg ?? context.translate('code_copied')),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final lastCode = PrefsService.lastRoomCode;
@@ -535,6 +548,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   Widget _buildWaitingRoom() {
+    final String roomCode = _currentRoomCode ?? '';
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.orangeAccent, width: 2)),
@@ -542,7 +556,27 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         children: [
           Text(context.translate('waiting_room'), style: const TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 15),
-          Text(_currentRoomCode ?? '', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 4)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(width: 40),
+              Text(roomCode, style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 4)),
+              IconButton(
+                icon: const Icon(Icons.copy, color: Colors.orangeAccent, size: 24),
+                onPressed: () => _copyToClipboard(roomCode),
+                tooltip: 'Copiar código',
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _actionButton(
+            title: "INVITAR AMIGOS",
+            icon: Icons.share,
+            color: Colors.green.shade700,
+            onTap: () {
+              Share.share("¡Únete a mi partida de Parchís! 🎲\nCódigo de sala: $roomCode");
+            },
+          ),
           const SizedBox(height: 25),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -580,14 +614,23 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     );
   }
 
-  Widget _actionButton({required String title, required Color color, Color textColor = Colors.white, required VoidCallback onTap}) {
+  Widget _actionButton({required String title, required Color color, Color textColor = Colors.white, IconData? icon, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 6))]),
-        child: Text(title, textAlign: TextAlign.center, style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: textColor, size: 20),
+              const SizedBox(width: 10),
+            ],
+            Text(title, textAlign: TextAlign.center, style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+          ],
+        ),
       ),
     );
   }
