@@ -25,6 +25,15 @@ class BoardWidget extends StatefulWidget {
 
 class _BoardWidgetState extends State<BoardWidget> {
   static const int columns = 10;
+  final Map<int, GlobalKey> _cellKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    for (int i = 0; i <= widget.board.finalPosition; i++) {
+      _cellKeys[i] = GlobalKey();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,56 +42,84 @@ class _BoardWidgetState extends State<BoardWidget> {
 
     return AspectRatio(
       aspectRatio: 1,
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: cells.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-        ),
-        itemBuilder: (_, visualIndex) {
-          final row = visualIndex ~/ columns;
-          final col = visualIndex % columns;
-          final zigzagCol = row.isOdd ? (columns - 1 - col) : col;
-          final realIndex = row * columns + zigzagCol;
-          final cell = cells[realIndex];
+      child: Stack(
+        children: [
+          GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: cells.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+            ),
+            itemBuilder: (_, visualIndex) {
+              final row = visualIndex ~/ columns;
+              final col = visualIndex % columns;
+              final zigzagCol = row.isOdd ? (columns - 1 - col) : col;
+              final realIndex = row * columns + zigzagCol;
+              final cell = cells[realIndex];
 
-          final List<Map<String, dynamic>> tokensInCell = [];
-          for (var player in widget.players) {
-            for (var token in player.tokens) {
-              // ✅ CORRECCIÓN: No mostrar fichas que han terminado o están en la casilla final
-              if (token.position == cell.number &&
-                  token.position > 0 &&
-                  token.position < widget.board.finalPosition &&
-                  !token.isFinished) {
-                tokensInCell.add({
-                  'player': player,
-                  'token': token,
-                });
-              }
-            }
-          }
-
-          return _AnimatedCell(
-            cell: cell,
-            tokensInCell: tokensInCell,
-            finalPosition: widget.board.finalPosition,
-            controller: controller,
-          );
-        },
+              return _StaticCell(
+                key: _cellKeys[cell.number],
+                cell: cell,
+                finalPosition: widget.board.finalPosition,
+                controller: controller,
+              );
+            },
+          ),
+          ..._buildAnimatedTokens(controller),
+        ],
       ),
     );
   }
+
+  List<Widget> _buildAnimatedTokens(GameController controller) {
+    final List<Widget> animatedTokens = [];
+    final Map<int, List<Map<String, dynamic>>> cellGroups = {};
+
+    for (var player in widget.players) {
+      for (var token in player.tokens) {
+        if (token.position > 0 && token.position < widget.board.finalPosition && !token.isFinished) {
+          cellGroups.putIfAbsent(token.position, () => []).add({
+            'player': player,
+            'token': token,
+          });
+        }
+      }
+    }
+
+    cellGroups.forEach((pos, tokens) {
+      final bool isBlockade = tokens.length == 2 && tokens[0]['player'].id == tokens[1]['player'].id;
+      
+      for (int i = 0; i < tokens.length; i++) {
+        final player = tokens[i]['player'] as Player;
+        final token = tokens[i]['token'] as Token;
+        
+        animatedTokens.add(
+          _TokenObserver(
+            key: ValueKey("token_${player.id}_${token.id}"),
+            cellKey: _cellKeys[pos]!,
+            player: player,
+            token: token,
+            index: i,
+            total: tokens.length,
+            isBlockade: isBlockade,
+            controller: controller,
+          ),
+        );
+      }
+    });
+
+    return animatedTokens;
+  }
 }
 
-class _AnimatedCell extends StatelessWidget {
+class _StaticCell extends StatelessWidget {
   final Cell cell;
-  final List<Map<String, dynamic>> tokensInCell;
   final int finalPosition;
   final GameController controller;
 
-  const _AnimatedCell({
+  const _StaticCell({
+    super.key,
     required this.cell,
-    required this.tokensInCell,
     required this.finalPosition,
     required this.controller,
   });
@@ -90,29 +127,91 @@ class _AnimatedCell extends StatelessWidget {
   String _getCellLabel(Cell cell) {
     if (cell.number == 0) return 'Inicio';
     if (cell.number == finalPosition) return 'Fin';
-
     final action = cell.action;
     if (action != null) {
       switch (action.type) {
-        case BoardActionType.goToStart:
-          return 'INICIO';
-        case BoardActionType.moveTo:
-          return 'Al ${action.targetNumber ?? ''}';
-        case BoardActionType.skipTurn:
-          return '1 turno sin jugar';
-        case BoardActionType.rollAgain:
-          return 'Juegue otra vez';
+        case BoardActionType.goToStart: return 'INICIO';
+        case BoardActionType.moveTo: return 'Al ${action.targetNumber ?? ''}';
+        case BoardActionType.skipTurn: return 'X';
+        case BoardActionType.rollAgain: return '+1';
       }
     }
     return cell.number.toString();
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final hasAction = cell.action != null;
+    final label = _getCellLabel(cell);
+
+    return Container(
+      margin: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        gradient: hasAction
+            ? const LinearGradient(colors: [Color(0xffffd180), Color(0xffffb74d)])
+            : const LinearGradient(colors: [Colors.white, Color(0xffeeeeee)]),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.black12, width: 0.5),
+      ),
+      child: Center(
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black26),
+        ),
+      ),
+    );
+  }
+}
+
+class _TokenObserver extends StatelessWidget {
+  final GlobalKey cellKey;
+  final Player player;
+  final Token token;
+  final int index;
+  final int total;
+  final bool isBlockade;
+  final GameController controller;
+
+  const _TokenObserver({
+    super.key,
+    required this.cellKey,
+    required this.player,
+    required this.token,
+    required this.index,
+    required this.total,
+    required this.isBlockade,
+    required this.controller,
+  });
+
+  Offset _getOffset(BuildContext context) {
+    final RenderBox? cellBox = cellKey.currentContext?.findRenderObject() as RenderBox?;
+    final RenderBox? boardBox = context.findAncestorRenderObjectOfType<RenderBox>();
+    
+    if (cellBox != null && boardBox != null) {
+      final cellPos = cellBox.localToGlobal(Offset.zero, ancestor: boardBox);
+      final cellSize = cellBox.size;
+      
+      double offsetX = 0;
+      double offsetY = 0;
+
+      if (total > 1) {
+        final align = _getTokenAlignment(index, total, isBlockade);
+        offsetX = align.x * (cellSize.width * 0.25);
+        offsetY = align.y * (cellSize.height * 0.25);
+      }
+
+      return Offset(
+        cellPos.dx + (cellSize.width / 2) - 10 + offsetX, 
+        cellPos.dy + (cellSize.height / 2) - 10 + offsetY
+      );
+    }
+    return Offset.zero;
+  }
+
   Alignment _getTokenAlignment(int index, int total, bool isBlockade) {
     if (total == 1) return Alignment.center;
     if (total == 2) {
-      if (isBlockade) {
-        return index == 0 ? const Alignment(-0.5, -0.4) : const Alignment(0.45, 0.4);
-      }
+      if (isBlockade) return index == 0 ? const Alignment(-0.5, -0.4) : const Alignment(0.45, 0.4);
       return index == 0 ? const Alignment(-0.5, 0.5) : const Alignment(0.5, -0.5);
     }
     switch (index) {
@@ -126,83 +225,62 @@ class _AnimatedCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasAction = cell.action != null;
-    final label = _getCellLabel(cell);
-    final int totalTokens = tokensInCell.length;
+    final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
+        controller.currentPlayer.id == player.id &&
+        controller.movableTokenIds.contains(token.id);
 
-    final bool isBlockade = totalTokens == 2 &&
-        tokensInCell[0]['player'].id == tokensInCell[1]['player'].id;
+    final targetOffset = _getOffset(context);
 
-    final double tokenSize = isBlockade ? 18.0 : (totalTokens > 1 ? 17.0 : 20.0);
-
-    final selectableTokens = tokensInCell.where((data) {
-      final Player p = data['player'];
-      final Token t = data['token'];
-      return controller.engine.phase == GamePhase.choosing_token &&
-             controller.currentPlayer.id == p.id &&
-             controller.movableTokenIds.contains(t.id);
-    }).toList();
-
-    final bool canTapCell = selectableTokens.length == 1;
-
-    return GestureDetector(
-      onTap: canTapCell ? () => controller.selectToken(selectableTokens.first['token'].id) : null,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          gradient: hasAction
-              ? const LinearGradient(colors: [Color(0xffffd180), Color(0xffffb74d)])
-              : const LinearGradient(colors: [Colors.white, Color(0xffeeeeee)]),
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(1, 1)),
-          ],
-          border: Border.all(color: Colors.black12, width: 0.5),
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Center(
-              child: Opacity(
-                opacity: isBlockade ? 0.1 : 1.0,
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black38,
-                  ),
-                ),
-              ),
+    return TweenAnimationBuilder<Offset>(
+      duration: const Duration(milliseconds: 180), // Animación más rápida para permitir la "micro parada"
+      curve: Curves.easeOut, // Curva que frena al final
+      tween: Tween<Offset>(end: targetOffset),
+      builder: (context, offset, child) {
+        return Positioned(
+          left: offset.dx,
+          top: offset.dy,
+          child: _TokenStepAnimation(
+            position: token.position,
+            child: TokenWidget(
+              asset: player.tokenAsset,
+              isSelectable: isSelectable,
+              size: isBlockade ? 18.0 : (total > 1 ? 17.0 : 20.0),
+              isBlockade: isBlockade,
+              onTap: isSelectable ? () => controller.selectToken(token.id) : null,
             ),
-            ...tokensInCell.asMap().entries.map((entry) {
-              final int index = entry.key;
-              final Map<String, dynamic> data = entry.value;
-              final Player player = data['player'];
-              final Token token = data['token'];
-
-              final bool isSelectable = controller.engine.phase == GamePhase.choosing_token &&
-                  controller.currentPlayer.id == player.id &&
-                  controller.movableTokenIds.contains(token.id);
-
-              return Align(
-                alignment: _getTokenAlignment(index, totalTokens, isBlockade),
-                child: TokenWidget(
-                  asset: player.tokenAsset,
-                  isSelectable: isSelectable,
-                  size: tokenSize,
-                  isBlockade: isBlockade,
-                  onTap: isSelectable ? () => controller.selectToken(token.id) : null,
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
+  }
+}
+
+class _TokenStepAnimation extends StatefulWidget {
+  final int position;
+  final Widget child;
+  const _TokenStepAnimation({required this.position, required this.child});
+
+  @override
+  State<_TokenStepAnimation> createState() => _TokenStepAnimationState();
+}
+
+class _TokenStepAnimationState extends State<_TokenStepAnimation> {
+  int? _lastPos;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool didMove = _lastPos != null && _lastPos != widget.position;
+    _lastPos = widget.position;
+
+    if (didMove) {
+      // Si la posición cambió, ejecutamos un pequeño salto (Jump)
+      return widget.child
+          .animate(key: ValueKey("jump_${widget.position}"))
+          .moveY(begin: 0, end: -12, duration: 90.ms, curve: Curves.easeOut)
+          .then()
+          .moveY(begin: -12, end: 0, duration: 90.ms, curve: Curves.easeIn);
+    }
+    return widget.child;
   }
 }
 
@@ -232,23 +310,11 @@ class TokenWidget extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             if (isSelectable)
-              BoxShadow(
-                color: Colors.yellow.withValues(alpha: 0.7),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
-            const BoxShadow(
-              color: Colors.black26,
-              blurRadius: 3,
-              offset: Offset(0, 2),
-            )
+              const BoxShadow(color: Colors.yellow, blurRadius: 10, spreadRadius: 2),
+            const BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, 2))
           ],
         ),
-        child: Image.asset(
-          asset,
-          width: size,
-          height: size,
-        ),
+        child: Image.asset(asset, width: size, height: size),
       ),
     );
 
@@ -264,12 +330,7 @@ class TokenWidget extends StatelessWidget {
 
     if (isBlockade) {
       return token.animate(onPlay: (c) => c.repeat(reverse: true))
-          .scale(
-            begin: const Offset(1, 1),
-            end: const Offset(1.05, 1.05),
-            duration: 1200.ms,
-            curve: Curves.easeInOut
-          );
+          .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 1200.ms, curve: Curves.easeInOut);
     }
 
     return token;
