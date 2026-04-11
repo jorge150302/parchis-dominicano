@@ -67,6 +67,7 @@ class Player {
   int extraTurns;
   bool isAI;
   bool isAutoPlaying;
+  bool isConnected; // ✅ Nuevo campo para estado de conexión
   int lastDiceValue;
 
   Player({
@@ -80,6 +81,7 @@ class Player {
     this.extraTurns = 0,
     this.isAI = false,
     this.isAutoPlaying = false,
+    this.isConnected = true, // ✅ Por defecto conectado
     this.lastDiceValue = 1,
   }) : tokens = List.generate(tokenCount, (i) => Token(id: i));
 
@@ -95,6 +97,7 @@ class Player {
     'extraTurns': extraTurns,
     'isAI': isAI,
     'isAutoPlaying': isAutoPlaying,
+    'isConnected': isConnected,
     'lastDiceValue': lastDiceValue,
     'tokens': tokens.map((t) => t.toJson()).toList(),
   };
@@ -111,6 +114,7 @@ class Player {
       extraTurns: json['extraTurns'],
       isAI: json['isAI'],
       isAutoPlaying: json['isAutoPlaying'] ?? false,
+      isConnected: json['isConnected'] ?? true,
       lastDiceValue: json['lastDiceValue'] ?? 1,
     );
     final List tokensJson = json['tokens'];
@@ -130,6 +134,7 @@ class Player {
     extraTurns = 0;
     lastDiceValue = 1;
     isAutoPlaying = false;
+    isConnected = true;
   }
 
   void addSkip(int turns) => skippedTurns += turns;
@@ -148,6 +153,7 @@ class Player {
       extraTurns: extraTurns,
       isAI: isAI,
       isAutoPlaying: isAutoPlaying,
+      isConnected: isConnected,
       lastDiceValue: lastDiceValue,
     );
     for (int i = 0; i < tokens.length; i++) {

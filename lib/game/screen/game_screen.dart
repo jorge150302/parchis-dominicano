@@ -123,14 +123,16 @@ class _GameScreenState extends State<GameScreen> {
   void _onGameUpdate() {
     if (!mounted) return;
     final controller = context.read<GameController>();
+    // Quitamos el diálogo invasivo de desconexión para usar la barra superior transparente
+    /*
     final socketSrv = context.read<SocketService>();
-
     if (controller.isOnline && !socketSrv.isConnected && !socketSrv.isConnecting && !_isDisconnectDialogShown) {
       _isDisconnectDialogShown = true;
       _showDisconnectDialog();
     } else if (socketSrv.isConnected || socketSrv.isConnecting) {
       _isDisconnectDialogShown = false;
     }
+    */
 
     if (controller.engine.finisherIds.length > _lastFinisherCount) {
       _lastFinisherCount = controller.engine.finisherIds.length;
@@ -172,6 +174,7 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {});
   }
 
+  /* 
   Future<void> _showDisconnectDialog() async {
     await showDialog(
       context: context,
@@ -192,6 +195,7 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
   }
+  */
 
   Future<bool> _confirmExit() async {
     final controller = context.read<GameController>();
@@ -433,32 +437,40 @@ class _GameScreenState extends State<GameScreen> {
     if (controller.isOnline) {
       String statusText = context.translate('online');
       Color statusColor = Colors.greenAccent;
-      if (socketSrv.isConnecting) {
+      bool isReconnecting = !socketSrv.isConnected || socketSrv.isConnecting;
+
+      if (isReconnecting) {
         statusText = context.translate('reconnecting');
         statusColor = Colors.orangeAccent;
-      } else if (!socketSrv.isConnected) {
-        statusText = context.translate('offline');
-        statusColor = Colors.redAccent;
       }
 
+      final int ping = socketSrv.latency;
+      Color pingColor = ping < 150 ? Colors.green : (ping < 300 ? Colors.orange : Colors.red);
+
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        color: Colors.black26,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        color: Colors.black45,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                if (socketSrv.isConnecting) 
-                  const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
-                if (socketSrv.isConnecting) const SizedBox(width: 8),
+                if (isReconnecting) 
+                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
+                if (isReconnecting) const SizedBox(width: 10),
                 Text(statusText, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 20),
+                if (!isReconnecting) ...[
+                  Icon(Icons.wifi, color: pingColor, size: 14),
+                  const SizedBox(width: 4),
+                  Text("${ping}ms", style: TextStyle(color: pingColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                ]
               ],
             ),
             Row(
               children: [
-                IconButton(icon: const Icon(Icons.chat, color: Colors.white70), onPressed: () => _scaffoldKey.currentState?.openEndDrawer()),
-                IconButton(icon: const Icon(Icons.exit_to_app, color: Colors.white70), onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false)),
+                IconButton(icon: const Icon(Icons.chat, color: Colors.white70, size: 20), onPressed: () => _scaffoldKey.currentState?.openEndDrawer()),
+                IconButton(icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 20), onPressed: () => _confirmExit().then((v) { if(v) Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false); })),
               ],
             ),
           ],
@@ -813,6 +825,11 @@ class _PlayerCornerWidget extends StatelessWidget {
                     if (isBlocked) ...[
                       const SizedBox(width: 4),
                       const Icon(Icons.block, size: 14, color: Colors.red),
+                    ],
+                    // ✅ Indicador de Desconexión Visual
+                    if (controller.isOnline && !player.isConnected) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.flash_off, size: 14, color: Colors.redAccent).animate(onPlay: (c) => c.repeat()).shake(),
                     ]
                   ],
                 ),
@@ -869,7 +886,17 @@ class _PlayerCornerWidget extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ✅ INDICADORES INTEGRADOS EN EL MISMO RECUADRO
+                  // ✅ Indicador de Desconexión en el Dado
+                  if (controller.isOnline && !player.isConnected)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(8)),
+                        child: const Text("OFFLINE", style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+
                   if (isMe && (isTurn || player.isAutoPlaying))
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),

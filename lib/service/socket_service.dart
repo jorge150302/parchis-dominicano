@@ -16,6 +16,11 @@ class SocketService with ChangeNotifier {
   bool _isConnecting = false;
   String? _lastUrl;
   Timer? _reconnectTimer;
+  
+  // Ping/Latency
+  Timer? _pingTimer;
+  int _latency = 0;
+  DateTime? _pingStartTime;
 
   final StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   
@@ -24,6 +29,7 @@ class SocketService with ChangeNotifier {
   Stream<Map<String, dynamic>> get events => _eventController.stream;
   bool get isConnected => _isConnected;
   bool get isConnecting => _isConnecting;
+  int get latency => _latency;
 
   Future<void> connect(String url) async {
     _lastUrl = url;
@@ -39,19 +45,25 @@ class SocketService with ChangeNotifier {
       
       _isConnected = true;
       _isConnecting = false;
-      _reconnectTimer?.cancel(); // Cancelar cualquier intento de reconexión si logramos conectar
+      _reconnectTimer?.cancel();
+      _startPingTimer(); // Iniciar ping al conectar
       notifyListeners();
       debugPrint('✅ ¡Conectado con éxito!');
 
       _channel!.stream.listen(
         (message) {
-          debugPrint('📥 RECIBIDO: $message');
           try {
             final data = jsonDecode(message);
             if (data is Map<String, dynamic>) {
-              if (data['event'] == 'game_state') {
+              final event = data['event'];
+              
+              if (event == 'game_state') {
                 lastGameState = data['data'];
+              } else if (event == 'pong') {
+                _handlePong();
+                return; // No emitir pong como evento general
               }
+              
               _eventController.add(data);
             }
           } catch (e) {
@@ -72,30 +84,44 @@ class SocketService with ChangeNotifier {
     debugPrint('ℹ️ Desconectado: $reason');
     _isConnected = false;
     _channel = null;
+    _pingTimer?.cancel();
+    _latency = 0;
     notifyListeners();
-
-    // ✅ Iniciar reconexión automática si no fue una desconexión manual
     _startReconnectionTimer();
+  }
+
+  void _startPingTimer() {
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_isConnected) {
+        _pingStartTime = DateTime.now();
+        send('ping');
+      }
+    });
+  }
+
+  void _handlePong() {
+    if (_pingStartTime != null) {
+      _latency = DateTime.now().difference(_pingStartTime!).inMilliseconds;
+      _pingStartTime = null;
+      notifyListeners();
+    }
   }
 
   void _startReconnectionTimer() {
     if (_reconnectTimer?.isActive ?? false) return;
     if (_lastUrl == null) return;
 
-    debugPrint('🔄 Iniciando temporizador de reconexión...');
-    _reconnectTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (!_isConnected && !_isConnecting) {
-        debugPrint('🔄 Intentando reconectar automáticamente...');
         try {
           await connect(_lastUrl!);
           if (_isConnected) {
             timer.cancel();
-            // Al reconectar, el servidor debería enviarnos el estado de nuevo
-            // o nosotros podríamos pedirlo:
             send('request_sync');
           }
         } catch (e) {
-          debugPrint('❌ Fallo intento de reconexión: $e');
+          debugPrint('❌ Fallo reconexión: $e');
         }
       } else if (_isConnected) {
         timer.cancel();
@@ -104,10 +130,7 @@ class SocketService with ChangeNotifier {
   }
 
   void send(String event, [Map<String, dynamic>? data]) {
-    if (_channel == null || !_isConnected) {
-      debugPrint('🚫 No se puede enviar "$event": No hay conexión');
-      return;
-    }
+    if (_channel == null || !_isConnected) return;
     
     final payload = {
       'event': event,
@@ -115,14 +138,13 @@ class SocketService with ChangeNotifier {
       if (data != null) 'data': data,
     };
     
-    final message = jsonEncode(payload);
-    debugPrint('📤 Enviando: $message');
-    _channel!.sink.add(message);
+    _channel!.sink.add(jsonEncode(payload));
   }
 
   void disconnect() {
-    _lastUrl = null; // Evitar reconexión automática si desconectamos a propósito
+    _lastUrl = null;
     _reconnectTimer?.cancel();
+    _pingTimer?.cancel();
     _channel?.sink.close();
     _isConnected = false;
     _isConnecting = false;
