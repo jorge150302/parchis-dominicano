@@ -38,7 +38,6 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   late final ConfettiController _confettiController;
   bool _isGameFinishedDialogShown = false;
-  bool _isDisconnectDialogShown = false;
   int _lastFinisherCount = 0; 
   final Set<String> _processedEvents = {};
   final List<ActiveVisualEvent> _activeVisualEvents = [];
@@ -123,16 +122,6 @@ class _GameScreenState extends State<GameScreen> {
   void _onGameUpdate() {
     if (!mounted) return;
     final controller = context.read<GameController>();
-    // Quitamos el diálogo invasivo de desconexión para usar la barra superior transparente
-    /*
-    final socketSrv = context.read<SocketService>();
-    if (controller.isOnline && !socketSrv.isConnected && !socketSrv.isConnecting && !_isDisconnectDialogShown) {
-      _isDisconnectDialogShown = true;
-      _showDisconnectDialog();
-    } else if (socketSrv.isConnected || socketSrv.isConnecting) {
-      _isDisconnectDialogShown = false;
-    }
-    */
 
     if (controller.engine.finisherIds.length > _lastFinisherCount) {
       _lastFinisherCount = controller.engine.finisherIds.length;
@@ -173,29 +162,6 @@ class _GameScreenState extends State<GameScreen> {
     }
     setState(() {});
   }
-
-  /* 
-  Future<void> _showDisconnectDialog() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(context.translate('connection_lost')),
-        content: Text(context.translate('server_connection_lost')),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-              }
-            },
-            child: Text(context.translate('exit')),
-          ),
-        ],
-      ),
-    );
-  }
-  */
 
   Future<bool> _confirmExit() async {
     final controller = context.read<GameController>();
@@ -241,6 +207,7 @@ class _GameScreenState extends State<GameScreen> {
     final socketSrv = context.watch<SocketService>();
     
     final bool isWaiting = controller.isOnline && controller.players.length < widget.playerCount;
+    final bool isReconnecting = controller.isOnline && (!socketSrv.isConnected || socketSrv.isConnecting);
 
     return PopScope(
       canPop: false,
@@ -283,6 +250,7 @@ class _GameScreenState extends State<GameScreen> {
                             child: BoardWidget(board: controller.engine.board, players: controller.players),
                           ),
                         ),
+                        if (isReconnecting) _buildConnectionOverlay(),
                         ..._buildPlayers(controller),
                         ..._buildFlyingTokens(),
                         _buildFloatingEvents(),
@@ -306,6 +274,39 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildConnectionOverlay() {
+    return Container(
+      color: Colors.black45,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+          decoration: BoxDecoration(
+            color: Colors.brown.shade900,
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: Colors.orangeAccent, width: 2),
+            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Colors.orangeAccent, strokeWidth: 3),
+              const SizedBox(height: 20),
+              Text(
+                context.translate('reconnecting'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1.2),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Verificando conexión...",
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+        ).animate().fadeIn().scale(duration: 300.ms, curve: Curves.easeOutBack),
       ),
     );
   }
@@ -434,70 +435,48 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildTopBar(SocketService socketSrv, GameController controller) {
-    if (controller.isOnline) {
-      String statusText = context.translate('online');
-      Color statusColor = Colors.greenAccent;
-      bool isReconnecting = !socketSrv.isConnected || socketSrv.isConnecting;
-
-      if (isReconnecting) {
-        statusText = context.translate('reconnecting');
-        statusColor = Colors.orangeAccent;
-      }
-
-      final int ping = socketSrv.latency;
-      Color pingColor = ping < 150 ? Colors.green : (ping < 300 ? Colors.orange : Colors.red);
-
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        color: Colors.black45,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                if (isReconnecting) 
-                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent)),
-                if (isReconnecting) const SizedBox(width: 10),
-                Text(statusText, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 20),
-                if (!isReconnecting) ...[
-                  Icon(Icons.wifi, color: pingColor, size: 14),
-                  const SizedBox(width: 4),
-                  Text("${ping}ms", style: TextStyle(color: pingColor, fontSize: 11, fontWeight: FontWeight.bold)),
-                ]
-              ],
-            ),
-            Row(
-              children: [
-                IconButton(icon: const Icon(Icons.chat, color: Colors.white70, size: 20), onPressed: () => _scaffoldKey.currentState?.openEndDrawer()),
-                IconButton(icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 20), onPressed: () => _confirmExit().then((v) { if(v) Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false); })),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: Colors.black26,
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(12)),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-              onPressed: () async {
-                if (controller.engine.phase == GamePhase.finished) {
-                   Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-                   return;
+          if (!controller.isOnline)
+            Container(
+              decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(12)),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+                onPressed: () async {
+                  if (controller.engine.phase == GamePhase.finished) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                    return;
+                  }
+                  if (await _confirmExit()) {
+                    if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                  }
+                },
+              ),
+            )
+          else
+            const SizedBox.shrink(), // Ocultamos estado y latencia como solicitado
+          
+          Row(
+            children: [
+              if (controller.isOnline)
+                IconButton(
+                  icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
+                  onPressed: () => _scaffoldKey.currentState?.openEndDrawer()
+                ),
+              IconButton(
+                icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 22), 
+                onPressed: () async {
+                  if (await _confirmExit() && mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                  }
                 }
-                if (await _confirmExit()) {
-                  if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-                }
-              },
-            ),
+              ),
+            ],
           ),
-          const Spacer(),
         ],
       ),
     );
@@ -782,6 +761,7 @@ class _PlayerCornerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
+    final socketSrv = context.watch<SocketService>();
     final bool isMe = controller.isOnline ? player.id == PrefsService.playerId : !player.isAI;
     final bool isTurn = controller.currentPlayer.id == player.id;
     final bool isRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
@@ -826,7 +806,6 @@ class _PlayerCornerWidget extends StatelessWidget {
                       const SizedBox(width: 4),
                       const Icon(Icons.block, size: 14, color: Colors.red),
                     ],
-                    // ✅ Indicador de Desconexión Visual
                     if (controller.isOnline && !player.isConnected) ...[
                       const SizedBox(width: 4),
                       const Icon(Icons.flash_off, size: 14, color: Colors.redAccent).animate(onPlay: (c) => c.repeat()).shake(),
@@ -876,7 +855,17 @@ class _PlayerCornerWidget extends StatelessWidget {
         
         if (!player.isFinished)
           GestureDetector(
-            onTap: canTap ? controller.rollDice : null,
+            onTap: () {
+               if (canTap) {
+                 if (controller.isOnline && !socketSrv.isConnected) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(content: Text("Sin conexión"), duration: Duration(seconds: 1))
+                   );
+                   return;
+                 }
+                 controller.rollDice();
+               }
+            },
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
@@ -886,7 +875,6 @@ class _PlayerCornerWidget extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ✅ Indicador de Desconexión en el Dado
                   if (controller.isOnline && !player.isConnected)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
