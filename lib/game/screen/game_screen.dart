@@ -835,7 +835,16 @@ class _PlayerCornerWidget extends StatelessWidget {
   }
 
   void _showQuickChat(BuildContext context, GameController controller) {
-    final options = ["¡Buena jugada!", "¡Rayos!", "🤣", "👍", "¡Hola!", "💤", "¡Juega rápido!"];
+    final options = [
+      "quick_msg_good_game", 
+      "quick_msg_oops", 
+      "🤣", 
+      "👍", 
+      "quick_msg_hello", 
+      "💤", 
+      "quick_msg_play_fast"
+    ];
+    
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.brown.shade900,
@@ -863,7 +872,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                   border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
                 ),
                 child: Text(
-                  options[idx],
+                  context.translate(options[idx]),
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -945,7 +954,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                       boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                     ),
                     child: Text(
-                      activeMessage,
+                      context.translate(activeMessage),
                       style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ).animate().scale(duration: 200.ms, curve: Curves.easeOutBack).shake(delay: 200.ms),

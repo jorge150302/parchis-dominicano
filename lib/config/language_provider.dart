@@ -147,6 +147,11 @@ class LanguageProvider extends ChangeNotifier {
       // Lobby transitions
       'match_found_title': '¡PARTIDA ENCONTRADA!',
       'preparing_board': 'Preparando el tablero...',
+      // Quick Chat
+      'quick_msg_good_game': '¡Buena jugada!',
+      'quick_msg_oops': '¡Rayos!',
+      'quick_msg_hello': '¡Hola!',
+      'quick_msg_play_fast': '¡Juega rápido!',
     },
     Language.en: {
       'waiting_players': 'Waiting for Players...',
@@ -259,6 +264,11 @@ class LanguageProvider extends ChangeNotifier {
       // Lobby transitions
       'match_found_title': 'MATCH FOUND!',
       'preparing_board': 'Preparing the board...',
+      // Quick Chat
+      'quick_msg_good_game': 'Good game!',
+      'quick_msg_oops': 'Oops!',
+      'quick_msg_hello': 'Hello!',
+      'quick_msg_play_fast': 'Play fast!',
     },
   };
 }
