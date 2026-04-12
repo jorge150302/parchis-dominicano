@@ -45,6 +45,10 @@ class _GameScreenState extends State<GameScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   StreamSubscription? _captureSubscription;
 
+  // ✅ Variables para el Chat
+  int _unreadMessages = 0;
+  int _lastMessageCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +61,7 @@ class _GameScreenState extends State<GameScreen> {
       _captureSubscription = controller.onTokenCaptured.listen(_onTokenCaptured);
 
       _lastFinisherCount = controller.engine.finisherIds.length;
+      _lastMessageCount = controller.chatMessages.length;
 
       if (widget.isResume && controller is LocalGameController) {
         final savedJson = PrefsService.savedLocalGame;
@@ -122,6 +127,18 @@ class _GameScreenState extends State<GameScreen> {
   void _onGameUpdate() {
     if (!mounted) return;
     final controller = context.read<GameController>();
+
+    // ✅ Lógica de mensajes no leídos
+    final int currentMsgCount = controller.chatMessages.length;
+    if (currentMsgCount > _lastMessageCount) {
+      final bool isDrawerOpen = _scaffoldKey.currentState?.isEndDrawerOpen ?? false;
+      if (!isDrawerOpen) {
+        setState(() {
+          _unreadMessages += (currentMsgCount - _lastMessageCount);
+        });
+      }
+      _lastMessageCount = currentMsgCount;
+    }
 
     if (controller.engine.finisherIds.length > _lastFinisherCount) {
       _lastFinisherCount = controller.engine.finisherIds.length;
@@ -225,6 +242,9 @@ class _GameScreenState extends State<GameScreen> {
       },
       child: Scaffold(
         key: _scaffoldKey,
+        onEndDrawerChanged: (isOpen) {
+          if (isOpen) setState(() => _unreadMessages = 0);
+        },
         endDrawer: controller.isOnline ? _ChatDrawer(controller: controller) : null,
         body: Stack(
           children: [
@@ -458,14 +478,36 @@ class _GameScreenState extends State<GameScreen> {
               ),
             )
           else
-            const SizedBox.shrink(), // Ocultamos estado y latencia como solicitado
+            const SizedBox.shrink(),
           
           Row(
             children: [
               if (controller.isOnline)
-                IconButton(
-                  icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
-                  onPressed: () => _scaffoldKey.currentState?.openEndDrawer()
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
+                      onPressed: () {
+                        setState(() => _unreadMessages = 0);
+                        _scaffoldKey.currentState?.openEndDrawer();
+                      }
+                    ),
+                    if (_unreadMessages > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '$_unreadMessages',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ).animate().scale().shake(),
+                      ),
+                  ],
                 ),
               IconButton(
                 icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 22), 
@@ -559,83 +601,141 @@ class _ChatDrawer extends StatefulWidget {
 
 class _ChatDrawerState extends State<_ChatDrawer> {
   final TextEditingController _textController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 
   @override
   void dispose() {
     _textController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: Colors.brown.shade900,
+      width: MediaQuery.of(context).size.width * 0.7, // ✅ Tamaño reducido al 70%
+      backgroundColor: Colors.orange.shade50, // ✅ Fondo claro y vivo
       child: SafeArea(
         child: Column(
           children: [
+            // Header del Chat
             Container(
               padding: const EdgeInsets.all(16),
-              color: Colors.brown.shade800,
+              decoration: BoxDecoration(
+                color: Colors.brown.shade800, // ✅ Coherente con la app
+                border: const Border(bottom: BorderSide(color: Colors.white24)),
+              ),
               child: Row(
                 children: [
-                  const Icon(Icons.chat, color: Colors.orange),
-                  const SizedBox(width: 10),
-                  Text(context.translate('multiplayer_online'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const Icon(Icons.chat_bubble_outline, color: Colors.orangeAccent),
+                  const SizedBox(width: 12),
+                  Text(
+                    context.translate('multiplayer_online'), 
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                  ),
                 ],
               ),
             ),
+            
+            // Lista de Mensajes
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.all(8),
+                controller: _scrollController,
+                padding: const EdgeInsets.all(12),
                 itemCount: widget.controller.chatMessages.length,
                 itemBuilder: (context, index) {
                   final msg = widget.controller.chatMessages[index];
                   final bool isMe = msg.senderId == PrefsService.playerId;
+                  
                   return Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isMe ? Colors.orange.shade800 : Colors.grey.shade800,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!isMe) Text(msg.sender, style: const TextStyle(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                          Text(msg.message, style: const TextStyle(color: Colors.white)),
-                        ],
-                      ),
+                    child: Column(
+                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        if (!isMe) 
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, bottom: 4),
+                            child: Text(msg.sender, style: TextStyle(color: Colors.brown.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isMe ? Colors.orange.shade700 : Colors.white, // ✅ Colores vivos
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(16),
+                              topRight: const Radius.circular(16),
+                              bottomLeft: Radius.circular(isMe ? 16 : 4),
+                              bottomRight: Radius.circular(isMe ? 4 : 16),
+                            ),
+                            border: isMe ? null : Border.all(color: Colors.orange.shade100),
+                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                          ),
+                          child: Text(
+                            msg.message, 
+                            style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 13)
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },
               ),
             ),
+            
+            // Area de Entrada
             Container(
-              padding: const EdgeInsets.all(8),
-              color: Colors.black26,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.brown.shade50, // ✅ Color distinto para el input
+                border: Border(top: BorderSide(color: Colors.orange.shade100)),
+              ),
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        hintText: 'Mensaje...',
-                        hintStyle: TextStyle(color: Colors.white54),
-                        border: InputBorder.none,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: TextField(
+                        controller: _textController,
+                        style: const TextStyle(color: Colors.black87, fontSize: 13),
+                        decoration: const InputDecoration(
+                          hintText: 'Mensaje...',
+                          hintStyle: TextStyle(color: Colors.black38),
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.send, color: Colors.orange),
-                    onPressed: () {
-                      if (_textController.text.trim().isNotEmpty) {
-                        widget.controller.sendChatMessage(_textController.text.trim());
-                        _textController.clear();
-                      }
-                    },
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    backgroundColor: Colors.orange.shade700,
+                    radius: 18,
+                    child: IconButton(
+                      icon: const Icon(Icons.send, color: Colors.white, size: 16),
+                      onPressed: _sendMessage,
+                    ),
                   ),
                 ],
               ),
@@ -644,6 +744,15 @@ class _ChatDrawerState extends State<_ChatDrawer> {
         ),
       ),
     );
+  }
+
+  void _sendMessage() {
+    final text = _textController.text.trim();
+    if (text.isNotEmpty) {
+      widget.controller.sendChatMessage(text);
+      _textController.clear();
+      Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+    }
   }
 }
 
