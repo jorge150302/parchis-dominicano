@@ -26,10 +26,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       }
     });
 
-    // Solicitar nombre si no existe
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (PrefsService.playerName.isEmpty) {
-        _showNameDialog();
+        _showWelcomeFlow();
       }
     });
   }
@@ -49,6 +48,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
+  void _showWelcomeFlow() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _WelcomeDialog(
+        onComplete: (name) {
+          setState(() {
+            PrefsService.playerName = name;
+          });
+        },
+      ),
+    );
+  }
+
   void _showNameDialog() {
     final TextEditingController nameController = TextEditingController(text: PrefsService.playerName);
     showDialog(
@@ -61,7 +74,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           side: const BorderSide(color: Colors.orange, width: 2),
         ),
         title: Text(
-          context.translate('enter_name_title') ?? '¿Cómo te llamas?',
+          context.translate('enter_name_title'),
           style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
         ),
         content: TextField(
@@ -538,6 +551,96 @@ class _MenuButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WelcomeDialog extends StatefulWidget {
+  final Function(String) onComplete;
+  const _WelcomeDialog({required this.onComplete});
+
+  @override
+  State<_WelcomeDialog> createState() => _WelcomeDialogState();
+}
+
+class _WelcomeDialogState extends State<_WelcomeDialog> {
+  int _step = 0; // 0: Idioma, 1: Nombre
+  final TextEditingController _nameController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.brown.shade900,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Colors.orange, width: 2),
+      ),
+      title: Text(
+        _step == 0 ? "BIENVENIDO / WELCOME" : context.translate('enter_name_title'),
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+      ),
+      content: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _step == 0 ? _buildLanguageStep() : _buildNameStep(),
+      ),
+      actions: [
+        if (_step == 1)
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () {
+              if (_nameController.text.trim().isNotEmpty) {
+                widget.onComplete(_nameController.text.trim());
+                Navigator.pop(context);
+              }
+            },
+            child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLanguageStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          "Selecciona tu idioma\nSelect your language",
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        const SizedBox(height: 20),
+        _langOption("Español", "🇪🇸", Language.es),
+        const SizedBox(height: 12),
+        _langOption("English", "🇺🇸", Language.en),
+      ],
+    );
+  }
+
+  Widget _langOption(String label, String flag, Language lang) {
+    return ListTile(
+      tileColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      leading: Text(flag, style: const TextStyle(fontSize: 24)),
+      title: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      onTap: () {
+        context.read<LanguageProvider>().setLanguage(lang);
+        setState(() => _step = 1);
+      },
+    );
+  }
+
+  Widget _buildNameStep() {
+    return TextField(
+      controller: _nameController,
+      autofocus: true,
+      style: const TextStyle(color: Colors.white),
+      textCapitalization: TextCapitalization.words,
+      decoration: InputDecoration(
+        hintText: context.translate('name_hint'),
+        hintStyle: const TextStyle(color: Colors.white54),
+        enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orange)),
       ),
     );
   }
