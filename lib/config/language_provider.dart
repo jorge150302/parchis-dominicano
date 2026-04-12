@@ -144,6 +144,9 @@ class LanguageProvider extends ChangeNotifier {
       'pending_game_title': 'Partida Pendiente',
       'pending_game_message': 'Tienes una partida pendiente. ¿Qué deseas hacer?',
       'start_new_game': 'Nueva Partida',
+      // Lobby transitions
+      'match_found_title': '¡PARTIDA ENCONTRADA!',
+      'preparing_board': 'Preparando el tablero...',
     },
     Language.en: {
       'waiting_players': 'Waiting for Players...',
@@ -253,6 +256,9 @@ class LanguageProvider extends ChangeNotifier {
       'pending_game_title': 'Pending Game',
       'pending_game_message': 'You have a pending game. What do you want to do?',
       'start_new_game': 'New Game',
+      // Lobby transitions
+      'match_found_title': 'MATCH FOUND!',
+      'preparing_board': 'Preparing the board...',
     },
   };
 }

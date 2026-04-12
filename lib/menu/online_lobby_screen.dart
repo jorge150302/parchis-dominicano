@@ -456,14 +456,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 .then()
                 .scale(begin: const Offset(1.2, 1.2), end: const Offset(0.8, 0.8), duration: 600.ms),
             const SizedBox(height: 30),
-            const Text(
-              "¡PARTIDA ENCONTRADA!",
-              style: TextStyle(color: Colors.orangeAccent, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 2),
+            Text(
+              context.translate('match_found_title'), // ✅ TRADUCCIÓN APLICADA
+              style: const TextStyle(color: Colors.orangeAccent, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 2),
             ).animate().fadeIn().shimmer(delay: 400.ms),
             const SizedBox(height: 10),
-            const Text(
-              "Preparando el tablero...",
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+            Text(
+              context.translate('preparing_board'), // ✅ TRADUCCIÓN APLICADA
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
             ).animate().fadeIn(delay: 600.ms),
           ],
         ),
