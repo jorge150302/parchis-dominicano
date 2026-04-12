@@ -629,25 +629,32 @@ class _ChatDrawerState extends State<_ChatDrawer> {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      width: MediaQuery.of(context).size.width * 0.7, // ✅ Tamaño reducido al 70%
-      backgroundColor: Colors.orange.shade50, // ✅ Fondo claro y vivo
+      width: MediaQuery.of(context).size.width * 0.7, 
+      backgroundColor: Colors.orange.shade50, 
       child: SafeArea(
         child: Column(
           children: [
             // Header del Chat
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
               decoration: BoxDecoration(
-                color: Colors.brown.shade800, // ✅ Coherente con la app
+                color: Colors.brown.shade800, 
                 border: const Border(bottom: BorderSide(color: Colors.white24)),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.chat_bubble_outline, color: Colors.orangeAccent),
                   const SizedBox(width: 12),
-                  Text(
-                    context.translate('multiplayer_online'), 
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                  Expanded(
+                    child: Text(
+                      context.translate('multiplayer_online'), 
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                    ),
+                  ),
+                  // ✅ Botón para cerrar el chat
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70, size: 24),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -677,14 +684,14 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: isMe ? Colors.orange.shade700 : Colors.white, // ✅ Colores vivos
+                            color: isMe ? Colors.orange.shade700 : Colors.white, 
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(16),
                               topRight: const Radius.circular(16),
                               bottomLeft: Radius.circular(isMe ? 16 : 4),
                               bottomRight: Radius.circular(isMe ? 4 : 16),
                             ),
-                            border: isMe ? null : Border.all(color: Colors.orange.shade100),
+                            border: isMe ? null : Border.all(color: Colors.orange.shade100, width: 1.5), // ✅ Borde más ancho
                             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
                           ),
                           child: Text(
@@ -703,8 +710,8 @@ class _ChatDrawerState extends State<_ChatDrawer> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.brown.shade50, // ✅ Color distinto para el input
-                border: Border(top: BorderSide(color: Colors.orange.shade100)),
+                color: Colors.brown.shade50, 
+                border: Border(top: BorderSide(color: Colors.orange.shade200, width: 2.0)), // ✅ Línea superior más ancha
               ),
               child: Row(
                 children: [
@@ -714,14 +721,14 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.orange.shade200),
+                        border: Border.all(color: Colors.orange.shade300, width: 2.0), // ✅ Borde del input más ancho
                       ),
                       child: TextField(
                         controller: _textController,
                         style: const TextStyle(color: Colors.black87, fontSize: 13),
-                        decoration: const InputDecoration(
-                          hintText: 'Mensaje...',
-                          hintStyle: TextStyle(color: Colors.black38),
+                        decoration: InputDecoration(
+                          hintText: context.translate('chat_input_hint'), // ✅ TRADUCCIÓN APLICADA
+                          hintStyle: const TextStyle(color: Colors.black38),
                           border: InputBorder.none,
                         ),
                         onSubmitted: (_) => _sendMessage(),
