@@ -2,7 +2,7 @@ import '../models/board.dart';
 import '../models/cell.dart';
 import '../models/board_action.dart';
 
-Board generateBoard(List<int> actionPositions, List<BoardAction> actions, {int totalCells = 100}) {
+Board generateBoard(List<int> actionPositions, List<BoardAction> actions, {int totalCells = 10}) {
   List<Cell> cells = [];
   int actionIndex = 0;
 
