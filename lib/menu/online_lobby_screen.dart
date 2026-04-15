@@ -245,7 +245,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             children: [
               ...[2, 3, 4].map((n) => ListTile(
                 title: Text('$n ${context.translate('players_count', listen: false)}', style: const TextStyle(color: Colors.white)),
-                leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
+                leading: n == 4 
+                  ? Image.asset('assets/icon/four_players.png', width: 24, height: 24, filterQuality: FilterQuality.high, fit: BoxFit.contain)
+                  : Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
                 onTap: () => Navigator.pop(context, n),
               )),
               const Divider(color: Colors.white24),
@@ -293,7 +295,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [2, 3, 4].map((n) => ListTile(
             title: Text('$n ${context.translate('players_count', listen: false)}', style: const TextStyle(color: Colors.white)),
-            leading: Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
+            leading: n == 4 
+              ? Image.asset('assets/icon/four_players.png', width: 24, height: 24, filterQuality: FilterQuality.high, fit: BoxFit.contain)
+              : Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
             onTap: () => Navigator.pop(context, n),
           )).toList(),
         ),

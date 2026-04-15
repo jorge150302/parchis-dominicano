@@ -314,9 +314,18 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
     final isSelected = selectedPlayers == players;
 
     Widget iconWidget() {
-      if (players == 2) return Icon(Icons.group, size: 32, color: isSelected ? Colors.white : Colors.black87);
-      if (players == 3) return Icon(Icons.groups, size: 32, color: isSelected ? Colors.white : Colors.black87);
-      return Image.asset('assets/images/icon_4_players.png', width: 34, height: 34, color: isSelected ? Colors.white : null);
+      if (players == 2) return Icon(Icons.group, size: 32, color: isSelected ? Colors.white : Colors.orangeAccent);
+      if (players == 3) return Icon(Icons.groups, size: 32, color: isSelected ? Colors.white : Colors.orangeAccent);
+      
+      return Image.asset(
+        'assets/icon/four_players.png', 
+        width: 34, 
+        height: 34, 
+        color: isSelected ? Colors.white : null,
+        filterQuality: FilterQuality.high,
+        isAntiAlias: true,
+        fit: BoxFit.contain,
+      );
     }
 
     return GestureDetector(
