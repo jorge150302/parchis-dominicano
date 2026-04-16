@@ -4,7 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../config/language_provider.dart';
 import '../service/prefs_service.dart';
-import '../service/audio_service.dart'; // Importamos el servicio de audio
+import '../service/audio_service.dart'; 
 
 class PlayerSelectionScreen extends StatefulWidget {
   const PlayerSelectionScreen({super.key});
@@ -298,6 +298,12 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                 enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
                 focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orangeAccent, width: 2)),
               ),
+              onChanged: (_) {
+                // Opcional: Sonido al escribir o solo al foco
+              },
+              onTap: () {
+                AudioService.playClick(); // ✅ Sonido al tocar campo
+              },
             ),
           );
         }),

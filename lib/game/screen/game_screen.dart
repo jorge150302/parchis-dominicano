@@ -16,6 +16,7 @@ import '../widgets/dice_widget.dart';
 import '../widgets/home_zone_widget.dart';
 import '../../service/socket_service.dart';
 import '../../service/prefs_service.dart';
+import '../../service/audio_service.dart'; // ✅ Importación añadida
 
 class GameScreen extends StatefulWidget {
   final int playerCount;
@@ -204,12 +205,18 @@ class _GameScreenState extends State<GameScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () {
+              AudioService.playClick(); // ✅ Sonido añadido
+              Navigator.pop(context, false);
+            },
             child: Text(context.translate('stay'), style: const TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              AudioService.playClick(); // ✅ Sonido añadido
+              Navigator.pop(context, true);
+            },
             child: Text(context.translate('leave'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -467,6 +474,7 @@ class _GameScreenState extends State<GameScreen> {
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
                 onPressed: () async {
+                  AudioService.playClick(); // ✅ Sonido añadido
                   if (controller.engine.phase == GamePhase.finished) {
                     Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
                     return;
@@ -488,6 +496,7 @@ class _GameScreenState extends State<GameScreen> {
                     IconButton(
                       icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
                       onPressed: () {
+                        AudioService.playClick(); // ✅ Sonido añadido
                         setState(() => _unreadMessages = 0);
                         _scaffoldKey.currentState?.openEndDrawer();
                       }
@@ -512,6 +521,7 @@ class _GameScreenState extends State<GameScreen> {
               IconButton(
                 icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 22), 
                 onPressed: () async {
+                  AudioService.playClick(); // ✅ Sonido añadido
                   if (await _confirmExit() && mounted) {
                     Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
                   }
@@ -580,7 +590,10 @@ class _GameScreenState extends State<GameScreen> {
           Center(
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10)),
-              onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false), 
+              onPressed: () {
+                AudioService.playClick(); // ✅ Sonido añadido
+                Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+              },
               child: Text(context.translate('back_to_menu'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
@@ -654,7 +667,10 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                   // ✅ Botón para cerrar el chat
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white70, size: 24),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      AudioService.playClick(); // ✅ Sonido añadido
+                      Navigator.pop(context);
+                    },
                   ),
                 ],
               ),
@@ -741,7 +757,10 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                     radius: 18,
                     child: IconButton(
                       icon: const Icon(Icons.send, color: Colors.white, size: 16),
-                      onPressed: _sendMessage,
+                      onPressed: () {
+                        AudioService.playClick(); // ✅ Sonido añadido
+                        _sendMessage();
+                      },
                     ),
                   ),
                 ],
@@ -770,6 +789,7 @@ class _PlayerCornerWidget extends StatelessWidget {
   void _showPlayerOptions(BuildContext context, GameController controller) {
     if (player.id == PrefsService.playerId || player.isAI) return;
 
+    AudioService.playClick(); // ✅ Sonido al abrir opciones
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.brown.shade900,
@@ -789,6 +809,7 @@ class _PlayerCornerWidget extends StatelessWidget {
               style: const TextStyle(color: Colors.white),
             ),
             onTap: () {
+              AudioService.playClick(); // ✅ Sonido añadido
               controller.toggleBlockPlayer(player.id);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -802,6 +823,7 @@ class _PlayerCornerWidget extends StatelessWidget {
             leading: const Icon(Icons.report, color: Colors.redAccent),
             title: Text(context.translate('report_player'), style: const TextStyle(color: Colors.redAccent)),
             onTap: () {
+              AudioService.playClick(); // ✅ Sonido añadido
               Navigator.pop(context);
               _showReportReasons(context, controller);
             },
@@ -824,6 +846,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           children: reasons.map((r) => ListTile(
             title: Text(context.translate(r), style: const TextStyle(color: Colors.white)),
             onTap: () {
+              AudioService.playClick(); // ✅ Sonido añadido
               controller.reportPlayer(player.id, r);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.translate('report_sent'))));
@@ -835,6 +858,7 @@ class _PlayerCornerWidget extends StatelessWidget {
   }
 
   void _showQuickChat(BuildContext context, GameController controller) {
+    AudioService.playClick(); // ✅ Sonido al abrir emojis
     final options = [
       "quick_msg_good_game", 
       "quick_msg_oops", 
@@ -860,6 +884,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           itemCount: options.length,
           itemBuilder: (context, idx) => InkWell(
             onTap: () {
+              AudioService.playClick(); // ✅ Sonido añadido
               controller.sendQuickChat(options[idx]);
               Navigator.pop(context);
             },
@@ -982,6 +1007,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           GestureDetector(
             onTap: () {
                if (canTap) {
+                 AudioService.playClick(); // ✅ Sonido añadido
                  if (controller.isOnline && !socketSrv.isConnected) {
                    ScaffoldMessenger.of(context).showSnackBar(
                      const SnackBar(content: Text("Sin conexión"), duration: Duration(seconds: 1))
@@ -1015,7 +1041,10 @@ class _PlayerCornerWidget extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 4),
                       child: player.isAutoPlaying
                         ? GestureDetector(
-                            onTap: () => controller.toggleAutoPlay(false),
+                            onTap: () {
+                              AudioService.playClick(); // ✅ Sonido añadido
+                              controller.toggleAutoPlay(false);
+                            },
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(

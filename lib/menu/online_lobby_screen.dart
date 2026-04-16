@@ -7,6 +7,7 @@ import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/config/env.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 import '../config/language_provider.dart';
+import '../service/audio_service.dart'; // Importamos el servicio de audio
 
 class OnlineLobbyScreen extends StatefulWidget {
   const OnlineLobbyScreen({super.key});
@@ -92,12 +93,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           if (_currentRoomCode == null && roomCode != null) _currentRoomCode = roomCode;
         });
 
-        // Navegación si la sala está llena o el servidor ya cambió de fase
         final bool isFull = players.length >= maxPlayers;
         final bool hasStarted = phase != null && phase != 'idle' && phase != 'waiting' && phase != 'finished';
 
         if (isFull || hasStarted) {
-          debugPrint('🚀 Transición detectada vía State: Full=$isFull, Phase=$phase');
           _navigateToGame(playerCount: maxPlayers, roomCode: roomCode);
         }
         break;
@@ -113,10 +112,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         break;
 
       default:
-        // DETECCIÓN PROACTIVA:
         final gameEvents = ['dice_result', 'timer_update', 'game_event', 'chat'];
         if (gameEvents.contains(eventName) && _currentRoomCode != null) {
-          debugPrint('⚡ Partida en marcha detectada vía evento "$eventName". Sincronizando...');
           _navigateToGame();
         }
         break;
@@ -132,14 +129,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     setState(() => _showTransitionOverlay = true);
     _isNavigating = true;
 
-    // Pequeña pausa para que la animación se vea
     await Future.delayed(const Duration(milliseconds: 1200));
 
     if (!mounted) return;
 
     final finalPlayerCount = playerCount ?? _maxPlayersInRoom ?? _currentPlayersInRoom;
-
-    debugPrint('🎮 Entrando a partida: $targetRoomCode ($finalPlayerCount jugadores)');
 
     Navigator.pushReplacementNamed(context, '/game', arguments: {
       'playerCount': finalPlayerCount,
@@ -164,6 +158,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 title: context.translate('create_my_room', listen: false),
                 color: Colors.green,
                 onTap: () {
+                  AudioService.playClick(); // ✅ Sonido
                   Navigator.pop(context);
                   _connectAndCreate(_lastRequestedPlayers ?? 4, true);
                 },
@@ -174,6 +169,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 title: context.translate('play_offline', listen: false),
                 color: Colors.blueAccent,
                 onTap: () {
+                  AudioService.playClick(); // ✅ Sonido
                   Navigator.pop(context);
                   Navigator.pushReplacementNamed(context, '/players');
                 },
@@ -184,6 +180,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 title: context.translate('back_to_menu', listen: false),
                 color: Colors.grey,
                 onTap: () {
+                  AudioService.playClick(); // ✅ Sonido
                   Navigator.pop(context);
                   Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
                 },
@@ -246,9 +243,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               ...[2, 3, 4].map((n) => ListTile(
                 title: Text('$n ${context.translate('players_count', listen: false)}', style: const TextStyle(color: Colors.white)),
                 leading: n == 4 
-                  ? Image.asset('assets/icon/four_players.png', width: 24, height: 24, filterQuality: FilterQuality.high, fit: BoxFit.contain)
+                  ? Image.asset('assets/icon/four_players.png', width: 24, height: 24, color: Colors.orangeAccent, filterQuality: FilterQuality.high, fit: BoxFit.contain)
                   : Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
-                onTap: () => Navigator.pop(context, n),
+                onTap: () {
+                  AudioService.playClick(); // ✅ Sonido
+                  Navigator.pop(context, n);
+                },
               )),
               const Divider(color: Colors.white24),
               SwitchListTile(
@@ -256,7 +256,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 subtitle: Text(context.translate('public_room_subtitle', listen: false), style: const TextStyle(fontSize: 12, color: Colors.white70)),
                 value: isPublic,
                 activeColor: Colors.orange,
-                onChanged: (v) => setDialogState(() => isPublic = v),
+                onChanged: (v) {
+                  AudioService.playClick(); // ✅ Sonido
+                  setDialogState(() => isPublic = v);
+                },
               ),
             ],
           ),
@@ -296,9 +299,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           children: [2, 3, 4].map((n) => ListTile(
             title: Text('$n ${context.translate('players_count', listen: false)}', style: const TextStyle(color: Colors.white)),
             leading: n == 4 
-              ? Image.asset('assets/icon/four_players.png', width: 24, height: 24, filterQuality: FilterQuality.high, fit: BoxFit.contain)
+              ? Image.asset('assets/icon/four_players.png', width: 24, height: 24, color: Colors.orangeAccent, filterQuality: FilterQuality.high, fit: BoxFit.contain)
               : Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
-            onTap: () => Navigator.pop(context, n),
+            onTap: () {
+              AudioService.playClick(); // ✅ Sonido
+              Navigator.pop(context, n);
+            },
           )).toList(),
         ),
       ),
@@ -334,6 +340,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   }
 
   void _copyToClipboard(String text, {String? successMsg}) {
+    AudioService.playClick(); // ✅ Sonido
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -391,7 +398,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                               title: context.translate('rejoin_match'),
                               subtitle: lastCode,
                               color: Colors.orange.shade700,
-                              onTap: () => _connectAndJoin(manualCode: lastCode),
+                              onTap: () {
+                                AudioService.playClick(); // ✅ Sonido
+                                _connectAndJoin(manualCode: lastCode);
+                              },
                             ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
                           ),
 
@@ -400,7 +410,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                           title: context.translate('quick_match'),
                           subtitle: context.translate('quick_match_subtitle'),
                           color: Colors.blueAccent,
-                          onTap: _handleQuickMatch,
+                          onTap: () {
+                            AudioService.playClick(); // ✅ Sonido
+                            _handleQuickMatch();
+                          },
                         ).animate().fadeIn(delay: 400.ms).slideX(begin: -0.2),
 
                         const SizedBox(height: 20),
@@ -410,7 +423,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                           title: context.translate('play_with_friends'),
                           subtitle: context.translate('play_with_friends_subtitle'),
                           color: Colors.green.shade600,
-                          onTap: _showPrivateOptions,
+                          onTap: () {
+                            AudioService.playClick(); // ✅ Sonido
+                            _showPrivateOptions();
+                          },
                         ).animate().fadeIn(delay: 600.ms).slideX(begin: 0.2),
                       ],
                     ],
@@ -424,6 +440,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                       ),
                       child: TextButton(
                         onPressed: () {
+                          AudioService.playClick(); // ✅ Sonido
                           if (_currentRoomCode != null) { socketService.disconnect(); setState(() { _currentRoomCode = null; }); }
                           else { Navigator.pop(context); }
                         },
@@ -461,12 +478,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 .scale(begin: const Offset(1.2, 1.2), end: const Offset(0.8, 0.8), duration: 600.ms),
             const SizedBox(height: 30),
             Text(
-              context.translate('match_found_title'), // ✅ TRADUCCIÓN APLICADA
+              context.translate('match_found_title'),
               style: const TextStyle(color: Colors.orangeAccent, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 2),
             ).animate().fadeIn().shimmer(delay: 400.ms),
             const SizedBox(height: 10),
             Text(
-              context.translate('preparing_board'), // ✅ TRADUCCIÓN APLICADA
+              context.translate('preparing_board'),
               style: const TextStyle(color: Colors.white70, fontSize: 16),
             ).animate().fadeIn(delay: 600.ms),
           ],
@@ -500,7 +517,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 _actionButton(
                   title: context.translate('create_new_room', listen: false),
                   color: Colors.green.shade600,
-                  onTap: () { Navigator.pop(context); _handleCreateGame(); },
+                  onTap: () { 
+                    AudioService.playClick(); // ✅ Sonido
+                    Navigator.pop(context); 
+                    _handleCreateGame(); 
+                  },
                 ),
                 const SizedBox(height: 20),
                 const Divider(color: Colors.white24),
@@ -510,7 +531,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 _actionButton(
                   title: context.translate('join_by_code', listen: false),
                   color: Colors.orange.shade800,
-                  onTap: () { Navigator.pop(context); _connectAndJoin(); },
+                  onTap: () { 
+                    AudioService.playClick(); // ✅ Sonido
+                    Navigator.pop(context); 
+                    _connectAndJoin(); 
+                  },
                 ),
                 const SizedBox(height: 20),
               ],
@@ -578,6 +603,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             icon: Icons.share,
             color: Colors.green.shade700,
             onTap: () {
+              AudioService.playClick(); // ✅ Sonido
               Share.share("¡Únete a mi partida de Parchís! 🎲\nCódigo de sala: $roomCode");
             },
           ),
@@ -596,7 +622,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           Text(context.translate('waiting_room_subtitle'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic)),
           const SizedBox(height: 10),
           TextButton.icon(
-            onPressed: () => socketService.send('request_sync'),
+            onPressed: () {
+              AudioService.playClick(); // ✅ Sonido
+              socketService.send('request_sync');
+            },
             icon: const Icon(Icons.sync, color: Colors.white54, size: 16),
             label: const Text('SINCRONIZAR', style: TextStyle(color: Colors.white54, fontSize: 12)),
           ),
