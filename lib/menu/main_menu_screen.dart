@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/language_provider.dart';
 import '../service/socket_service.dart';
 import '../service/prefs_service.dart';
+import '../service/audio_service.dart'; // Importamos el servicio de audio
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -84,6 +85,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             onPressed: () {
+              AudioService.playClick(); // ✅ Sonido
               if (nameController.text.trim().isNotEmpty) {
                 setState(() {
                   PrefsService.playerName = nameController.text.trim();
@@ -141,13 +143,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   TextSpan(
                     text: "u_qpfzpydtro",
                     style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse("https://pixabay.com/users/u_qpfzpydtro-29496424/")),
+                    recognizer: TapGestureRecognizer()..onTap = () {
+                      AudioService.playClick(); // ✅ Sonido
+                      launchUrl(Uri.parse("https://pixabay.com/users/u_qpfzpydtro-29496424/"));
+                    },
                   ),
                   const TextSpan(text: " from "),
                   TextSpan(
                     text: "Pixabay",
                     style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse("https://pixabay.com/")),
+                    recognizer: TapGestureRecognizer()..onTap = () {
+                      AudioService.playClick(); // ✅ Sonido
+                      launchUrl(Uri.parse("https://pixabay.com/"));
+                    },
                   ),
                 ],
               ),
@@ -157,7 +165,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              AudioService.playClick(); // ✅ Sonido
+              Navigator.pop(context);
+            },
             child: Text(isSpanish ? "CERRAR" : "CLOSE", style: const TextStyle(color: Colors.orangeAccent)),
           ),
         ],
@@ -183,6 +194,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   void _handleOfflineClick() {
+    AudioService.playClick(); // ✅ Sonido
     if (PrefsService.hasSavedGame) {
       showDialog(
         context: context,
@@ -215,6 +227,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () {
+                      AudioService.playClick(); // ✅ Sonido
                       Navigator.pop(context);
                       _resumeGame();
                     },
@@ -229,6 +242,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   width: double.infinity,
                   child: TextButton(
                     onPressed: () {
+                      AudioService.playClick(); // ✅ Sonido
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/players');
                     },
@@ -240,7 +254,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 ),
                 const Divider(color: Colors.white24),
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    AudioService.playClick(); // ✅ Sonido
+                    Navigator.pop(context);
+                  },
                   child: Text(
                     context.translate('back'),
                     style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
@@ -257,6 +274,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   void _showSettings(BuildContext context) {
+    AudioService.playClick(); // ✅ Sonido al abrir
     showDialog(
       context: context,
       builder: (context) {
@@ -284,6 +302,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         value: context.watch<LanguageProvider>().currentLanguage,
                         underline: const SizedBox(),
                         onChanged: (Language? newLang) {
+                          AudioService.playClick(); // ✅ Sonido
                           if (newLang != null) {
                             context.read<LanguageProvider>().setLanguage(newLang);
                           }
@@ -303,6 +322,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         value: PrefsService.gameSpeed,
                         underline: const SizedBox(),
                         onChanged: (GameSpeed? newSpeed) {
+                          AudioService.playClick(); // ✅ Sonido
                           if (newSpeed != null) {
                             setDialogState(() => PrefsService.gameSpeed = newSpeed);
                           }
@@ -320,6 +340,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       value: PrefsService.soundEnabled,
                       activeColor: Colors.orange,
                       onChanged: (bool value) {
+                        AudioService.playClick(); // ✅ Sonido
                         setDialogState(() => PrefsService.soundEnabled = value);
                       },
                     ),
@@ -329,6 +350,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       value: PrefsService.vibrationEnabled,
                       activeColor: Colors.orange,
                       onChanged: (bool value) {
+                        AudioService.playClick(); // ✅ Sonido
                         setDialogState(() => PrefsService.vibrationEnabled = value);
                       },
                     ),
@@ -337,6 +359,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white70),
                       title: Text(context.translate('privacy_policy'), style: const TextStyle(color: Colors.white70)),
                       onTap: () {
+                        AudioService.playClick(); // ✅ Sonido
                         Navigator.pop(context);
                         Navigator.pushNamed(context, '/privacy');
                       },
@@ -344,14 +367,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     ListTile(
                       leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
                       title: Text(context.translate('delete_account'), style: const TextStyle(color: Colors.redAccent)),
-                      onTap: () => _confirmDeleteAccount(context),
+                      onTap: () {
+                        AudioService.playClick(); // ✅ Sonido
+                        _confirmDeleteAccount(context);
+                      },
                     ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    AudioService.playClick(); // ✅ Sonido
+                    Navigator.pop(context);
+                  },
                   child: Text(context.translate('close'), style: const TextStyle(color: Colors.orangeAccent)),
                 ),
               ],
@@ -374,12 +403,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              AudioService.playClick(); // ✅ Sonido
+              Navigator.pop(context);
+            },
             child: Text(context.translate('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
+              AudioService.playClick(); // ✅ Sonido
               context.read<SocketService>().send('delete_user_data', {
                 'playerId': PrefsService.playerId,
               });
@@ -528,6 +561,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         subtitle: context.translate('online_subtitle'),
                         color: Colors.green,
                         onTap: () {
+                          AudioService.playClick(); // ✅ Sonido
                           Navigator.pushNamed(context, '/online_lobby');
                         },
                       )
@@ -689,6 +723,7 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             onPressed: () {
+              AudioService.playClick(); // ✅ Sonido
               if (_nameController.text.trim().isNotEmpty) {
                 widget.onComplete(_nameController.text.trim());
                 Navigator.pop(context);
@@ -724,6 +759,7 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
       leading: Text(flag, style: const TextStyle(fontSize: 24)),
       title: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       onTap: () {
+        AudioService.playClick(); // ✅ Sonido
         context.read<LanguageProvider>().setLanguage(lang);
         setState(() => _step = 1);
       },

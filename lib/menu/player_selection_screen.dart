@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../config/language_provider.dart';
 import '../service/prefs_service.dart';
+import '../service/audio_service.dart'; // Importamos el servicio de audio
 
 class PlayerSelectionScreen extends StatefulWidget {
   const PlayerSelectionScreen({super.key});
@@ -20,7 +21,6 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicializar el nombre del primer jugador con el guardado en Prefs
     _nameControllers[0].text = PrefsService.playerName;
   }
 
@@ -45,13 +45,13 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
       }
     } else {
       for (int i = 1; i < 4; i++) {
-        // No borrar el nombre del primer jugador
         if (i > 0) _nameControllers[i].clear();
       }
     }
   }
 
   void _showAIInfo() {
+    AudioService.playClick(); // ✅ Sonido
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -67,7 +67,10 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              AudioService.playClick(); // ✅ Sonido
+              Navigator.pop(context);
+            },
             child: Text(context.translate('close'), style: const TextStyle(color: Colors.orangeAccent)),
           ),
         ],
@@ -95,7 +98,6 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-                
                     const Text(
                       'PARCHÉ',
                       textAlign: TextAlign.center,
@@ -107,9 +109,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                         shadows: [Shadow(blurRadius: 12, color: Colors.black54, offset: Offset(2, 3))],
                       ),
                     ).animate().fadeIn().slideY(begin: -0.3),
-                
                     const SizedBox(height: 10),
-                
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
@@ -126,9 +126,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                         ),
                       ),
                     ).animate().fadeIn(delay: 200.ms),
-                
                     const SizedBox(height: 15),
-                
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       decoration: BoxDecoration(
@@ -153,6 +151,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                               value: vsAI,
                               activeColor: Colors.orangeAccent,
                               onChanged: (v) {
+                                AudioService.playClick(); // ✅ Sonido
                                 setState(() {
                                   vsAI = v;
                                   _updateAINames();
@@ -163,30 +162,25 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                         ],
                       ),
                     ).animate().fadeIn(delay: 300.ms),
-                
                     const SizedBox(height: 20),
-                
                     _playerCard(2),
                     const SizedBox(height: 12),
                     _playerCard(3),
                     const SizedBox(height: 12),
                     _playerCard(4),
-                
                     if (selectedPlayers != null) ...[
                       const SizedBox(height: 20),
                       _buildNameInputs(),
                     ],
-                
                     const SizedBox(height: 30),
-                
                     Builder(
                       builder: (btnContext) {
                         return ElevatedButton(
                           onPressed: selectedPlayers == null 
                             ? null 
                             : () {
+                              AudioService.playClick(); // ✅ Sonido
                               final lang = btnContext.read<LanguageProvider>();
-
                               int countToValidate = vsAI ? 1 : selectedPlayers!;
                               bool hasEmptyFields = false;
 
@@ -244,16 +238,17 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                         );
                       }
                     ).animate(target: selectedPlayers == null ? 0 : 1).fadeIn(delay: 600.ms),
-                
                     const SizedBox(height: 20),
-                
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.black45,
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () {
+                          AudioService.playClick(); // ✅ Sonido
+                          Navigator.pop(context);
+                        },
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         ),
@@ -316,7 +311,6 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
     Widget iconWidget() {
       if (players == 2) return Icon(Icons.group, size: 32, color: isSelected ? Colors.white : Colors.orangeAccent);
       if (players == 3) return Icon(Icons.groups, size: 32, color: isSelected ? Colors.white : Colors.orangeAccent);
-      
       return Image.asset(
         'assets/icon/four_players.png', 
         width: 34, 
@@ -330,6 +324,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
 
     return GestureDetector(
       onTap: () {
+        AudioService.playClick(); // ✅ Sonido
         setState(() {
           selectedPlayers = players;
           _updateAINames();
