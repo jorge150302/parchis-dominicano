@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/language_provider.dart';
 import '../service/socket_service.dart';
 import '../service/prefs_service.dart';
@@ -67,16 +69,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.brown.shade900,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Colors.orange, width: 2),
-        ),
-        title: Text(
-          context.translate('enter_name_title'),
-          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-        ),
+      builder: (context) => _AlertDialogWrapper(
+        title: context.translate('enter_name_title'),
         content: TextField(
           controller: nameController,
           style: const TextStyle(color: Colors.white),
@@ -98,6 +92,73 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               }
             },
             child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCreditsDialog() {
+    final bool isSpanish = context.read<LanguageProvider>().currentLanguage == Language.es;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(25),
+          side: const BorderSide(color: Colors.orangeAccent, width: 2),
+        ),
+        title: Text(
+          isSpanish ? "CRÉDITOS" : "CREDITS",
+          style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "PARCHÉ",
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "v1.0.0",
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const Divider(color: Colors.white24, height: 30),
+            Text(
+              isSpanish ? "EFECTOS DE SONIDO" : "SOUND EFFECTS",
+              style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                children: [
+                  const TextSpan(text: "Sound Effect by "),
+                  TextSpan(
+                    text: "u_qpfzpydtro",
+                    style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
+                    recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse("https://pixabay.com/users/u_qpfzpydtro-29496424/")),
+                  ),
+                  const TextSpan(text: " from "),
+                  TextSpan(
+                    text: "Pixabay",
+                    style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
+                    recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse("https://pixabay.com/")),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(isSpanish ? "CERRAR" : "CLOSE", style: const TextStyle(color: Colors.orangeAccent)),
           ),
         ],
       ),
@@ -359,35 +420,44 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 onPressed: () => _showSettings(context),
               ).animate().fadeIn(delay: 500.ms).scale(),
             ),
-            if (playerName.isNotEmpty)
-              Positioned(
-                top: 50,
-                left: 20,
-                child: GestureDetector(
-                  onTap: _showNameDialog,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.person, color: Colors.orangeAccent, size: 16),
-                        const SizedBox(width: 8),
-                        Text(
-                          playerName,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            Positioned(
+              top: 40,
+              left: 20,
+              child: Row(
+                children: [
+                  if (playerName.isNotEmpty)
+                    GestureDetector(
+                      onTap: _showNameDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black45,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.edit, color: Colors.white54, size: 12),
-                      ],
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.person, color: Colors.orangeAccent, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              playerName,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.edit, color: Colors.white54, size: 12),
+                          ],
+                        ),
+                      ),
+                    ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.info_outline, color: Colors.white70, size: 24),
+                    onPressed: _showCreditsDialog,
+                  ).animate().fadeIn(delay: 700.ms).scale(),
+                ],
               ),
+            ),
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
@@ -474,6 +544,35 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AlertDialogWrapper extends StatelessWidget {
+  final String title;
+  final Widget content;
+  final List<Widget> actions;
+
+  const _AlertDialogWrapper({
+    required this.title,
+    required this.content,
+    required this.actions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.brown.shade900,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Colors.orange, width: 2),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+      ),
+      content: content,
+      actions: actions,
     );
   }
 }
