@@ -132,8 +132,8 @@ class _StaticCell extends StatelessWidget {
       switch (action.type) {
         case BoardActionType.goToStart: return 'INICIO';
         case BoardActionType.moveTo: return 'Al ${action.targetNumber ?? ''}';
-        case BoardActionType.skipTurn: return 'X';
-        case BoardActionType.rollAgain: return '+1';
+        case BoardActionType.skipTurn: return 'Turno sin\njugar'; // ✅ Texto corregido
+        case BoardActionType.rollAgain: return 'Turno\nextra';
       }
     }
     return cell.number.toString();
@@ -156,7 +156,8 @@ class _StaticCell extends StatelessWidget {
       child: Center(
         child: Text(
           label,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black26),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black45),
         ),
       ),
     );
@@ -232,8 +233,8 @@ class _TokenObserver extends StatelessWidget {
     final targetOffset = _getOffset(context);
 
     return TweenAnimationBuilder<Offset>(
-      duration: const Duration(milliseconds: 180), // Animación más rápida para permitir la "micro parada"
-      curve: Curves.easeOut, // Curva que frena al final
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
       tween: Tween<Offset>(end: targetOffset),
       builder: (context, offset, child) {
         return Positioned(
@@ -246,7 +247,9 @@ class _TokenObserver extends StatelessWidget {
               isSelectable: isSelectable,
               size: isBlockade ? 18.0 : (total > 1 ? 17.0 : 20.0),
               isBlockade: isBlockade,
-              onTap: isSelectable ? () => controller.selectToken(token.id) : null,
+              onTap: isSelectable ? () {
+                controller.selectToken(token.id);
+              } : null,
             ),
           ),
         );
@@ -273,7 +276,6 @@ class _TokenStepAnimationState extends State<_TokenStepAnimation> {
     _lastPos = widget.position;
 
     if (didMove) {
-      // Si la posición cambió, ejecutamos un pequeño salto (Jump)
       return widget.child
           .animate(key: ValueKey("jump_${widget.position}"))
           .moveY(begin: 0, end: -12, duration: 90.ms, curve: Curves.easeOut)
