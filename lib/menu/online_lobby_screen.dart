@@ -510,8 +510,23 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-                const SizedBox(height: 20),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                        onPressed: () {
+                          AudioService.playClick();
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Text(context.translate('play_with_friends', listen: false), style: const TextStyle(color: Colors.orangeAccent, fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 30),
                 _actionButton(
