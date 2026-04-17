@@ -129,6 +129,7 @@ class LanguageProvider extends ChangeNotifier {
       // Game Exit
       'exit_game_title': '¿Salir al menú?',
       'exit_game_content': 'Tu partida se guardará automáticamente. Podrás continuarla más tarde desde el menú principal.',
+      'exit_online_content': 'Si sales de la partida, otros jugadores seguirán jugando. Podrás volver a entrar si la partida sigue activa.',
       'stay': 'Quedarse',
       'leave': 'Salir',
       'player_n_name': 'Nombre {player}',
@@ -246,6 +247,7 @@ class LanguageProvider extends ChangeNotifier {
       // Game Exit
       'exit_game_title': 'Exit to menu?',
       'exit_game_content': 'Your game will be automatically saved. You can continue later from the main menu.',
+      'exit_online_content': 'If you leave the game, other players will continue playing. You can rejoin if the game is still active.',
       'stay': 'Stay',
       'leave': 'Leave',
       'player_n_name': '{player} Name',

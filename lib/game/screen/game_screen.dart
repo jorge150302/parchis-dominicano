@@ -185,7 +185,8 @@ class _GameScreenState extends State<GameScreen> {
     final controller = context.read<GameController>();
     if (controller.engine.phase == GamePhase.finished) return true;
     
-    if (controller.isOnline) return true;
+    // Si es online, mostramos un mensaje específico indicando que la partida sigue
+    final String contentKey = controller.isOnline ? 'exit_online_content' : 'exit_game_content';
 
     final result = await showDialog<bool>(
       context: context,
@@ -200,7 +201,7 @@ class _GameScreenState extends State<GameScreen> {
           style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          context.translate('exit_game_content'), 
+          context.translate(contentKey),
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
