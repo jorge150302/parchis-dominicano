@@ -466,68 +466,44 @@ class _GameScreenState extends State<GameScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       color: Colors.black26,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (!controller.isOnline)
-            Container(
-              decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(12)),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-                onPressed: () async {
-                  AudioService.playClick(); // ✅ Sonido añadido
-                  if (controller.engine.phase == GamePhase.finished) {
-                    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-                    return;
+          if (controller.isOnline)
+            Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
+                  onPressed: () {
+                    AudioService.playClick(); // ✅ Sonido añadido
+                    setState(() => _unreadMessages = 0);
+                    _scaffoldKey.currentState?.openEndDrawer();
                   }
-                  if (await _confirmExit()) {
-                    if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-                  }
-                },
-              ),
-            )
-          else
-            const SizedBox.shrink(),
-          
-          Row(
-            children: [
-              if (controller.isOnline)
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
-                      onPressed: () {
-                        AudioService.playClick(); // ✅ Sonido añadido
-                        setState(() => _unreadMessages = 0);
-                        _scaffoldKey.currentState?.openEndDrawer();
-                      }
-                    ),
-                    if (_unreadMessages > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          child: Text(
-                            '$_unreadMessages',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ).animate().scale().shake(),
-                      ),
-                  ],
                 ),
-              IconButton(
-                icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 22), 
-                onPressed: () async {
-                  AudioService.playClick(); // ✅ Sonido añadido
-                  if (await _confirmExit() && mounted) {
-                    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-                  }
-                }
-              ),
-            ],
+                if (_unreadMessages > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        '$_unreadMessages',
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ).animate().scale().shake(),
+                  ),
+              ],
+            ),
+          IconButton(
+            icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 22), 
+            onPressed: () async {
+              AudioService.playClick(); // ✅ Sonido añadido
+              if (await _confirmExit() && mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+              }
+            }
           ),
         ],
       ),
