@@ -102,7 +102,7 @@ abstract class GameController extends ChangeNotifier {
 
   void startTurn();
   Future<void> rollDice();
-  void selectToken(int tokenId); 
+  Future<void> selectToken(int tokenId); 
   void sendChatMessage(String message);
   void sendQuickChat(String message);
   void toggleAutoPlay(bool value);
@@ -134,12 +134,17 @@ abstract class GameController extends ChangeNotifier {
 
 class LocalGameController extends GameController {
   final bool vsAI;
+  bool _isTutorial = false;
+  int _tutorialDiceIndex = 0;
 
-  LocalGameController({required super.engine, this.vsAI = false});
+  LocalGameController({required super.engine, this.vsAI = false, bool isTutorial = false}) {
+    _isTutorial = isTutorial;
+  }
 
   bool get _isHumanTurn => !vsAI || currentPlayer.index == 0;
 
   void _saveGame() {
+    if (_isTutorial) return; // No guardar progreso en tutorial
     if (engine.phase == GamePhase.finished) {
       PrefsService.savedLocalGame = null;
     } else {
@@ -196,9 +201,9 @@ class LocalGameController extends GameController {
       _checkAutoMove();
     }
 
-    if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase == GamePhase.idle) {
+    if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase == GamePhase.idle && !_isTutorial) {
       Future.delayed(_aiDecisionDelay, () => rollDice());
-    } else if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase == GamePhase.choosing_token) {
+    } else if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase == GamePhase.choosing_token && !_isTutorial) {
       _triggerAISelection();
     }
 
@@ -224,13 +229,14 @@ class LocalGameController extends GameController {
 
     notifyListeners();
     
-    if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase != GamePhase.finished) {
+    // Desactivamos el auto-play de la IA durante el tutorial para que el usuario controle ambos
+    if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase != GamePhase.finished && !_isTutorial) {
       Future.delayed(_aiDecisionDelay, () => rollDice());
     }
   }
 
   @override
-  void selectToken(int tokenId) async {
+  Future<void> selectToken(int tokenId) async {
     if (engine.phase != GamePhase.choosing_token || inputLocked) return;
     
     if (!movableTokenIds.contains(tokenId)) {
@@ -271,7 +277,16 @@ class LocalGameController extends GameController {
     _playSound(diceAudio, 'sounds/dice.mp3');
 
     for (int i = 0; i < 12; i++) {
-      diceValue = random.nextInt(6) + 1;
+      if (_isTutorial && i == 11) {
+        // Secuencia forzada: 5 (Rojo), 5 (Azul), 6 (Azul), 1 (Azul extra)
+        if (_tutorialDiceIndex == 0) diceValue = 5;
+        else if (_tutorialDiceIndex == 1) diceValue = 5;
+        else if (_tutorialDiceIndex == 2) diceValue = 6;
+        else if (_tutorialDiceIndex == 3) diceValue = 1;
+        else diceValue = random.nextInt(6) + 1;
+      } else {
+        diceValue = random.nextInt(6) + 1;
+      }
       currentPlayer.lastDiceValue = diceValue; 
       notifyListeners();
       await Future.delayed(const Duration(milliseconds: 60));
@@ -280,6 +295,8 @@ class LocalGameController extends GameController {
     if (PrefsService.gameSpeed == GameSpeed.normal) {
       await Future.delayed(const Duration(milliseconds: 200));
     }
+
+    if (_isTutorial) _tutorialDiceIndex++;
 
     rollingDice = false;
     rollingPlayerId = null;
@@ -324,7 +341,10 @@ class LocalGameController extends GameController {
       notifyListeners();
       
       if (vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) {
-        _triggerAISelection();
+        // En tutorial, no dejamos que la IA elija sola
+        if (!_isTutorial) {
+          _triggerAISelection();
+        }
       } else {
         _checkAutoMove();
       }
@@ -346,7 +366,8 @@ class LocalGameController extends GameController {
     Future.delayed(_aiSelectionDelay, () {
       if (movableTokenIds.isEmpty) return;
 
-      int selectedId = movableTokenIds.first;      int maxPriority = -1;
+      int selectedId = movableTokenIds.first;
+      int maxPriority = -1;
 
       for (int tokenId in movableTokenIds) {
         int priority = 0;
@@ -475,7 +496,7 @@ class NetworkGameController extends GameController {
   }
 
   @override
-  void selectToken(int tokenId) {
+  Future<void> selectToken(int tokenId) async {
     if (!isMyTurn || engine.phase != GamePhase.choosing_token) return;
     
     if (!movableTokenIds.contains(tokenId)) {

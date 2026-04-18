@@ -25,6 +25,10 @@ class PrefsService {
   static String get playerName => _prefs.getString('player_name') ?? '';
   static set playerName(String name) => _prefs.setString('player_name', name);
 
+  // ✨ Tutorial
+  static bool get isFirstTime => _prefs.getBool('is_first_time') ?? true;
+  static set isFirstTime(bool value) => _prefs.setBool('is_first_time', value);
+
   // 🏠 Sala (Online)
   static String? get lastRoomCode => _prefs.getString('last_room_code');
   static set lastRoomCode(String? code) {

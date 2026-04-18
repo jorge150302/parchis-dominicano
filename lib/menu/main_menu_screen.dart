@@ -32,6 +32,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (PrefsService.playerName.isEmpty) {
         _showWelcomeFlow();
+      } else if (PrefsService.isFirstTime) {
+        _showTutorialInvitation();
       }
     });
   }
@@ -57,12 +59,69 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       barrierDismissible: false,
       builder: (context) => _WelcomeDialog(
         onComplete: (name) {
+          if (!mounted) return;
           setState(() {
             PrefsService.playerName = name;
+          });
+          // Pequeño delay para asegurar que el diálogo anterior se cerró completamente
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) _showTutorialInvitation();
           });
         },
       ),
     );
+  }
+
+  void _showTutorialInvitation() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: Text(
+          context.translate('tutorial_title'),
+          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: Text(
+          context.translate('tutorial_content'),
+          style: const TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              AudioService.playClick();
+              PrefsService.isFirstTime = false;
+              Navigator.pop(context);
+            },
+            child: Text(context.translate('tutorial_skip'), style: const TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () {
+              AudioService.playClick();
+              PrefsService.isFirstTime = false;
+              Navigator.pop(context);
+              _startTutorial();
+            },
+            child: Text(context.translate('tutorial_start'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startTutorial() {
+    Navigator.pushNamed(context, '/game', arguments: {
+      'playerCount': 2,
+      'vsAI': true,
+      'isTutorial': true,
+    });
   }
 
   void _showNameDialog() {
@@ -355,6 +414,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       },
                     ),
                     const Divider(color: Colors.white24),
+                    ListTile(
+                      leading: const Icon(Icons.help_outline, color: Colors.white70),
+                      title: Text(context.translate('tutorial'), style: const TextStyle(color: Colors.white70)),
+                      onTap: () {
+                        AudioService.playClick();
+                        Navigator.pop(context);
+                        _startTutorial();
+                      },
+                    ),
                     ListTile(
                       leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white70),
                       title: Text(context.translate('privacy_policy'), style: const TextStyle(color: Colors.white70)),
@@ -725,8 +793,9 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
             onPressed: () {
               AudioService.playClick(); // ✅ Sonido
               if (_nameController.text.trim().isNotEmpty) {
-                widget.onComplete(_nameController.text.trim());
-                Navigator.pop(context);
+                final String name = _nameController.text.trim();
+                Navigator.pop(context); // Primero cerramos este diálogo
+                widget.onComplete(name); // Luego notificamos para abrir el siguiente
               }
             },
             child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),

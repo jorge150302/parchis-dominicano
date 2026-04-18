@@ -54,6 +54,7 @@ class MyApp extends StatelessWidget {
               bool vsAI = args?['vsAI'] ?? false;
               List<String>? playerNames = args?['playerNames'];
               bool isResume = args?['isResume'] ?? false;
+              bool isTutorial = args?['isTutorial'] ?? false;
               Map<String, dynamic>? savedState = args?['savedState'];
 
               final board = generateBoard(classicActionPositions, classicActions);
@@ -70,12 +71,13 @@ class MyApp extends StatelessWidget {
                   return ChangeNotifierProvider<GameController>(
                     create: (_) => (roomCode != null)
                         ? NetworkGameController(engine: engine, socketService: socketService)
-                        : LocalGameController(engine: engine, vsAI: vsAI),
+                        : LocalGameController(engine: engine, vsAI: vsAI, isTutorial: isTutorial),
                     child: GameScreen(
                       playerCount: playersCount,
                       roomCode: roomCode,
                       playerNames: playerNames,
                       isResume: isResume,
+                      isTutorial: isTutorial,
                     ),
                   );
                 },

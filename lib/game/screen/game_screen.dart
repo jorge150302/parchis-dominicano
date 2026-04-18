@@ -16,13 +16,14 @@ import '../widgets/dice_widget.dart';
 import '../widgets/home_zone_widget.dart';
 import '../../service/socket_service.dart';
 import '../../service/prefs_service.dart';
-import '../../service/audio_service.dart'; // ✅ Importación añadida
+import '../../service/audio_service.dart';
 
 class GameScreen extends StatefulWidget {
   final int playerCount;
   final String? roomCode;
   final List<String>? playerNames;
   final bool isResume;
+  final bool isTutorial;
 
   const GameScreen({
     super.key,
@@ -30,6 +31,7 @@ class GameScreen extends StatefulWidget {
     this.roomCode,
     this.playerNames,
     this.isResume = false,
+    this.isTutorial = false,
   });
 
   @override
@@ -46,9 +48,11 @@ class _GameScreenState extends State<GameScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   StreamSubscription? _captureSubscription;
 
-  // ✅ Variables para el Chat
   int _unreadMessages = 0;
   int _lastMessageCount = 0;
+
+  int _tutorialStep = 0;
+  bool _canContinueTutorial = true;
 
   @override
   void initState() {
@@ -94,6 +98,10 @@ class _GameScreenState extends State<GameScreen> {
         controller.setPlayers(players);
         controller.startTurn();
       }
+
+      if (widget.isTutorial) {
+        setState(() => _tutorialStep = 1);
+      }
     });
   }
 
@@ -129,7 +137,6 @@ class _GameScreenState extends State<GameScreen> {
     if (!mounted) return;
     final controller = context.read<GameController>();
 
-    // ✅ Lógica de mensajes no leídos
     final int currentMsgCount = controller.chatMessages.length;
     if (currentMsgCount > _lastMessageCount) {
       final bool isDrawerOpen = _scaffoldKey.currentState?.isEndDrawerOpen ?? false;
@@ -161,6 +168,7 @@ class _GameScreenState extends State<GameScreen> {
             _activeVisualEvents.add(ActiveVisualEvent(event: event, alignment: alignment));
           });
           
+          // Ajustado de 250ms a 2.5s para coincidir con la duración de la animación visual
           Future.delayed(const Duration(milliseconds: 2500), () {
             if (mounted) {
               setState(() {
@@ -178,6 +186,27 @@ class _GameScreenState extends State<GameScreen> {
       _confettiController.play();
       _showGameFinishedDialog();
     }
+
+    if (widget.isTutorial) {
+       // Sincronización automática de pasos de MOVIMIENTO inicial para el usuario (pasos 1 y 2)
+       if (_tutorialStep == 1 && controller.engine.phase == GamePhase.choosing_token) {
+          setState(() => _tutorialStep = 2);
+       } else if (_tutorialStep == 2 && controller.engine.phase == GamePhase.idle) {
+          Future.delayed(const Duration(milliseconds: 600), () {
+             if (mounted && _tutorialStep == 2) {
+                setState(() {
+                  _tutorialStep = 3;
+                  _canContinueTutorial = false;
+                });
+                // Delay de 2 segundos para permitir que la ficha termine de moverse
+                Future.delayed(const Duration(seconds: 2), () {
+                   if (mounted) setState(() => _canContinueTutorial = true);
+                });
+             }
+          });
+       }
+    }
+
     setState(() {});
   }
 
@@ -185,29 +214,37 @@ class _GameScreenState extends State<GameScreen> {
     final controller = context.read<GameController>();
     if (controller.engine.phase == GamePhase.finished) return true;
     
-    // Si es online, mostramos un mensaje específico indicando que la partida sigue
-    final String contentKey = controller.isOnline ? 'exit_online_content' : 'exit_game_content';
+    String title = context.translate('exit_game_title');
+    String content = '';
+
+    if (widget.isTutorial) {
+      title = "Terminar Tutorial";
+      content = "¿Estás seguro de que quieres abandonar el tutorial? Todo tu progreso actual se perderá.";
+    } else {
+      final String contentKey = controller.isOnline ? 'exit_online_content' : 'exit_game_content';
+      content = context.translate(contentKey);
+    }
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: content.isEmpty ? (context) => const SizedBox() : (context) => AlertDialog(
         backgroundColor: Colors.brown.shade900,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: Colors.orange, width: 2),
         ),
         title: Text(
-          context.translate('exit_game_title'), 
+          title, 
           style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          context.translate(contentKey),
+          content, 
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              AudioService.playClick(); // ✅ Sonido añadido
+              AudioService.playClick();
               Navigator.pop(context, false);
             },
             child: Text(context.translate('stay'), style: const TextStyle(color: Colors.white70)),
@@ -215,7 +252,7 @@ class _GameScreenState extends State<GameScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              AudioService.playClick(); // ✅ Sonido añadido
+              AudioService.playClick();
               Navigator.pop(context, true);
             },
             child: Text(context.translate('leave'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -283,6 +320,7 @@ class _GameScreenState extends State<GameScreen> {
                         ..._buildFlyingTokens(),
                         _buildFloatingEvents(),
                         if (isWaiting) _buildWaitingOverlay(),
+                        if (widget.isTutorial && _tutorialStep > 0) _buildTutorialOverlay(),
                       ],
                     ),
                   ),
@@ -302,6 +340,263 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Alignment _getCellAlignment(int position) {
+    if (position == -1) return const Alignment(-0.9, -0.98); // Casilla Fin subida al máximo
+    final int index = 100 - position;
+    final int row = index ~/ 10;
+    final int zigzagCol = index % 10;
+    int col;
+    if (row % 2 == 0) {
+      col = zigzagCol;
+    } else {
+      col = 9 - zigzagCol;
+    }
+
+    return Alignment(
+      (col * 0.2) - 0.9,
+      (row * 0.2) - 0.88,
+    );
+  }
+
+  Widget _buildTutorialOverlay() {
+    final controller = context.read<GameController>();
+    String textKey = '';
+    Widget? extra;
+    bool isActionStep = false;
+
+    // Se define el color del destello: naranja para el paso final (13), marrón para el resto.
+    final Color sparkleColor = _tutorialStep == 13 ? Colors.orange : Colors.brown.shade600;
+
+    final sparkleEffect = Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white70,
+          ),
+        ).animate(onPlay: (c) => c.repeat()).scale(duration: 800.ms, curve: Curves.easeInOut).then().scale(duration: 800.ms),
+        Container(
+          width: 45,
+          height: 45,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: sparkleColor.withValues(alpha: 0.8),
+                blurRadius: 20,
+                spreadRadius: 8,
+              ),
+            ],
+          ),
+        ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 800.ms).then().fadeOut(duration: 800.ms),
+      ],
+    );
+
+    final arrowIndicator = const Icon(Icons.north_west, color: Colors.orangeAccent, size: 80)
+        .animate(onPlay: (c) => c.repeat())
+        .move(begin: const Offset(20, 20), end: const Offset(0, 0), duration: 600.ms, curve: Curves.easeInOut)
+        .then()
+        .move(begin: const Offset(0, 0), end: const Offset(20, 20), duration: 600.ms);
+
+    String? manualText;
+
+    switch (_tutorialStep) {
+      case 1:
+        textKey = 'tutorial_step_dice_1';
+        isActionStep = true;
+        extra = Positioned(top: 80, left: 80, child: arrowIndicator);
+        break;
+      case 2:
+        textKey = 'tutorial_step_move_1';
+        isActionStep = true;
+        extra = Positioned(top: 150, left: 100, child: arrowIndicator);
+        break;
+      case 3:
+        textKey = 'tutorial_step_transition_blue';
+        isActionStep = false;
+        break;
+      case 4:
+        textKey = 'tutorial_step_dice_2';
+        isActionStep = false;
+        break;
+      case 5:
+        textKey = 'tutorial_step_capture';
+        isActionStep = false;
+        break;
+      case 6:
+        textKey = 'tutorial_step_extra_explanation';
+        isActionStep = false;
+        break;
+      case 7:
+        textKey = 'tutorial_step_dice_3'; // Explicación del 6 y turno extra
+        isActionStep = false;
+        break;
+      case 8:
+        manualText = "Cuando sacas un 6, el jugador repite turno. Observa cómo el azul avanza de nuevo.";
+        isActionStep = false;
+        break;
+      case 9:
+        textKey = 'tutorial_step_action_start';
+        isActionStep = false;
+        extra = Align(alignment: _getCellAlignment(13), child: sparkleEffect);
+        break;
+      case 10:
+        textKey = 'tutorial_step_action_skip';
+        isActionStep = false;
+        extra = Align(alignment: _getCellAlignment(19), child: sparkleEffect);
+        break;
+      case 11:
+        textKey = 'tutorial_step_action_extra';
+        isActionStep = false;
+        extra = Align(alignment: _getCellAlignment(15), child: sparkleEffect);
+        break;
+      case 12:
+        textKey = 'tutorial_step_action_move';
+        isActionStep = false;
+        extra = Align(alignment: _getCellAlignment(24), child: sparkleEffect);
+        break;
+      case 13:
+        textKey = 'tutorial_finish';
+        manualText = "${context.translate('tutorial_finish')}\n\n¡Tip Extra! Al llevar tu primera ficha a la meta obtienes un turno adicional para mover tus otras fichas.";
+        extra = Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Align(
+              alignment: _getCellAlignment(-1),
+              child: sparkleEffect,
+            ),
+            Positioned(
+              top: -240, 
+              left: 10,
+              child: const Icon(Icons.arrow_downward, color: Colors.orangeAccent, size: 85)
+                  .animate(onPlay: (c) => c.repeat())
+                  .moveY(begin: -30, end: 30, duration: 600.ms)
+                  .then()
+                  .moveY(begin: 30, end: -30, duration: 600.ms),
+            ),
+          ],
+        );
+        break;
+    }
+
+    String subtext = '';
+    if (_tutorialStep == 1) {
+      subtext = "toca el dado para continuar";
+    } else if (_tutorialStep == 2) {
+      subtext = "toca una ficha para continuar";
+    } else if (_tutorialStep == 13) {
+      subtext = context.translate('tutorial_finish_sub');
+    } else {
+      subtext = context.translate('tutorial_continue_sub');
+    }
+
+    return IgnorePointer(
+      ignoring: isActionStep,
+      child: Stack(
+        children: [
+          if (extra != null && _tutorialStep >= 9)
+             Center(
+               child: AspectRatio(
+                 aspectRatio: 1,
+                 child: extra,
+               ),
+             )
+          else if (extra != null) extra,
+
+          Align(
+            alignment: Alignment.center,
+            child: GestureDetector(
+              onTap: () async {
+                if (!isActionStep && _canContinueTutorial) {
+                  if (_tutorialStep == 3) {
+                     setState(() {
+                       _tutorialStep = 4;
+                       _canContinueTutorial = false;
+                     });
+                     // Delay de 2 segundos para simular movimiento
+                     Future.delayed(const Duration(seconds: 2), () {
+                        if (mounted) setState(() => _canContinueTutorial = true);
+                     });
+
+                     await controller.rollDice();
+                     if (controller.movableTokenIds.isNotEmpty) {
+                        await controller.selectToken(controller.movableTokenIds.first);
+                     }
+                  } else if (_tutorialStep == 4) {
+                     setState(() {
+                        _tutorialStep = 5;
+                        _canContinueTutorial = false;
+                     });
+                     // Delay de 2 segundos para simular movimiento/acción
+                     Future.delayed(const Duration(seconds: 2), () {
+                        if (mounted) setState(() => _canContinueTutorial = true);
+                     });
+                  } else if (_tutorialStep == 5) {
+                     setState(() => _tutorialStep = 6);
+                  } else if (_tutorialStep == 6) {
+                     setState(() => _tutorialStep = 7);
+                     // Primer tiro del azul (que debe ser un 6 según el tutorial)
+                     await controller.rollDice();
+                     if (controller.movableTokenIds.isNotEmpty) {
+                        await controller.selectToken(controller.movableTokenIds.first);
+                     }
+                  } else if (_tutorialStep == 7) {
+                     setState(() => _tutorialStep = 8);
+                  } else if (_tutorialStep == 8) {
+                     setState(() => _tutorialStep = 9);
+                     // Segundo tiro del azul por el turno extra
+                     await controller.rollDice();
+                     if (controller.movableTokenIds.isNotEmpty) {
+                        await controller.selectToken(controller.movableTokenIds.first);
+                     }
+                  } else if (_tutorialStep < 13) {
+                     setState(() => _tutorialStep++);
+                  } else {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                  }
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.all(40),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.brown.shade900,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.orange, width: 3),
+                  boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      manualText ?? context.translate(textKey),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    if (_canContinueTutorial) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        subtext,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic
+                        ),
+                      ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 800.ms).then().fadeOut(duration: 800.ms),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ).animate().scale().fadeIn(),
+        ],
       ),
     );
   }
@@ -383,7 +678,7 @@ class _GameScreenState extends State<GameScreen> {
         alignmentCounts[ae.alignment] = count + 1;
 
         final text = context.translate(ae.event.messageKey, args: ae.event.args);
-        Color color = Colors.white;
+        Color color = Colors.white; 
         IconData icon = Icons.info;
         
         if (ae.event.type == 'penalty') {
@@ -397,7 +692,7 @@ class _GameScreenState extends State<GameScreen> {
           icon = Icons.flight_takeoff;
         }
 
-        double offsetX = ae.alignment.x < 0 ? 20 : -20;
+        double offsetX = ae.alignment.x < 0 ? 20 : -20; 
         double offsetY = ae.alignment.y < 0 ? 120 : -120;
 
         double stackOffset = count * 50.0;
@@ -475,7 +770,7 @@ class _GameScreenState extends State<GameScreen> {
                 IconButton(
                   icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
                   onPressed: () {
-                    AudioService.playClick(); // ✅ Sonido añadido
+                    AudioService.playClick();
                     setState(() => _unreadMessages = 0);
                     _scaffoldKey.currentState?.openEndDrawer();
                   }
@@ -500,7 +795,7 @@ class _GameScreenState extends State<GameScreen> {
           IconButton(
             icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 22), 
             onPressed: () async {
-              AudioService.playClick(); // ✅ Sonido añadido
+              AudioService.playClick();
               if (await _confirmExit() && mounted) {
                 Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
               }
@@ -568,7 +863,7 @@ class _GameScreenState extends State<GameScreen> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10)),
               onPressed: () {
-                AudioService.playClick(); // ✅ Sonido añadido
+                AudioService.playClick();
                 Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
               },
               child: Text(context.translate('back_to_menu'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
@@ -624,7 +919,6 @@ class _ChatDrawerState extends State<_ChatDrawer> {
       child: SafeArea(
         child: Column(
           children: [
-            // Header del Chat
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
               decoration: BoxDecoration(
@@ -641,19 +935,16 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
                     ),
                   ),
-                  // ✅ Botón para cerrar el chat
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white70, size: 24),
                     onPressed: () {
-                      AudioService.playClick(); // ✅ Sonido añadido
+                      AudioService.playClick();
                       Navigator.pop(context);
                     },
                   ),
                 ],
               ),
             ),
-            
-            // Lista de Mensajes
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -684,7 +975,7 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                               bottomLeft: Radius.circular(isMe ? 16 : 4),
                               bottomRight: Radius.circular(isMe ? 4 : 16),
                             ),
-                            border: isMe ? null : Border.all(color: Colors.orange.shade100, width: 1.5), // ✅ Borde más ancho
+                            border: isMe ? null : Border.all(color: Colors.orange.shade100, width: 1.5),
                             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
                           ),
                           child: Text(
@@ -698,13 +989,11 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                 },
               ),
             ),
-            
-            // Area de Entrada
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.brown.shade50, 
-                border: Border(top: BorderSide(color: Colors.orange.shade200, width: 2.0)), // ✅ Línea superior más ancha
+                border: Border(top: BorderSide(color: Colors.orange.shade200, width: 2.0)),
               ),
               child: Row(
                 children: [
@@ -714,13 +1003,13 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.orange.shade300, width: 2.0), // ✅ Borde del input más ancho
+                        border: Border.all(color: Colors.orange.shade300, width: 2.0),
                       ),
                       child: TextField(
                         controller: _textController,
                         style: const TextStyle(color: Colors.black87, fontSize: 13),
                         decoration: InputDecoration(
-                          hintText: context.translate('chat_input_hint'), // ✅ TRADUCCIÓN APLICADA
+                          hintText: context.translate('chat_input_hint'),
                           hintStyle: const TextStyle(color: Colors.black38),
                           border: InputBorder.none,
                         ),
@@ -735,7 +1024,7 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                     child: IconButton(
                       icon: const Icon(Icons.send, color: Colors.white, size: 16),
                       onPressed: () {
-                        AudioService.playClick(); // ✅ Sonido añadido
+                        AudioService.playClick();
                         _sendMessage();
                       },
                     ),
@@ -766,7 +1055,7 @@ class _PlayerCornerWidget extends StatelessWidget {
   void _showPlayerOptions(BuildContext context, GameController controller) {
     if (player.id == PrefsService.playerId || player.isAI) return;
 
-    AudioService.playClick(); // ✅ Sonido al abrir opciones
+    AudioService.playClick();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.brown.shade900,
@@ -786,7 +1075,7 @@ class _PlayerCornerWidget extends StatelessWidget {
               style: const TextStyle(color: Colors.white),
             ),
             onTap: () {
-              AudioService.playClick(); // ✅ Sonido añadido
+              AudioService.playClick();
               controller.toggleBlockPlayer(player.id);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -800,7 +1089,7 @@ class _PlayerCornerWidget extends StatelessWidget {
             leading: const Icon(Icons.report, color: Colors.redAccent),
             title: Text(context.translate('report_player'), style: const TextStyle(color: Colors.redAccent)),
             onTap: () {
-              AudioService.playClick(); // ✅ Sonido añadido
+              AudioService.playClick();
               Navigator.pop(context);
               _showReportReasons(context, controller);
             },
@@ -823,7 +1112,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           children: reasons.map((r) => ListTile(
             title: Text(context.translate(r), style: const TextStyle(color: Colors.white)),
             onTap: () {
-              AudioService.playClick(); // ✅ Sonido añadido
+              AudioService.playClick();
               controller.reportPlayer(player.id, r);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.translate('report_sent'))));
@@ -835,7 +1124,7 @@ class _PlayerCornerWidget extends StatelessWidget {
   }
 
   void _showQuickChat(BuildContext context, GameController controller) {
-    AudioService.playClick(); // ✅ Sonido al abrir emojis
+    AudioService.playClick();
     final options = [
       "quick_msg_good_game", 
       "quick_msg_oops", 
@@ -861,7 +1150,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           itemCount: options.length,
           itemBuilder: (context, idx) => InkWell(
             onTap: () {
-              AudioService.playClick(); // ✅ Sonido añadido
+              AudioService.playClick();
               controller.sendQuickChat(options[idx]);
               Navigator.pop(context);
             },
@@ -984,7 +1273,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           GestureDetector(
             onTap: () {
                if (canTap) {
-                 AudioService.playClick(); // ✅ Sonido añadido
+                 AudioService.playClick();
                  if (controller.isOnline && !socketSrv.isConnected) {
                    ScaffoldMessenger.of(context).showSnackBar(
                      const SnackBar(content: Text("Sin conexión"), duration: Duration(seconds: 1))
@@ -1019,7 +1308,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                       child: player.isAutoPlaying
                         ? GestureDetector(
                             onTap: () {
-                              AudioService.playClick(); // ✅ Sonido añadido
+                              AudioService.playClick();
                               controller.toggleAutoPlay(false);
                             },
                             child: Container(
