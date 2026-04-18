@@ -214,7 +214,7 @@ class _GameScreenState extends State<GameScreen> {
     final controller = context.read<GameController>();
     if (controller.engine.phase == GamePhase.finished) return true;
     
-    String title = context.translate('exit_game_title');
+    String title = context.translate('exit_game_title', listen: false);
     String content = '';
 
     if (widget.isTutorial) {
@@ -222,12 +222,12 @@ class _GameScreenState extends State<GameScreen> {
       content = "¿Estás seguro de que quieres abandonar el tutorial? Todo tu progreso actual se perderá.";
     } else {
       final String contentKey = controller.isOnline ? 'exit_online_content' : 'exit_game_content';
-      content = context.translate(contentKey);
+      content = context.translate(contentKey, listen: false);
     }
 
     final result = await showDialog<bool>(
       context: context,
-      builder: content.isEmpty ? (context) => const SizedBox() : (context) => AlertDialog(
+      builder: (context) => AlertDialog(
         backgroundColor: Colors.brown.shade900,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -238,7 +238,7 @@ class _GameScreenState extends State<GameScreen> {
           style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          content, 
+          content.isEmpty ? "¿Deseas salir?" : content, 
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
@@ -247,7 +247,10 @@ class _GameScreenState extends State<GameScreen> {
               AudioService.playClick();
               Navigator.pop(context, false);
             },
-            child: Text(context.translate('stay'), style: const TextStyle(color: Colors.white70)),
+            child: Text(
+              widget.isTutorial ? "Quedarse" : context.translate('stay', listen: false), 
+              style: const TextStyle(color: Colors.white70)
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -255,7 +258,10 @@ class _GameScreenState extends State<GameScreen> {
               AudioService.playClick();
               Navigator.pop(context, true);
             },
-            child: Text(context.translate('leave'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(
+              widget.isTutorial ? "Salir" : context.translate('leave', listen: false), 
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+            ),
           ),
         ],
       ),
@@ -329,13 +335,15 @@ class _GameScreenState extends State<GameScreen> {
             ),
             Align(
               alignment: Alignment.topCenter,
-              child: ConfettiWidget(
-                confettiController: _confettiController,
-                blastDirectionality: BlastDirectionality.explosive,
-                shouldLoop: false,
-                colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
-                numberOfParticles: 30,
-                gravity: 0.1,
+              child: IgnorePointer(
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  shouldLoop: false,
+                  colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
+                  numberOfParticles: 30,
+                  gravity: 0.1,
+                ),
               ),
             ),
           ],
@@ -793,7 +801,7 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           IconButton(
-            icon: const Icon(Icons.exit_to_app, color: Colors.white70, size: 22), 
+            icon: Icon(widget.isTutorial ? Icons.arrow_back : Icons.exit_to_app, color: Colors.white70, size: 22), 
             onPressed: () async {
               AudioService.playClick();
               if (await _confirmExit() && mounted) {
@@ -840,7 +848,7 @@ class _GameScreenState extends State<GameScreen> {
           borderRadius: BorderRadius.circular(20), 
           side: const BorderSide(color: Colors.orange, width: 3),
         ),
-        title: Center(child: Text(context.translate('podium_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 24))),
+        title: Center(child: Text(context.translate('podium_title', listen: false), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 24))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: finishers.asMap().entries.map((entry) {
@@ -866,7 +874,7 @@ class _GameScreenState extends State<GameScreen> {
                 AudioService.playClick();
                 Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
               },
-              child: Text(context.translate('back_to_menu'), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(context.translate('back_to_menu', listen: false), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(height: 10),
@@ -1070,8 +1078,8 @@ class _PlayerCornerWidget extends StatelessWidget {
             ),
             title: Text(
               controller.blockedPlayerIds.contains(player.id) 
-                  ? context.translate('unblock_player') 
-                  : context.translate('block_player'),
+                  ? context.translate('unblock_player', listen: false) 
+                  : context.translate('block_player', listen: false),
               style: const TextStyle(color: Colors.white),
             ),
             onTap: () {
@@ -1080,14 +1088,15 @@ class _PlayerCornerWidget extends StatelessWidget {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                 content: Text(context.translate(
-                  controller.blockedPlayerIds.contains(player.id) ? 'player_blocked' : 'player_unblocked'
+                  controller.blockedPlayerIds.contains(player.id) ? 'player_blocked' : 'player_unblocked',
+                  listen: false
                 )),
               ));
             },
           ),
           ListTile(
             leading: const Icon(Icons.report, color: Colors.redAccent),
-            title: Text(context.translate('report_player'), style: const TextStyle(color: Colors.redAccent)),
+            title: Text(context.translate('report_player', listen: false), style: const TextStyle(color: Colors.redAccent)),
             onTap: () {
               AudioService.playClick();
               Navigator.pop(context);
@@ -1106,16 +1115,16 @@ class _PlayerCornerWidget extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.brown.shade900,
-        title: Text(context.translate('report_reason'), style: const TextStyle(color: Colors.orange)),
+        title: Text(context.translate('report_reason', listen: false), style: const TextStyle(color: Colors.orange)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: reasons.map((r) => ListTile(
-            title: Text(context.translate(r), style: const TextStyle(color: Colors.white)),
+            title: Text(context.translate(r, listen: false), style: const TextStyle(color: Colors.white)),
             onTap: () {
               AudioService.playClick();
               controller.reportPlayer(player.id, r);
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.translate('report_sent'))));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.translate('report_sent', listen: false))));
             },
           )).toList(),
         ),
@@ -1163,7 +1172,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                   border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
                 ),
                 child: Text(
-                  context.translate(options[idx]),
+                  context.translate(options[idx], listen: false),
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
