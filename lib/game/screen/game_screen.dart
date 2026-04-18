@@ -472,7 +472,7 @@ class _GameScreenState extends State<GameScreen> {
         break;
       case 13:
         textKey = 'tutorial_finish';
-        manualText = "${context.translate('tutorial_finish')}\n\n¡Tip Extra! Al llevar tu primera ficha a la meta obtienes un turno adicional para mover tus otras fichas.";
+        manualText = "${context.translate('tutorial_finish')}\n\n¡Tip Extra! Al llevar tu primera ficha a la meta obtienes un turno adicional para mover tu otra ficha.";
         extra = Stack(
           clipBehavior: Clip.none,
           children: [
@@ -524,24 +524,19 @@ class _GameScreenState extends State<GameScreen> {
               onTap: () async {
                 if (!isActionStep && _canContinueTutorial) {
                   if (_tutorialStep == 3) {
-                     setState(() {
-                       _tutorialStep = 4;
-                       _canContinueTutorial = false;
-                     });
-                     // Delay de 2 segundos para simular movimiento
-                     Future.delayed(const Duration(seconds: 2), () {
-                        if (mounted) setState(() => _canContinueTutorial = true);
-                     });
-
-                     await controller.rollDice();
-                     if (controller.movableTokenIds.isNotEmpty) {
-                        await controller.selectToken(controller.movableTokenIds.first);
-                     }
+                     setState(() => _tutorialStep = 4);
                   } else if (_tutorialStep == 4) {
                      setState(() {
                         _tutorialStep = 5;
                         _canContinueTutorial = false;
                      });
+                     
+                     // El azul lanza el dado y mueve para capturar cuando se pasa al paso 5
+                     await controller.rollDice();
+                     if (controller.movableTokenIds.isNotEmpty) {
+                        await controller.selectToken(controller.movableTokenIds.first);
+                     }
+
                      // Delay de 2 segundos para simular movimiento/acción
                      Future.delayed(const Duration(seconds: 2), () {
                         if (mounted) setState(() => _canContinueTutorial = true);
@@ -558,12 +553,19 @@ class _GameScreenState extends State<GameScreen> {
                   } else if (_tutorialStep == 7) {
                      setState(() => _tutorialStep = 8);
                   } else if (_tutorialStep == 8) {
-                     setState(() => _tutorialStep = 9);
-                     // Segundo tiro del azul por el turno extra
+                     setState(() {
+                        _tutorialStep = 9;
+                        _canContinueTutorial = false;
+                     });
+                     // Segundo tiro del azul por el turno extra (saca el 1)
                      await controller.rollDice();
                      if (controller.movableTokenIds.isNotEmpty) {
                         await controller.selectToken(controller.movableTokenIds.first);
                      }
+                     // Esperamos a que el movimiento del 1 se complete antes de dejar avanzar a las casillas especiales
+                     Future.delayed(const Duration(seconds: 2), () {
+                        if (mounted) setState(() => _canContinueTutorial = true);
+                     });
                   } else if (_tutorialStep < 13) {
                      setState(() => _tutorialStep++);
                   } else {
