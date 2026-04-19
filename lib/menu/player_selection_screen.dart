@@ -15,7 +15,7 @@ class PlayerSelectionScreen extends StatefulWidget {
 
 class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
   int? selectedPlayers;
-  bool vsAI = false;
+  bool vsAI = true;
   final List<TextEditingController> _nameControllers = List.generate(4, (_) => TextEditingController());
 
   @override
