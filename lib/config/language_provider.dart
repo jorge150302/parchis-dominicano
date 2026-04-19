@@ -180,6 +180,8 @@ class LanguageProvider extends ChangeNotifier {
       'pending_game_title': 'Partida Pendiente',
       'pending_game_message': 'Tienes una partida pendiente. ¿Qué deseas hacer?',
       'start_new_game': 'Nueva Partida',
+      'delete_game': 'Borrar Juego',
+      'delete_game_confirm': '¿Estás seguro de que quieres borrar la partida guardada? Esta acción no se puede deshacer.',
       // Lobby transitions
       'match_found_title': '¡PARTIDA ENCONTRADA!',
       'preparing_board': 'Preparando el tablero...',
@@ -333,6 +335,8 @@ class LanguageProvider extends ChangeNotifier {
       'pending_game_title': 'Pending Game',
       'pending_game_message': 'You have a pending game. What do you want to do?',
       'start_new_game': 'New Game',
+      'delete_game': 'Delete Game',
+      'delete_game_confirm': 'Are you sure you want to delete the saved game? This action cannot be undone.',
       // Lobby transitions
       'match_found_title': 'MATCH FOUND!',
       'preparing_board': 'Preparing the board...',

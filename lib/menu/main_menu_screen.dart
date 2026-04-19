@@ -25,7 +25,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     super.initState();
     _socketSub = context.read<SocketService>().events.listen((event) {
       if (event['event'] == 'user_data_deleted') {
-        // Mantenemos esto por si el borrado viene gatillado desde otro lado
         _handleAccountDeleted();
       }
     });
@@ -259,6 +258,47 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     }
   }
 
+  void _showDeleteGameConfirm() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: Text(
+          context.translate('delete_game'),
+          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          context.translate('delete_game_confirm'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(context);
+            },
+            child: Text(context.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              AudioService.playClick();
+              PrefsService.savedLocalGame = null;
+              Navigator.pop(context); // Cerrar confirmación
+              Navigator.pop(context); // Cerrar diálogo de juego pendiente
+            },
+            child: Text(context.translate('delete_game'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleOfflineClick() {
     AudioService.playClick(); // ✅ Sonido
     if (PrefsService.hasSavedGame) {
@@ -300,6 +340,25 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     child: Text(
                       context.translate('continue_game'),
                       style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      AudioService.playClick();
+                      _showDeleteGameConfirm();
+                    },
+                    child: Text(
+                      context.translate('delete_game'),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
