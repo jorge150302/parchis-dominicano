@@ -541,28 +541,40 @@ class _GameScreenState extends State<GameScreen> {
                   } else if (_tutorialStep == 5) {
                      setState(() => _tutorialStep = 6);
                   } else if (_tutorialStep == 6) {
-                     setState(() => _tutorialStep = 7);
+                     setState(() {
+                        _tutorialStep = 7;
+                        _canContinueTutorial = false; // Pausa para la animación del 6
+                     });
+                     
                      // Primer tiro del azul (que debe ser un 6 según el tutorial)
                      await controller.rollDice();
                      if (controller.movableTokenIds.isNotEmpty) {
                         await controller.selectToken(controller.movableTokenIds.first);
                      }
-                  } else if (_tutorialStep == 7) {
-                     setState(() => _tutorialStep = 8);
-                  } else if (_tutorialStep == 8) {
-                     setState(() {
-                        _tutorialStep = 9;
-                        _canContinueTutorial = false;
+
+                     // Esperamos a que la ficha avance las 6 posiciones antes de habilitar el siguiente paso
+                     Future.delayed(const Duration(milliseconds: 2500), () {
+                        if (mounted) setState(() => _canContinueTutorial = true);
                      });
+                  } else if (_tutorialStep == 7) {
+                     setState(() {
+                        _tutorialStep = 8;
+                        _canContinueTutorial = false; // El retraso se mueve AQUÍ para esperar el tiro del 1
+                     });
+
                      // Segundo tiro del azul por el turno extra (saca el 1)
                      await controller.rollDice();
                      if (controller.movableTokenIds.isNotEmpty) {
                         await controller.selectToken(controller.movableTokenIds.first);
                      }
-                     // Esperamos a que el movimiento del 1 se complete antes de dejar avanzar a las casillas especiales
-                     Future.delayed(const Duration(seconds: 2), () {
+
+                     // Esperamos a que el movimiento del 1 se complete ANTES de habilitar el paso 8
+                     Future.delayed(const Duration(milliseconds: 2000), () {
                         if (mounted) setState(() => _canContinueTutorial = true);
                      });
+                  } else if (_tutorialStep == 8) {
+                     // Al tocar en el paso 8 (ya con la ficha movida), pasamos directamente al 9
+                     setState(() => _tutorialStep = 9);
                   } else if (_tutorialStep < 13) {
                      setState(() => _tutorialStep++);
                   } else {
