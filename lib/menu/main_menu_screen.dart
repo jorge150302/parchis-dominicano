@@ -25,6 +25,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     super.initState();
     _socketSub = context.read<SocketService>().events.listen((event) {
       if (event['event'] == 'user_data_deleted') {
+        // Mantenemos esto por si el borrado viene gatillado desde otro lado
         _handleAccountDeleted();
       }
     });
@@ -47,9 +48,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   void _handleAccountDeleted() async {
     await PrefsService.clear();
     if (!mounted) return;
+    
+    // Forzamos el reinicio del estado y navegación al inicio
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Cuenta eliminada con éxito.'))
+      SnackBar(
+        content: Text(context.read<LanguageProvider>().translate('delete_account_success') ?? 'Cuenta eliminada con éxito.'),
+        backgroundColor: Colors.green,
+      )
     );
   }
 
@@ -481,11 +488,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               AudioService.playClick(); // ✅ Sonido
+              
+              // 1. Informar al servidor (opcionalmente)
               context.read<SocketService>().send('delete_user_data', {
                 'playerId': PrefsService.playerId,
               });
-              Navigator.pop(context);
-              Navigator.pop(context);
+              
+              // 2. Ejecutar borrado local y reinicio inmediatamente (Play Store compliance)
+              _handleAccountDeleted();
             },
             child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),
           ),
@@ -814,7 +824,7 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
           style: TextStyle(color: Colors.white70, fontSize: 14),
         ),
         const SizedBox(height: 20),
-        _langOption("Español", "🇪🇸", Language.es),
+        _langOption("Español", "🇩🇴", Language.es),
         const SizedBox(height: 12),
         _langOption("English", "🇺🇸", Language.en),
       ],

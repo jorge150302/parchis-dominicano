@@ -218,8 +218,8 @@ class _GameScreenState extends State<GameScreen> {
     String content = '';
 
     if (widget.isTutorial) {
-      title = "Terminar Tutorial";
-      content = "¿Estás seguro de que quieres abandonar el tutorial? Todo tu progreso actual se perderá.";
+      title = context.translate('tutorial_exit_title', listen: false) ?? "Terminar Tutorial";
+      content = context.translate('tutorial_exit_content', listen: false) ?? "¿Estás seguro de que quieres abandonar el tutorial? Todo tu progreso actual se perderá.";
     } else {
       final String contentKey = controller.isOnline ? 'exit_online_content' : 'exit_game_content';
       content = context.translate(contentKey, listen: false);
@@ -248,7 +248,7 @@ class _GameScreenState extends State<GameScreen> {
               Navigator.pop(context, false);
             },
             child: Text(
-              widget.isTutorial ? "Quedarse" : context.translate('stay', listen: false), 
+              context.translate('stay', listen: false), 
               style: const TextStyle(color: Colors.white70)
             ),
           ),
@@ -259,7 +259,7 @@ class _GameScreenState extends State<GameScreen> {
               Navigator.pop(context, true);
             },
             child: Text(
-              widget.isTutorial ? "Salir" : context.translate('leave', listen: false), 
+              context.translate('leave', listen: false), 
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
             ),
           ),
@@ -413,8 +413,6 @@ class _GameScreenState extends State<GameScreen> {
         .then()
         .move(begin: const Offset(0, 0), end: const Offset(20, 20), duration: 600.ms);
 
-    String? manualText;
-
     switch (_tutorialStep) {
       case 1:
         textKey = 'tutorial_step_dice_1';
@@ -447,7 +445,7 @@ class _GameScreenState extends State<GameScreen> {
         isActionStep = false;
         break;
       case 8:
-        manualText = "Cuando sacas un 6, el jugador repite turno. Observa cómo el azul avanza de nuevo.";
+        textKey = 'tutorial_step_six_info';
         isActionStep = false;
         break;
       case 9:
@@ -472,7 +470,6 @@ class _GameScreenState extends State<GameScreen> {
         break;
       case 13:
         textKey = 'tutorial_finish';
-        manualText = "${context.translate('tutorial_finish')}\n\n¡Tip Extra! Al llevar tu primera ficha a la meta obtienes un turno adicional para mover tu otra ficha.";
         extra = Stack(
           clipBehavior: Clip.none,
           children: [
@@ -496,13 +493,13 @@ class _GameScreenState extends State<GameScreen> {
 
     String subtext = '';
     if (_tutorialStep == 1) {
-      subtext = "toca el dado para continuar";
+      subtext = context.translate('tutorial_tap_dice_continue', listen: false) ?? "toca el dado para continuar";
     } else if (_tutorialStep == 2) {
-      subtext = "toca una ficha para continuar";
+      subtext = context.translate('tutorial_tap_token_continue', listen: false) ?? "toca una ficha para continuar";
     } else if (_tutorialStep == 13) {
-      subtext = context.translate('tutorial_finish_sub');
+      subtext = context.translate('tutorial_finish_sub', listen: false);
     } else {
-      subtext = context.translate('tutorial_continue_sub');
+      subtext = context.translate('tutorial_continue_sub', listen: false);
     }
 
     return IgnorePointer(
@@ -586,7 +583,9 @@ class _GameScreenState extends State<GameScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      manualText ?? context.translate(textKey),
+                      _tutorialStep == 13 
+                        ? "${context.translate('tutorial_finish', listen: false)}\n\n${context.translate('tutorial_tip', listen: false)}" 
+                        : context.translate(textKey, listen: false),
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
@@ -1256,7 +1255,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                       boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                     ),
                     child: Text(
-                      context.translate(activeMessage),
+                      context.translate(activeMessage, listen: false),
                       style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ).animate().scale(duration: 200.ms, curve: Curves.easeOutBack).shake(delay: 200.ms),
@@ -1339,9 +1338,9 @@ class _PlayerCornerWidget extends StatelessWidget {
                               ),
                             ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
                           )
-                        : const Text(
-                            "TU TURNO",
-                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+                        : Text(
+                            context.translate('your_turn'),
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
                           ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms).then().fadeOut(duration: 600.ms),
                     ),
 

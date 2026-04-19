@@ -8,6 +8,7 @@ import '../models/cell.dart';
 import '../models/board_action.dart'; 
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
+import '../../config/language_provider.dart';
 
 class BoardWidget extends StatefulWidget {
   final Board board;
@@ -124,16 +125,16 @@ class _StaticCell extends StatelessWidget {
     required this.controller,
   });
 
-  String _getCellLabel(Cell cell) {
-    if (cell.number == 0) return 'Inicio';
-    if (cell.number == finalPosition) return 'Fin';
+  String _getCellLabel(BuildContext context, Cell cell) {
+    if (cell.number == 0) return context.translate('board_start');
+    if (cell.number == finalPosition) return context.translate('board_finish');
     final action = cell.action;
     if (action != null) {
       switch (action.type) {
-        case BoardActionType.goToStart: return 'INICIO';
-        case BoardActionType.moveTo: return 'Al ${action.targetNumber ?? ''}';
-        case BoardActionType.skipTurn: return 'Turno sin\njugar'; // ✅ Texto corregido
-        case BoardActionType.rollAgain: return 'Turno\nextra';
+        case BoardActionType.goToStart: return context.translate('board_go_to_start');
+        case BoardActionType.moveTo: return context.translate('board_move_to', args: {'target': '${action.targetNumber ?? ''}'});
+        case BoardActionType.skipTurn: return context.translate('board_skip_turn');
+        case BoardActionType.rollAgain: return context.translate('board_extra_turn');
       }
     }
     return cell.number.toString();
@@ -142,7 +143,7 @@ class _StaticCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasAction = cell.action != null;
-    final label = _getCellLabel(cell);
+    final label = _getCellLabel(context, cell);
 
     return Container(
       margin: const EdgeInsets.all(2),
@@ -157,7 +158,7 @@ class _StaticCell extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black45),
+          style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.bold, color: Colors.black45),
         ),
       ),
     );
