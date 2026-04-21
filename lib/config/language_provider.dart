@@ -126,7 +126,7 @@ class LanguageProvider extends ChangeNotifier {
       'tutorial_exit_title': 'Terminar Tutorial',
       'tutorial_exit_content': '¿Estás seguro de que quieres abandonar el tutorial? Todo tu progreso actual se perderá.',
       // Privacy & Account
-      'privacy_policy': 'Privacy Policy',
+      'privacy_policy': 'Política de Privacidad',
       'delete_account': 'Eliminar cuenta',
       'delete_account_confirm': '¿Estás seguro de que quieres eliminar tu cuenta permanentemente? Esta acción no se puede deshacer.',
       'delete_account_success': 'Tu cuenta y datos han sido eliminados permanentemente.',
@@ -146,7 +146,7 @@ class LanguageProvider extends ChangeNotifier {
       'player_unblocked': 'Jugador desbloqueado',
       // UX & Settings
       'sound': 'Sonido',
-      'vibration': 'Vibration',
+      'vibration': 'Vibración',
       'game_speed': 'Velocidad de Juego',
       'speed_normal': 'Normal',
       'speed_fast': 'Rápida',
