@@ -415,6 +415,8 @@ class LocalGameController extends GameController {
       if (currentPlayer.tokens[tokenId].isFinished) {
          await playFanfare();
          if (_isHumanTurn) _vibrate();
+         // Esperamos a que el sonido de victoria termine antes de proceder
+         await Future.delayed(const Duration(seconds: 2));
          break;
       }
     }
@@ -788,6 +790,8 @@ class NetworkGameController extends GameController {
           
           await playFanfare();
           _vibrate();
+          // Esperamos a que el sonido termine en la animación de red también
+          await Future.delayed(const Duration(seconds: 2));
           break;
         }
         notifyListeners();
@@ -814,6 +818,7 @@ class NetworkGameController extends GameController {
 
         await playFanfare();
         _vibrate();
+        await Future.delayed(const Duration(seconds: 2));
       } else {
         token.position = targetPos;
         if (targetPos > 0) {
