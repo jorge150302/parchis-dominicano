@@ -12,6 +12,7 @@ import '../models/player.dart';
 import 'game_engine.dart';
 import 'board_generator.dart';
 import 'board_presets.dart';
+import '../models/board_action.dart';
 
 abstract class GameController extends ChangeNotifier {
   final GameEngine engine;
@@ -29,6 +30,11 @@ abstract class GameController extends ChangeNotifier {
   final AudioPlayer diceAudio = AudioPlayer();
   final AudioPlayer fanfareAudio = AudioPlayer();
   final AudioPlayer sendToHomeAudio = AudioPlayer();
+  final AudioPlayer moveAudio = AudioPlayer(); 
+  
+  // ✅ Fuente pre-cargada para evitar latencia en el primer paso
+  final Source moveSource = AssetSource('sounds/pop_sound.mp3');
+
   final Random random = Random();
 
   List<ChatMessage> chatMessages = [];
@@ -78,9 +84,9 @@ abstract class GameController extends ChangeNotifier {
 
   double get _audioPlaybackRate => PrefsService.gameSpeed == GameSpeed.fast ? 1.6 : 1.0;
 
-  Future<void> _playSound(AudioPlayer player, String asset) async {
+  Future<void> _playSound(AudioPlayer player, String asset, {bool immediate = false}) async {
     if (PrefsService.soundEnabled) {
-      await player.stop(); 
+      if (!immediate) await player.stop(); 
       await player.setPlaybackRate(_audioPlaybackRate);
       await player.play(AssetSource(asset));
     }
@@ -98,6 +104,15 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> playSendToHomeSound() async {
     await _playSound(sendToHomeAudio, 'sounds/send_to_home.mp3');
+  }
+
+  Future<void> playMoveSound() async {
+    if (PrefsService.soundEnabled) {
+      // ✅ Reinicio agresivo para asegurar que suene CADA vez, desde la primera
+      moveAudio.stop(); 
+      moveAudio.setPlaybackRate(_audioPlaybackRate);
+      moveAudio.play(moveSource);
+    }
   }
 
   void startTurn();
@@ -124,6 +139,7 @@ abstract class GameController extends ChangeNotifier {
     diceAudio.dispose();
     fanfareAudio.dispose();
     sendToHomeAudio.dispose();
+    moveAudio.dispose();
     _capturedTokenController.close();
     for (var timer in _quickMessageTimers.values) {
       timer.cancel();
@@ -144,7 +160,7 @@ class LocalGameController extends GameController {
   bool get _isHumanTurn => !vsAI || currentPlayer.index == 0;
 
   void _saveGame() {
-    if (_isTutorial) return; // No guardar progreso en tutorial
+    if (_isTutorial) return; 
     if (engine.phase == GamePhase.finished) {
       PrefsService.savedLocalGame = null;
     } else {
@@ -229,7 +245,6 @@ class LocalGameController extends GameController {
 
     notifyListeners();
     
-    // Desactivamos el auto-play de la IA durante el tutorial para que el usuario controle ambos
     if ((vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) && engine.phase != GamePhase.finished && !_isTutorial) {
       Future.delayed(_aiDecisionDelay, () => rollDice());
     }
@@ -278,7 +293,6 @@ class LocalGameController extends GameController {
 
     for (int i = 0; i < 12; i++) {
       if (_isTutorial && i == 11) {
-        // Secuencia forzada: 5 (Rojo), 5 (Azul), 6 (Azul), 1 (Azul extra)
         if (_tutorialDiceIndex == 0) diceValue = 5;
         else if (_tutorialDiceIndex == 1) diceValue = 5;
         else if (_tutorialDiceIndex == 2) diceValue = 6;
@@ -341,7 +355,6 @@ class LocalGameController extends GameController {
       notifyListeners();
       
       if (vsAI && currentPlayer.index != 0 || currentPlayer.isAutoPlaying) {
-        // En tutorial, no dejamos que la IA elija sola
         if (!_isTutorial) {
           _triggerAISelection();
         }
@@ -367,7 +380,7 @@ class LocalGameController extends GameController {
       if (movableTokenIds.isEmpty) return;
 
       int selectedId = movableTokenIds.first;
-      int maxPriority = -1;
+      int maxPriority = -200;
 
       for (int tokenId in movableTokenIds) {
         int priority = 0;
@@ -390,6 +403,15 @@ class LocalGameController extends GameController {
             if (canCapture) break;
           }
           if (canCapture) priority = 90;
+
+          final cell = engine.board.getCell(targetPos);
+          if (cell.action != null) {
+             final actionType = cell.action!.type;
+             if (actionType == BoardActionType.goToStart) priority -= 150; 
+             else if (actionType == BoardActionType.skipTurn) priority -= 140;
+             else if (actionType == BoardActionType.moveTo && cell.action!.targetNumber! < targetPos) priority -= 130;
+             else if (actionType == BoardActionType.rollAgain) priority += 20;
+          }
         }
 
         if (priority == 0) {
@@ -409,16 +431,21 @@ class LocalGameController extends GameController {
   Future<void> _moveStepByStep(int tokenId, int steps) async {
     engine.phase = GamePhase.moving;
     for (int i = 0; i < steps; i++) {
-      await Future.delayed(_stepDelay);
+      // ✅ PRIMERO EL SONIDO
+      playMoveSound(); 
+      // ✅ SEGUNDO EL MOVIMIENTO
       engine.stepForward(currentPlayer, tokenId);
       notifyListeners();
+      
       if (currentPlayer.tokens[tokenId].isFinished) {
          await playFanfare();
          if (_isHumanTurn) _vibrate();
-         // Esperamos a que el sonido de victoria termine antes de proceder
          await Future.delayed(const Duration(seconds: 2));
          break;
       }
+      
+      // ✅ ESPERAMOS EL RETARDO DESPUÉS DE LA ACCIÓN
+      await Future.delayed(_stepDelay); 
     }
     
     final actionRes = engine.applyCellAction(currentPlayer, tokenId);
@@ -773,8 +800,10 @@ class NetworkGameController extends GameController {
 
     if (targetPos > token.position) {
       while (token.position < targetPos) {
-        await Future.delayed(const Duration(milliseconds: 250));
+        // ✅ PRIMERO EL SONIDO
+        playMoveSound(); 
         token.position++;
+        notifyListeners();
         
         if (token.position >= engine.board.finalPosition) {
           token.position = -1; 
@@ -790,11 +819,11 @@ class NetworkGameController extends GameController {
           
           await playFanfare();
           _vibrate();
-          // Esperamos a que el sonido termine en la animación de red también
           await Future.delayed(const Duration(seconds: 2));
           break;
         }
-        notifyListeners();
+        // ✅ ESPERAMOS EL RETARDO DESPUÉS DEL SALTO
+        await Future.delayed(const Duration(milliseconds: 250));
       }
     } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
       if (targetPos == 0 && token.isFinished) {
