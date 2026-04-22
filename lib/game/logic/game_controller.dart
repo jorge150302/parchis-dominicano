@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
+import 'package:frontend_parchis/service/audio_service.dart';
 
 import '../models/game_event.dart';
 import '../models/player.dart';
@@ -30,10 +31,8 @@ abstract class GameController extends ChangeNotifier {
   final AudioPlayer diceAudio = AudioPlayer();
   final AudioPlayer fanfareAudio = AudioPlayer();
   final AudioPlayer sendToHomeAudio = AudioPlayer();
-  final AudioPlayer moveAudio = AudioPlayer(); 
   
-  // ✅ Fuente pre-cargada para evitar latencia en el primer paso
-  final Source moveSource = AssetSource('sounds/pop_sound.mp3');
+  // ✅ Eliminamos el pool anterior, usaremos SystemSound para movimiento rápido
 
   final Random random = Random();
 
@@ -86,9 +85,13 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> _playSound(AudioPlayer player, String asset, {bool immediate = false}) async {
     if (PrefsService.soundEnabled) {
-      if (!immediate) await player.stop(); 
-      await player.setPlaybackRate(_audioPlaybackRate);
-      await player.play(AssetSource(asset));
+      try {
+        if (!immediate) await player.stop(); 
+        await player.setPlaybackRate(_audioPlaybackRate);
+        await player.play(AssetSource(asset));
+      } catch (e) {
+        debugPrint("Error playing sound $asset: $e");
+      }
     }
   }
 
@@ -108,10 +111,14 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> playMoveSound() async {
     if (PrefsService.soundEnabled) {
-      // ✅ Reinicio agresivo para asegurar que suene CADA vez, desde la primera
-      moveAudio.stop(); 
-      moveAudio.setPlaybackRate(_audioPlaybackRate);
-      moveAudio.play(moveSource);
+      // ✅ Usamos el sonido nativo de Flutter (click/tick del sistema)
+      // Es el que tiene menor latencia, funciona a cualquier velocidad y no da errores.
+      AudioService.playMoveStep();
+      
+      // ✅ VIBRACIÓN MUY SUTIL para acompañar el tick
+      if (PrefsService.vibrationEnabled) {
+        HapticFeedback.selectionClick();
+      }
     }
   }
 
@@ -139,7 +146,6 @@ abstract class GameController extends ChangeNotifier {
     diceAudio.dispose();
     fanfareAudio.dispose();
     sendToHomeAudio.dispose();
-    moveAudio.dispose();
     _capturedTokenController.close();
     for (var timer in _quickMessageTimers.values) {
       timer.cancel();
@@ -958,6 +964,9 @@ class NetworkGameController extends GameController {
 
   @override
   void dispose() {
+    diceAudio.dispose();
+    fanfareAudio.dispose();
+    sendToHomeAudio.dispose();
     _socketSubscription?.cancel();
     super.dispose();
   }
