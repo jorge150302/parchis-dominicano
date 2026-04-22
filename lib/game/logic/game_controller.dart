@@ -32,7 +32,7 @@ abstract class GameController extends ChangeNotifier {
   final AudioPlayer sendToHomeAudio = AudioPlayer();
   final AudioPlayer moveAudio = AudioPlayer(); 
   
-  // ✅ Fuente pre-cargada para evitar latencia en el primer paso
+  // ✅ Fuente pre-cargada para evitar latencia inicial
   final Source moveSource = AssetSource('sounds/pop_sound.mp3');
 
   final Random random = Random();
@@ -108,7 +108,7 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> playMoveSound() async {
     if (PrefsService.soundEnabled) {
-      // ✅ Reinicio agresivo para asegurar que suene CADA vez, desde la primera
+      // ✅ Reinicio inmediato para evitar que el primer paso sea mudo
       moveAudio.stop(); 
       moveAudio.setPlaybackRate(_audioPlaybackRate);
       moveAudio.play(moveSource);
@@ -380,17 +380,19 @@ class LocalGameController extends GameController {
       if (movableTokenIds.isEmpty) return;
 
       int selectedId = movableTokenIds.first;
-      int maxPriority = -200;
+      int maxPriority = -200; // Valor inicial muy bajo
 
       for (int tokenId in movableTokenIds) {
         int priority = 0;
         final token = currentPlayer.tokens[tokenId];
         final targetPos = token.position + diceValue;
 
+        // 1. Prioridad máxima: Llegar a la meta
         if (targetPos >= engine.board.finalPosition) {
           priority = 100;
         }
         else if (targetPos > 0) {
+          // 2. Prioridad alta: Capturar oponente
           bool canCapture = false;
           for (var other in engine.players) {
             if (other.id == currentPlayer.id) continue;
@@ -404,16 +406,31 @@ class LocalGameController extends GameController {
           }
           if (canCapture) priority = 90;
 
+          // 3. 🚫 EVITAR MALAS JUGADAS (IA Inteligente)
           final cell = engine.board.getCell(targetPos);
           if (cell.action != null) {
              final actionType = cell.action!.type;
-             if (actionType == BoardActionType.goToStart) priority -= 150; 
-             else if (actionType == BoardActionType.skipTurn) priority -= 140;
-             else if (actionType == BoardActionType.moveTo && cell.action!.targetNumber! < targetPos) priority -= 130;
-             else if (actionType == BoardActionType.rollAgain) priority += 20;
+             
+             // Castigo: Volver al inicio
+             if (actionType == BoardActionType.goToStart) {
+                priority -= 150; 
+             }
+             // Castigo: Perder turno
+             else if (actionType == BoardActionType.skipTurn) {
+                priority -= 140;
+             }
+             // Retroceso: Saltos hacia atrás
+             else if (actionType == BoardActionType.moveTo && cell.action!.targetNumber! < targetPos) {
+                priority -= 130;
+             }
+             // Bonus: Turno extra
+             else if (actionType == BoardActionType.rollAgain) {
+                priority += 20;
+             }
           }
         }
 
+        // 4. Preferencia por mover fichas más adelantadas
         if (priority == 0) {
           priority = 10 + token.position;
         }
@@ -431,9 +448,8 @@ class LocalGameController extends GameController {
   Future<void> _moveStepByStep(int tokenId, int steps) async {
     engine.phase = GamePhase.moving;
     for (int i = 0; i < steps; i++) {
-      // ✅ PRIMERO EL SONIDO
+      // ✅ Sonido ANTES de mover para garantizar que el primer paso suene
       playMoveSound(); 
-      // ✅ SEGUNDO EL MOVIMIENTO
       engine.stepForward(currentPlayer, tokenId);
       notifyListeners();
       
@@ -444,12 +460,14 @@ class LocalGameController extends GameController {
          break;
       }
       
-      // ✅ ESPERAMOS EL RETARDO DESPUÉS DE LA ACCIÓN
+      // ✅ Esperar después de la acción
       await Future.delayed(_stepDelay); 
     }
     
     final actionRes = engine.applyCellAction(currentPlayer, tokenId);
     if (actionRes.moved) {
+       // ✅ Vibración al caer en casilla de acción (Sutil)
+       _vibrate();
        if (actionRes.sentToStart && actionRes.fromPos != null) {
           _capturedTokenController.add(CapturedToken(
             playerIndex: currentPlayer.index,
@@ -800,7 +818,6 @@ class NetworkGameController extends GameController {
 
     if (targetPos > token.position) {
       while (token.position < targetPos) {
-        // ✅ PRIMERO EL SONIDO
         playMoveSound(); 
         token.position++;
         notifyListeners();
@@ -822,8 +839,7 @@ class NetworkGameController extends GameController {
           await Future.delayed(const Duration(seconds: 2));
           break;
         }
-        // ✅ ESPERAMOS EL RETARDO DESPUÉS DEL SALTO
-        await Future.delayed(const Duration(milliseconds: 250));
+        await Future.delayed(const Duration(milliseconds: 250)); 
       }
     } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
       if (targetPos == 0 && token.isFinished) {
@@ -851,6 +867,7 @@ class NetworkGameController extends GameController {
       } else {
         token.position = targetPos;
         if (targetPos > 0) {
+           _vibrate(); // ✅ Vibrar al aterrizar en casilla de acción remota
            engine.events.add(GameEvent(
             messageKey: 'flying_to_cell', 
             args: {'name': player.name, 'cell': targetPos.toString()},
