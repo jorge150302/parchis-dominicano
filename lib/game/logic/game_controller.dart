@@ -32,8 +32,6 @@ abstract class GameController extends ChangeNotifier {
   final AudioPlayer fanfareAudio = AudioPlayer();
   final AudioPlayer sendToHomeAudio = AudioPlayer();
   
-  // ✅ Eliminamos el pool anterior, usaremos SystemSound para movimiento rápido
-
   final Random random = Random();
 
   List<ChatMessage> chatMessages = [];
@@ -101,8 +99,24 @@ abstract class GameController extends ChangeNotifier {
     }
   }
 
+  /// ✅ Reproduce el sonido de victoria y ESPERA a que termine totalmente
+  /// para evitar que el siguiente turno lo corte.
   Future<void> playFanfare() async {
-    await _playSound(fanfareAudio, 'sounds/fanfarreas.mp3');
+    if (PrefsService.soundEnabled) {
+      try {
+        await fanfareAudio.stop();
+        await fanfareAudio.setPlaybackRate(_audioPlaybackRate);
+        await fanfareAudio.play(AssetSource('sounds/fanfarreas.mp3'));
+        
+        // Esperamos a que termine la reproducción antes de continuar la lógica del juego
+        await fanfareAudio.onPlayerComplete.first.timeout(
+          const Duration(seconds: 5), 
+          onTimeout: () => null,
+        );
+      } catch (e) {
+        debugPrint("Error en playFanfare: $e");
+      }
+    }
   }
 
   Future<void> playSendToHomeSound() async {
@@ -111,11 +125,7 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> playMoveSound() async {
     if (PrefsService.soundEnabled) {
-      // ✅ Usamos el sonido nativo de Flutter (click/tick del sistema)
-      // Es el que tiene menor latencia, funciona a cualquier velocidad y no da errores.
       AudioService.playMoveStep();
-      
-      // ✅ VIBRACIÓN MUY SUTIL para acompañar el tick
       if (PrefsService.vibrationEnabled) {
         HapticFeedback.selectionClick();
       }
@@ -437,20 +447,17 @@ class LocalGameController extends GameController {
   Future<void> _moveStepByStep(int tokenId, int steps) async {
     engine.phase = GamePhase.moving;
     for (int i = 0; i < steps; i++) {
-      // ✅ PRIMERO EL SONIDO
       playMoveSound(); 
-      // ✅ SEGUNDO EL MOVIMIENTO
       engine.stepForward(currentPlayer, tokenId);
       notifyListeners();
       
       if (currentPlayer.tokens[tokenId].isFinished) {
+         // ✅ Bloqueamos hasta que termine el sonido de meta
          await playFanfare();
          if (_isHumanTurn) _vibrate();
-         await Future.delayed(const Duration(seconds: 2));
          break;
       }
       
-      // ✅ ESPERAMOS EL RETARDO DESPUÉS DE LA ACCIÓN
       await Future.delayed(_stepDelay); 
     }
     
@@ -806,7 +813,6 @@ class NetworkGameController extends GameController {
 
     if (targetPos > token.position) {
       while (token.position < targetPos) {
-        // ✅ PRIMERO EL SONIDO
         playMoveSound(); 
         token.position++;
         notifyListeners();
@@ -823,12 +829,10 @@ class NetworkGameController extends GameController {
             type: 'bonus'
           ));
           
-          await playFanfare();
+          await playFanfare(); // ✅ Bloquea hasta el fin del audio
           _vibrate();
-          await Future.delayed(const Duration(seconds: 2));
           break;
         }
-        // ✅ ESPERAMOS EL RETARDO DESPUÉS DEL SALTO
         await Future.delayed(const Duration(milliseconds: 250));
       }
     } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
@@ -853,7 +857,6 @@ class NetworkGameController extends GameController {
 
         await playFanfare();
         _vibrate();
-        await Future.delayed(const Duration(seconds: 2));
       } else {
         token.position = targetPos;
         if (targetPos > 0) {
