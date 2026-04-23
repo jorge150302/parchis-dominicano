@@ -452,7 +452,6 @@ class LocalGameController extends GameController {
       notifyListeners();
       
       if (currentPlayer.tokens[tokenId].isFinished) {
-         // ✅ Bloqueamos hasta que termine el sonido de meta
          await playFanfare();
          if (_isHumanTurn) _vibrate();
          break;
@@ -461,6 +460,16 @@ class LocalGameController extends GameController {
       await Future.delayed(_stepDelay); 
     }
     
+    // ✅ Verificamos si cayó en una casilla de acción para sonar el CLIC de botón
+    // Se excluye 'goToStart' porque tiene su propio sonido de "send to home"
+    final currentPos = currentPlayer.tokens[tokenId].position;
+    if (currentPos > 0) {
+      final cell = engine.board.getCell(currentPos);
+      if (cell.action != null && cell.action!.type != BoardActionType.goToStart) {
+        AudioService.playClick();
+      }
+    }
+
     final actionRes = engine.applyCellAction(currentPlayer, tokenId);
     if (actionRes.moved) {
        if (actionRes.sentToStart && actionRes.fromPos != null) {
@@ -835,6 +844,15 @@ class NetworkGameController extends GameController {
         }
         await Future.delayed(const Duration(milliseconds: 250));
       }
+      
+      // ✅ Sonido de clic al terminar movimiento en una casilla con acción (Online)
+      // Se excluye 'goToStart' porque tiene su propio sonido de "send to home"
+      if (token.position > 0) {
+        final cell = engine.board.getCell(token.position);
+        if (cell.action != null && cell.action!.type != BoardActionType.goToStart) {
+          AudioService.playClick();
+        }
+      }
     } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
       if (targetPos == 0 && token.isFinished) {
          _animatingTokens.remove(animKey);
@@ -855,10 +873,20 @@ class NetworkGameController extends GameController {
           type: 'bonus'
         ));
 
-        await playFanfare();
+        await playFanfare(); // ✅ Bloquea hasta el fin del audio
         _vibrate();
       } else {
         token.position = targetPos;
+        
+        // ✅ Sonido de clic al teletransportarse a una casilla con acción
+        // Se excluye 'goToStart' porque tiene su propio sonido de "send to home"
+        if (token.position > 0) {
+           final cell = engine.board.getCell(token.position);
+           if (cell.action != null && cell.action!.type != BoardActionType.goToStart) {
+             AudioService.playClick();
+           }
+        }
+
         if (targetPos > 0) {
            engine.events.add(GameEvent(
             messageKey: 'flying_to_cell', 

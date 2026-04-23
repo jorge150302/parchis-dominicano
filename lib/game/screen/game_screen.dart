@@ -50,6 +50,7 @@ class _GameScreenState extends State<GameScreen> {
 
   int _unreadMessages = 0;
   int _lastMessageCount = 0;
+  int? _lastSeconds;
 
   int _tutorialStep = 0;
   bool _canContinueTutorial = true;
@@ -67,6 +68,7 @@ class _GameScreenState extends State<GameScreen> {
 
       _lastFinisherCount = controller.engine.finisherIds.length;
       _lastMessageCount = controller.chatMessages.length;
+      _lastSeconds = controller.secondsRemaining;
 
       if (widget.isResume && controller is LocalGameController) {
         final savedJson = PrefsService.savedLocalGame;
@@ -136,6 +138,12 @@ class _GameScreenState extends State<GameScreen> {
   void _onGameUpdate() {
     if (!mounted) return;
     final controller = context.read<GameController>();
+
+    // ✅ Sonido de alerta de tiempo (cuando quedan 5 segundos y es mi turno)
+    if (controller.isOnline && controller.isMyTurn && controller.secondsRemaining == 5 && _lastSeconds != 5) {
+      AudioService.playFinalTiming();
+    }
+    _lastSeconds = controller.secondsRemaining;
 
     final int currentMsgCount = controller.chatMessages.length;
     if (currentMsgCount > _lastMessageCount) {
@@ -218,8 +226,8 @@ class _GameScreenState extends State<GameScreen> {
     String content = '';
 
     if (widget.isTutorial) {
-      title = context.translate('tutorial_exit_title', listen: false) ?? "Terminar Tutorial";
-      content = context.translate('tutorial_exit_content', listen: false) ?? "¿Estás seguro de que quieres abandonar el tutorial? Todo tu progreso actual se perderá.";
+      title = context.translate('tutorial_exit_title', listen: false);
+      content = context.translate('tutorial_exit_content', listen: false);
     } else {
       final String contentKey = controller.isOnline ? 'exit_online_content' : 'exit_game_content';
       content = context.translate(contentKey, listen: false);
@@ -493,9 +501,9 @@ class _GameScreenState extends State<GameScreen> {
 
     String subtext = '';
     if (_tutorialStep == 1) {
-      subtext = context.translate('tutorial_tap_dice_continue', listen: false) ?? "toca el dado para continuar";
+      subtext = context.translate('tutorial_tap_dice_continue', listen: false);
     } else if (_tutorialStep == 2) {
-      subtext = context.translate('tutorial_tap_token_continue', listen: false) ?? "toca una ficha para continuar";
+      subtext = context.translate('tutorial_tap_token_continue', listen: false);
     } else if (_tutorialStep == 13) {
       subtext = context.translate('tutorial_finish_sub', listen: false);
     } else {
@@ -513,7 +521,8 @@ class _GameScreenState extends State<GameScreen> {
                  child: extra,
                ),
              )
-          else if (extra != null) extra,
+          else
+            extra ?? const SizedBox.shrink(),
 
           Align(
             alignment: Alignment.center,
@@ -852,6 +861,7 @@ class _GameScreenState extends State<GameScreen> {
 
     final finishers = finisherIds.map((id) => controller.players.firstWhere((p) => p.id == id)).toList();
 
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1207,7 +1217,8 @@ class _PlayerCornerWidget extends StatelessWidget {
     final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
     final String? activeMessage = controller.playerQuickMessages[player.id];
 
-    final bool isCriticalTime = isTurn && controller.isOnline && controller.secondsRemaining < 5;
+    // ✅ Modificado de 5 a 6 para que empiece a ser rojo a partir del segundo 5 (inclusive)
+    final bool isCriticalTime = isTurn && controller.isOnline && controller.secondsRemaining < 6;
     final Color timerColor = isCriticalTime ? Colors.red : Colors.orangeAccent;
 
     return Column(
@@ -1295,7 +1306,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           GestureDetector(
             onTap: () {
                if (canTap) {
-                 AudioService.playClick();
+                 // ✅ Eliminado AudioService.playClick() para evitar duplicación con sounds/dice.mp3
                  if (controller.isOnline && !socketSrv.isConnected) {
                    ScaffoldMessenger.of(context).showSnackBar(
                      const SnackBar(content: Text("Sin conexión"), duration: Duration(seconds: 1))
