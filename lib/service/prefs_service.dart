@@ -76,6 +76,13 @@ class PrefsService {
   static int get autoMoveDelayMs => _prefs.getInt('auto_move_delay_ms') ?? 600;
   static set autoMoveDelayMs(int value) => _prefs.setInt('auto_move_delay_ms', value);
 
+  // 🏆 Sistema de Niveles y XP
+  static int get totalXp => _prefs.getInt('total_xp') ?? 0;
+  static set totalXp(int value) => _prefs.setInt('total_xp', value);
+
+  static int get playerLevel => _prefs.getInt('player_level') ?? 1;
+  static set playerLevel(int value) => _prefs.setInt('player_level', value);
+
   // 🚫 Moderación: Lista de bloqueados persistente
   static List<String> get blockedPlayerIds {
     String? json = _prefs.getString('blocked_players');

@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../config/language_provider.dart';
 import '../logic/game_controller.dart';
 import '../logic/game_engine.dart';
+import '../logic/level_manager.dart';
 import '../models/game_event.dart';
 import '../models/player.dart';
 import '../widgets/board_widget.dart';
@@ -54,6 +55,10 @@ class _GameScreenState extends State<GameScreen> {
 
   int _tutorialStep = 0;
   bool _canContinueTutorial = true;
+
+  // Variables para el sistema de niveles
+  int _lastGainedXp = 0;
+  bool _didLevelUp = false;
 
   @override
   void initState() {
@@ -135,6 +140,38 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  void _updatePlayerProgress(GameController controller) {
+    if (widget.isTutorial) return;
+
+    final myId = PrefsService.playerId;
+    // Si es offline, el ID suele ser "1" para el humano
+    final String targetId = controller.isOnline ? myId : "1";
+    
+    final finisherIds = controller.engine.finisherIds;
+    int myPosition = finisherIds.indexOf(targetId);
+
+    if (myPosition != -1) {
+      _lastGainedXp = LevelManager.calculateMatchXP(
+        position: myPosition,
+        totalPlayers: controller.players.length,
+        isOnline: controller.isOnline,
+      );
+
+      int oldXp = PrefsService.totalXp;
+      int newXp = oldXp + _lastGainedXp;
+      
+      PrefsService.totalXp = newXp;
+      
+      int oldLevel = PrefsService.playerLevel;
+      int newLevel = LevelManager.calculateLevel(newXp);
+      
+      if (newLevel > oldLevel) {
+        _didLevelUp = true;
+        PrefsService.playerLevel = newLevel;
+      }
+    }
+  }
+
   void _onGameUpdate() {
     if (!mounted) return;
     final controller = context.read<GameController>();
@@ -190,8 +227,17 @@ class _GameScreenState extends State<GameScreen> {
 
     if (controller.engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
       _isGameFinishedDialogShown = true;
+      _updatePlayerProgress(controller);
       _confettiController.stop();
       _confettiController.play();
+      
+      // Si subió de nivel, disparamos una segunda ráfaga después de un pequeño delay
+      if (_didLevelUp) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _confettiController.play();
+        });
+      }
+
       _showGameFinishedDialog();
     }
 
@@ -874,20 +920,123 @@ class _GameScreenState extends State<GameScreen> {
         title: Center(child: Text(context.translate('podium_title', listen: false), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 24))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: finishers.asMap().entries.map((entry) {
-            int idx = entry.key;
-            Player p = entry.value;
-            return ListTile(
-              leading: Text('${idx + 1}°', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-              title: Text(
-                p.name, 
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          children: [
+            // Sección de XP y Nivel MEJORADA con Barra Circular
+            if (!widget.isTutorial && _lastGainedXp > 0)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _didLevelUp ? Colors.yellowAccent : Colors.orange.withValues(alpha: 0.3),
+                    width: _didLevelUp ? 2 : 1
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        // Barra circular alrededor del nivel
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 54,
+                              height: 54,
+                              child: CircularProgressIndicator(
+                                value: LevelManager.getLevelProgress(PrefsService.totalXp),
+                                strokeWidth: 5,
+                                backgroundColor: Colors.white10,
+                                valueColor: AlwaysStoppedAnimation<Color>(_didLevelUp ? Colors.yellowAccent : Colors.orange),
+                              ),
+                            ),
+                            Text(
+                              "${PrefsService.playerLevel}",
+                              style: const TextStyle(
+                                color: Colors.white, 
+                                fontWeight: FontWeight.bold, 
+                                fontSize: 18
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                LevelManager.getRankName(PrefsService.playerLevel).toUpperCase(),
+                                style: TextStyle(
+                                  color: _didLevelUp ? Colors.yellowAccent : Colors.orange, 
+                                  fontWeight: FontWeight.w900, 
+                                  fontSize: 16,
+                                  letterSpacing: 1.2
+                                ),
+                              ),
+                              const Text(
+                                "Nivel Actual",
+                                style: TextStyle(color: Colors.white70, fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.greenAccent.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10)
+                          ),
+                          child: Text(
+                            "+$_lastGainedXp XP",
+                            style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Indicador de cuánto falta
+                    if (!_didLevelUp && PrefsService.playerLevel < 100)
+                      Text(
+                        "Faltan ${LevelManager.xpRequiredForLevel(PrefsService.playerLevel) - (PrefsService.totalXp % LevelManager.xpRequiredForLevel(PrefsService.playerLevel))} XP para el nivel ${PrefsService.playerLevel + 1}",
+                        style: const TextStyle(color: Colors.white38, fontSize: 10, fontStyle: FontStyle.italic),
+                      ),
+                    
+                    if (_didLevelUp)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10.0),
+                        child: Column(
+                          children: [
+                            const Text(
+                              "¡NUEVO RANGO ALCANZADO!",
+                              style: TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.w900, fontSize: 18),
+                            ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 1.5.seconds).scale(begin: const Offset(1,1), end: const Offset(1.1, 1.1)),
+                            const Icon(Icons.stars, color: Colors.yellowAccent, size: 30),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              trailing: Image.asset(p.tokenAsset, width: 30),
-            );
-          }).toList(),
+            
+            // Lista de finalistas
+            ...finishers.asMap().entries.map((entry) {
+              int idx = entry.key;
+              Player p = entry.value;
+              return ListTile(
+                leading: Text('${idx + 1}°', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                title: Text(
+                  p.name, 
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: Image.asset(p.tokenAsset, width: 30),
+              );
+            }).toList(),
+          ],
         ),
         actions: [
           Center(

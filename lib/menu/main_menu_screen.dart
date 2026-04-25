@@ -8,7 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/language_provider.dart';
 import '../service/socket_service.dart';
 import '../service/prefs_service.dart';
-import '../service/audio_service.dart'; // Importamos el servicio de audio
+import '../service/audio_service.dart';
+import '../game/logic/level_manager.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -82,17 +83,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.brown.shade900,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Colors.orange, width: 2),
-        ),
-        title: Text(
-          context.translate('tutorial_title'),
-          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
+      builder: (context) => _AlertDialogWrapper(
+        title: context.translate('tutorial_title'),
         content: Text(
           context.translate('tutorial_content'),
           style: const TextStyle(color: Colors.white),
@@ -563,9 +555,29 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
+  String _getLevelTooltipMessage(int playerLevel) {
+    if (playerLevel >= 100) return "¡Nivel Máximo alcanzado!";
+
+    final int currentXpInLevel = LevelManager.getXpInCurrentLevel(PrefsService.totalXp);
+    final int xpRequired = LevelManager.xpRequiredForLevel(playerLevel);
+    final nextRank = LevelManager.getNextRankInfo(playerLevel);
+
+    String message = "$currentXpInLevel / $xpRequired XP para Nivel ${playerLevel + 1}";
+
+    if (nextRank != null) {
+      final int totalXpNeededForNextRank = LevelManager.totalXpToReachLevel(nextRank['level']);
+      final int xpMissingForNextRank = totalXpNeededForNextRank - PrefsService.totalXp;
+      message += "\nTe faltan $xpMissingForNextRank XP para ser ${nextRank['name']}";
+    }
+
+    return message;
+  }
+
   @override
   Widget build(BuildContext context) {
     final String playerName = PrefsService.playerName;
+    final int playerLevel = PrefsService.playerLevel;
+    final String rankName = LevelManager.getRankName(playerLevel);
 
     return Scaffold(
       body: SizedBox.expand(
@@ -598,26 +610,79 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   if (playerName.isNotEmpty)
                     GestureDetector(
                       onTap: _showNameDialog,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black45,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.person, color: Colors.orangeAccent, size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              playerName,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.edit, color: Colors.white54, size: 12),
-                          ],
-                        ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.person, color: Colors.orangeAccent, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  playerName,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.edit, color: Colors.white54, size: 12),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          // Barra de progreso de nivel con Tooltip
+                          Tooltip(
+                            message: _getLevelTooltipMessage(playerLevel),
+                            triggerMode: TooltipTriggerMode.tap,
+                            preferBelow: true,
+                            decoration: BoxDecoration(
+                              color: Colors.brown.shade800,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orangeAccent),
+                            ),
+                            textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                            child: Container(
+                              width: 150,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.orangeAccent.withOpacity(0.5), width: 1.5),
+                              ),
+                              child: Stack(
+                                children: [
+                                  // Fondo de progreso (relleno)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: LinearProgressIndicator(
+                                      value: LevelManager.getLevelProgress(PrefsService.totalXp),
+                                      backgroundColor: Colors.transparent,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.orangeAccent.withOpacity(0.4)),
+                                      minHeight: 22,
+                                    ),
+                                  ),
+                                  // Texto de nivel y rango
+                                  Center(
+                                    child: Text(
+                                      "$rankName - Lvl $playerLevel",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
                   const SizedBox(width: 8),

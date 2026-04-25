@@ -135,6 +135,7 @@ class SocketService with ChangeNotifier {
     final payload = {
       'event': event,
       'clientId': PrefsService.playerId,
+      'level': PrefsService.playerLevel, // <--- Enviamos el nivel en cada mensaje
       if (data != null) 'data': data,
     };
     
