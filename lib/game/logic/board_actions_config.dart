@@ -1,24 +1,14 @@
 // lib/game/logic/board_actions_config.dart
 import '../models/board_action.dart';
 
-// Lista de acciones para el tablero
+// Lista de acciones para el tablero MODO PRUEBA (10 casillas)
 final classicActionPositions = [
-  13, 15, 19, 24, 29, 37, 43, 49, 56, 66, 72, 76, 79, 83
+  2, 4, 6, 8
 ];
 
 final classicActions = [
-  BoardAction.goToStart(),
-  BoardAction.rollAgain(),
-  BoardAction.skipTurn(),
-  BoardAction.moveTo(63),
-  BoardAction.rollAgain(),
-  BoardAction.skipTurn(),
-  BoardAction.moveTo(24),
-  BoardAction.moveTo(70),
-  BoardAction.moveTo(18),
-  BoardAction.skipTurn(),
-  BoardAction.rollAgain(),
-  BoardAction.moveTo(18),
-  BoardAction.goToStart(),
-  BoardAction.moveTo(70),
+  BoardAction.rollAgain(),      // Pos 2: Repite tiro
+  BoardAction.moveTo(7),        // Pos 4: Salto a la 7
+  BoardAction.skipTurn(),       // Pos 6: Pierde turno
+  BoardAction.goToStart(),      // Pos 8: A casa
 ];

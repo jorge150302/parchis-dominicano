@@ -57,8 +57,8 @@ class MyApp extends StatelessWidget {
               bool isTutorial = args?['isTutorial'] ?? false;
               Map<String, dynamic>? savedState = args?['savedState'];
 
-              // ✅ Restaurado tablero original de 100 casillas
-              final board = generateBoard(classicActionPositions, classicActions, totalCells: 100);
+              // ✅ Tablero MODO PRUEBA de 10 casillas
+              final board = generateBoard(classicActionPositions, classicActions, totalCells: 10);
               late final GameEngine engine;
 
               if (isResume && savedState != null) {

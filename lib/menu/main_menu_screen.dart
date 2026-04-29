@@ -580,6 +580,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     final String rankName = LevelManager.getRankName(playerLevel);
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.redAccent,
+        onPressed: () {
+          setState(() {
+            PrefsService.totalXp += 25;
+            PrefsService.playerLevel = LevelManager.calculateLevel(PrefsService.totalXp);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("¡+50 XP añadidos!")),
+          );
+        },
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
       body: SizedBox.expand(
         child: Stack(
           alignment: Alignment.center,
