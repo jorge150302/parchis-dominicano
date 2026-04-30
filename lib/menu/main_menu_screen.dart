@@ -73,10 +73,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           setState(() {
             PrefsService.playerName = name;
           });
-          // Pequeño delay para asegurar que el diálogo anterior se cerró completamente
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) _showTutorialInvitation();
-          });
+        },
+        onStartTutorial: () {
+          if (!mounted) return;
+          _startTutorial();
         },
       ),
     );
@@ -1209,7 +1209,8 @@ class _MenuButton extends StatelessWidget {
 
 class _WelcomeDialog extends StatefulWidget {
   final Function(String) onComplete;
-  const _WelcomeDialog({required this.onComplete});
+  final VoidCallback onStartTutorial;
+  const _WelcomeDialog({required this.onComplete, required this.onStartTutorial});
 
   @override
   State<_WelcomeDialog> createState() => _WelcomeDialogState();
@@ -1257,8 +1258,21 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
     AudioService.playClick();
-    Navigator.pop(context);
     widget.onComplete(name);
+    setState(() => _step = 2);
+  }
+
+  void _handleTutorialSkip() {
+    AudioService.playClick();
+    PrefsService.isFirstTime = false;
+    Navigator.pop(context);
+  }
+
+  void _handleTutorialStart() {
+    AudioService.playClick();
+    PrefsService.isFirstTime = false;
+    Navigator.pop(context);
+    widget.onStartTutorial();
   }
 
   @override
@@ -1290,7 +1304,9 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
             Text(
               _step == 0
                   ? context.translate('create_your_profile')
-                  : context.translate('confirm_your_name'),
+                  : _step == 1 
+                      ? context.translate('confirm_your_name')
+                      : context.translate('tutorial_title'),
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 15),
             ),
@@ -1306,7 +1322,11 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
               child: child,
             ),
           ),
-          child: _step == 0 ? _buildStep0(context) : _buildStep1(context),
+          child: _step == 0 
+              ? _buildStep0(context) 
+              : _step == 1 
+                  ? _buildStep1(context)
+                  : _buildStep2(context),
         ),
         actions: _step == 1
             ? [
@@ -1319,7 +1339,19 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
                   ),
                 ),
               ]
-            : null,
+            : _step == 2
+                ? [
+                    TextButton(
+                      onPressed: _handleTutorialSkip,
+                      child: Text(context.translate('tutorial_skip'), style: const TextStyle(color: Colors.white70)),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                      onPressed: _handleTutorialStart,
+                      child: Text(context.translate('tutorial_start'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ]
+                : null,
       ),
     );
   }
@@ -1475,6 +1507,25 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
       ),
     );
   }
+
+  Widget _buildStep2(BuildContext context) {
+    return SizedBox(
+      key: const ValueKey('step2'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.menu_book_rounded, size: 64, color: Colors.orangeAccent),
+          const SizedBox(height: 16),
+          Text(
+            context.translate('tutorial_content'),
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
 }
 
 class _StepIndicator extends StatelessWidget {
@@ -1487,11 +1538,13 @@ class _StepIndicator extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _StepDot(filled: step >= 0),
-        Container(width: 32, height: 2, color: step >= 1 ? Colors.orange : Colors.white24),
+        Container(width: 24, height: 2, color: step >= 1 ? Colors.orange : Colors.white24),
         _StepDot(filled: step >= 1),
-        const SizedBox(width: 8),
+        Container(width: 24, height: 2, color: step >= 2 ? Colors.orange : Colors.white24),
+        _StepDot(filled: step >= 2),
+        const SizedBox(width: 12),
         Text(
-          context.translate('step_n_of_2', args: {'n': '${step + 1}'}),
+          context.translate('step_n_of_3', args: {'n': '${step + 1}'}),
           style: const TextStyle(color: Colors.white54, fontSize: 12),
         ),
       ],
