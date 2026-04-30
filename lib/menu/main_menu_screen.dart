@@ -9,6 +9,8 @@ import '../config/language_provider.dart';
 import '../service/socket_service.dart';
 import '../service/prefs_service.dart';
 import '../service/audio_service.dart';
+import '../service/auth_service.dart';
+import '../service/sync_queue_service.dart';
 import '../game/logic/level_manager.dart';
 
 class MainMenuScreen extends StatefulWidget {
@@ -48,15 +50,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   void _handleAccountDeleted() async {
     await PrefsService.clear();
     if (!mounted) return;
-    
-    // Forzamos el reinicio del estado y navegación al inicio
+
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(context.read<LanguageProvider>().translate('delete_account_success') ?? 'Cuenta eliminada con éxito.'),
+        content: Text(
+          context.read<LanguageProvider>().translate('delete_account_success'),
+        ),
         backgroundColor: Colors.green,
-      )
+      ),
     );
   }
 
@@ -84,6 +87,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => _AlertDialogWrapper(
+        canPop: false, // Bloquea el botón atrás en el tutorial inicial
         title: context.translate('tutorial_title'),
         content: Text(
           context.translate('tutorial_content'),
@@ -126,7 +130,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     final TextEditingController nameController = TextEditingController(text: PrefsService.playerName);
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true, // Permitir cerrar si se está editando desde el menú
       builder: (context) => _AlertDialogWrapper(
         title: context.translate('enter_name_title'),
         content: TextField(
@@ -142,7 +146,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             onPressed: () {
-              AudioService.playClick(); // ✅ Sonido
+              AudioService.playClick();
               if (nameController.text.trim().isNotEmpty) {
                 setState(() {
                   PrefsService.playerName = nameController.text.trim();
@@ -201,7 +205,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     text: "u_qpfzpydtro",
                     style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
                     recognizer: TapGestureRecognizer()..onTap = () {
-                      AudioService.playClick(); // ✅ Sonido
+                      AudioService.playClick();
                       launchUrl(Uri.parse("https://pixabay.com/users/u_qpfzpydtro-29496424/"));
                     },
                   ),
@@ -210,7 +214,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     text: "Pixabay",
                     style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
                     recognizer: TapGestureRecognizer()..onTap = () {
-                      AudioService.playClick(); // ✅ Sonido
+                      AudioService.playClick();
                       launchUrl(Uri.parse("https://pixabay.com/"));
                     },
                   ),
@@ -223,7 +227,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              AudioService.playClick(); // ✅ Sonido
+              AudioService.playClick();
               Navigator.pop(context);
             },
             child: Text(isSpanish ? "CERRAR" : "CLOSE", style: const TextStyle(color: Colors.orangeAccent)),
@@ -291,8 +295,62 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
+  void _showDailyMasteryDialog({required VoidCallback onPlayAnyway}) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.amberAccent, width: 2),
+        ),
+        title: const Text(
+          '🏆 Daily Mastery Reached!',
+          style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: const Text(
+          "You've maximized your practice XP for today. Take your skills to the Online Arena to continue leveling up and climbing the global ranks!",
+          style: TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          TextButton(
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(context);
+              onPlayAnyway();
+            },
+            child: const Text('Play for fun', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/online_lobby');
+            },
+            child: const Text('Go Online!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleOfflineClick() {
-    AudioService.playClick(); // ✅ Sonido
+    AudioService.playClick();
+
+    // Inform when daily cap is reached — player can still play for fun
+    final syncQueue = context.read<SyncQueueService>();
+    if (syncQueue.isDailyCapped) {
+      _showDailyMasteryDialog(onPlayAnyway: _navigateToOffline);
+      return;
+    }
+    _navigateToOffline();
+  }
+
+  void _navigateToOffline() {
     if (PrefsService.hasSavedGame) {
       showDialog(
         context: context,
@@ -325,7 +383,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () {
-                      AudioService.playClick(); // ✅ Sonido
+                      AudioService.playClick();
                       Navigator.pop(context);
                       _resumeGame();
                     },
@@ -359,7 +417,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   width: double.infinity,
                   child: TextButton(
                     onPressed: () {
-                      AudioService.playClick(); // ✅ Sonido
+                      AudioService.playClick();
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/players');
                     },
@@ -372,7 +430,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 const Divider(color: Colors.white24),
                 TextButton(
                   onPressed: () {
-                    AudioService.playClick(); // ✅ Sonido
+                    AudioService.playClick();
                     Navigator.pop(context);
                   },
                   child: Text(
@@ -391,7 +449,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   void _showSettings(BuildContext context) {
-    AudioService.playClick(); // ✅ Sonido al abrir
+    AudioService.playClick();
     showDialog(
       context: context,
       builder: (context) {
@@ -419,7 +477,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         value: context.watch<LanguageProvider>().currentLanguage,
                         underline: const SizedBox(),
                         onChanged: (Language? newLang) {
-                          AudioService.playClick(); // ✅ Sonido
+                          AudioService.playClick();
                           if (newLang != null) {
                             context.read<LanguageProvider>().setLanguage(newLang);
                           }
@@ -439,7 +497,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         value: PrefsService.gameSpeed,
                         underline: const SizedBox(),
                         onChanged: (GameSpeed? newSpeed) {
-                          AudioService.playClick(); // ✅ Sonido
+                          AudioService.playClick();
                           if (newSpeed != null) {
                             setDialogState(() => PrefsService.gameSpeed = newSpeed);
                           }
@@ -455,9 +513,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       secondary: const Icon(Icons.volume_up, color: Colors.white70),
                       title: Text(context.translate('sound'), style: const TextStyle(color: Colors.white70)),
                       value: PrefsService.soundEnabled,
-                      activeColor: Colors.orange,
+                      activeThumbColor: Colors.orange,
                       onChanged: (bool value) {
-                        AudioService.playClick(); // ✅ Sonido
+                        AudioService.playClick();
                         setDialogState(() => PrefsService.soundEnabled = value);
                       },
                     ),
@@ -465,9 +523,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       secondary: const Icon(Icons.vibration, color: Colors.white70),
                       title: Text(context.translate('vibration'), style: const TextStyle(color: Colors.white70)),
                       value: PrefsService.vibrationEnabled,
-                      activeColor: Colors.orange,
+                      activeThumbColor: Colors.orange,
                       onChanged: (bool value) {
-                        AudioService.playClick(); // ✅ Sonido
+                        AudioService.playClick();
                         setDialogState(() => PrefsService.vibrationEnabled = value);
                       },
                     ),
@@ -485,16 +543,146 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white70),
                       title: Text(context.translate('privacy_policy'), style: const TextStyle(color: Colors.white70)),
                       onTap: () {
-                        AudioService.playClick(); // ✅ Sonido
+                        AudioService.playClick();
                         Navigator.pop(context);
                         Navigator.pushNamed(context, '/privacy');
                       },
                     ),
+                    // ── Google Account ──────────────────────────────────
+                    const Divider(color: Colors.white24),
+                    Consumer<AuthService>(
+                      builder: (context, auth, _) {
+                        if (auth.isSignedIn) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ListTile(
+                                leading: CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: Colors.orange.shade800,
+                                  backgroundImage: (auth.profile?.photoUrl ?? auth.firebaseUser?.photoURL) != null
+                                      ? NetworkImage(auth.profile?.photoUrl ?? auth.firebaseUser!.photoURL!)
+                                      : null,
+                                  child: (auth.profile?.photoUrl ?? auth.firebaseUser?.photoURL) == null
+                                      ? const Icon(Icons.person, color: Colors.white, size: 18)
+                                      : null,
+                                ),
+                                title: Text(
+                                  auth.profile?.displayName.isNotEmpty == true
+                                      ? auth.profile!.displayName
+                                      : PrefsService.playerName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  auth.firebaseUser?.email ?? '',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: const Icon(Icons.verified, color: Colors.blueAccent, size: 18),
+                              ),
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Colors.white30),
+                                    foregroundColor: Colors.white70,
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.logout, size: 18),
+                                  label: Text(
+                                    context.translate('sign_out_google'),
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  onPressed: () {
+                                    AudioService.playClick();
+                                    auth.signOut();
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                          );
+                        }
+
+                        // Not signed in — show Google Sign-In button
+                        final showBonus = !PrefsService.signupBonusClaimed;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.black87,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                  icon: const Text(
+                                    'G',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF4285F4),
+                                    ),
+                                  ),
+                                  label: Text(
+                                    context.translate('sign_in_google'),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  onPressed: () async {
+                                    AudioService.playClick();
+                                    await auth.signInWithGoogle();
+                                    // Dialog rebuilds automatically via Consumer
+                                  },
+                                ),
+                              ),
+                              if (showBonus)
+                                Positioned(
+                                  top: -10,
+                                  right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade700,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Text(
+                                      '+50 XP',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    // ── Danger zone ─────────────────────────────────────
+                    const Divider(color: Colors.white24),
                     ListTile(
                       leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
                       title: Text(context.translate('delete_account'), style: const TextStyle(color: Colors.redAccent)),
                       onTap: () {
-                        AudioService.playClick(); // ✅ Sonido
+                        AudioService.playClick();
                         _confirmDeleteAccount(context);
                       },
                     ),
@@ -504,7 +692,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    AudioService.playClick(); // ✅ Sonido
+                    AudioService.playClick();
                     Navigator.pop(context);
                   },
                   child: Text(context.translate('close'), style: const TextStyle(color: Colors.orangeAccent)),
@@ -530,7 +718,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              AudioService.playClick(); // ✅ Sonido
+              AudioService.playClick();
               Navigator.pop(context);
             },
             child: Text(context.translate('cancel'), style: const TextStyle(color: Colors.white70)),
@@ -538,14 +726,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
-              AudioService.playClick(); // ✅ Sonido
-              
-              // 1. Informar al servidor (opcionalmente)
-              context.read<SocketService>().send('delete_user_data', {
-                'playerId': PrefsService.playerId,
-              });
-              
-              // 2. Ejecutar borrado local y reinicio inmediatamente (Play Store compliance)
+              AudioService.playClick();
+
+              // Capture refs before any async gap
+              final auth = context.read<AuthService>();
+              final socket = context.read<SocketService>();
+              final playerId = PrefsService.playerId;
+
+              // Fire Firebase cleanup in background — do NOT await
+              auth.deleteAccount();
+
+              // Inform game server
+              socket.send('delete_user_data', {'playerId': playerId});
+
+              // Immediately clear local prefs and navigate
               _handleAccountDeleted();
             },
             child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),
@@ -575,24 +769,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String playerName = PrefsService.playerName;
+    // Watch AuthService so the header re-reads PrefsService values after sign-in / XP updates.
+    context.watch<AuthService>();
     final int playerLevel = PrefsService.playerLevel;
     final String rankName = LevelManager.getRankName(playerLevel);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.redAccent,
-        onPressed: () {
-          setState(() {
-            PrefsService.totalXp += 25;
-            PrefsService.playerLevel = LevelManager.calculateLevel(PrefsService.totalXp);
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("¡+50 XP añadidos!")),
-          );
-        },
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
       body: SizedBox.expand(
         child: Stack(
           alignment: Alignment.center,
@@ -616,91 +798,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               ).animate().fadeIn(delay: 500.ms).scale(),
             ),
             Positioned(
-              top: 40,
-              left: 20,
+              top: 36,
+              left: 12,
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (playerName.isNotEmpty)
-                    GestureDetector(
-                      onTap: _showNameDialog,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.black45,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.person, color: Colors.orangeAccent, size: 16),
-                                const SizedBox(width: 8),
-                                Text(
-                                  playerName,
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.edit, color: Colors.white54, size: 12),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          // Barra de progreso de nivel con Tooltip
-                          Tooltip(
-                            message: _getLevelTooltipMessage(playerLevel),
-                            triggerMode: TooltipTriggerMode.tap,
-                            preferBelow: true,
-                            decoration: BoxDecoration(
-                              color: Colors.brown.shade800,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orangeAccent),
-                            ),
-                            textStyle: const TextStyle(color: Colors.white, fontSize: 12),
-                            child: Container(
-                              width: 150,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.orangeAccent.withOpacity(0.5), width: 1.5),
-                              ),
-                              child: Stack(
-                                children: [
-                                  // Fondo de progreso (relleno)
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: LinearProgressIndicator(
-                                      value: LevelManager.getLevelProgress(PrefsService.totalXp),
-                                      backgroundColor: Colors.transparent,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.orangeAccent.withOpacity(0.4)),
-                                      minHeight: 22,
-                                    ),
-                                  ),
-                                  // Texto de nivel y rango
-                                  Center(
-                                    child: Text(
-                                      "$rankName - Lvl $playerLevel",
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
-                  const SizedBox(width: 8),
+                  _PlayerProfileHeader(
+                    playerLevel: playerLevel,
+                    rankName: rankName,
+                    tooltipMessage: _getLevelTooltipMessage(playerLevel),
+                    onTapName: _showNameDialog,
+                  ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
+                  const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.info_outline, color: Colors.white70, size: 24),
+                    icon: const Icon(Icons.info_outline, color: Colors.white70, size: 22),
                     onPressed: _showCreditsDialog,
                   ).animate().fadeIn(delay: 700.ms).scale(),
                 ],
@@ -776,7 +887,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         subtitle: context.translate('online_subtitle'),
                         color: Colors.green,
                         onTap: () {
-                          AudioService.playClick(); // ✅ Sonido
+                          AudioService.playClick();
                           Navigator.pushNamed(context, '/online_lobby');
                         },
                       )
@@ -797,31 +908,223 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 }
 
+// ─── Player Profile Header ────────────────────────────────────────────────────
+
+class _PlayerProfileHeader extends StatelessWidget {
+  final int playerLevel;
+  final String rankName;
+  final String tooltipMessage;
+  final VoidCallback onTapName;
+
+  const _PlayerProfileHeader({
+    required this.playerLevel,
+    required this.rankName,
+    required this.tooltipMessage,
+    required this.onTapName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer2<AuthService, SyncQueueService>(
+      builder: (context, auth, syncQueue, _) {
+        final profile = auth.profile;
+        final name = profile?.displayName.isNotEmpty == true
+            ? profile!.displayName
+            : PrefsService.playerName;
+
+        return GestureDetector(
+          onTap: onTapName,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Avatar + name row
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildAvatar(profile?.photoUrl ?? auth.firebaseUser?.photoURL),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        name.isNotEmpty ? name : '...',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    if (auth.isSignedIn)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Icon(Icons.verified, color: Colors.blueAccent, size: 13),
+                      )
+                    else
+                      const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Icon(Icons.edit, color: Colors.white38, size: 11),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 5),
+
+                // XP bar
+                Tooltip(
+                  message: tooltipMessage,
+                  triggerMode: TooltipTriggerMode.tap,
+                  preferBelow: true,
+                  decoration: BoxDecoration(
+                    color: Colors.brown.shade800,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orangeAccent),
+                  ),
+                  textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                  child: SizedBox(
+                    width: 148,
+                    height: 20,
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LinearProgressIndicator(
+                            value: LevelManager.getLevelProgress(PrefsService.totalXp),
+                            backgroundColor: Colors.white12,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.orangeAccent.withValues(alpha: 0.55),
+                            ),
+                            minHeight: 20,
+                          ),
+                        ),
+                        Center(
+                          child: Text(
+                            '$rankName  Lv.$playerLevel',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                // Sync badge or Google Sign-In chip
+                if (auth.isSyncing)
+                  _statusChip(Icons.sync, context.translate('syncing'), Colors.blueAccent)
+                else if (syncQueue.hasPendingReceipts)
+                  _statusChip(Icons.upload, context.translate('offline_xp_pending'), Colors.amberAccent)
+                else if (!auth.isSignedIn)
+                  _googleSignInChip(context, auth),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAvatar(String? photoUrl) {
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 14,
+        backgroundImage: NetworkImage(photoUrl),
+        backgroundColor: Colors.orange.shade800,
+      );
+    }
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: Colors.orange.shade800,
+      child: const Icon(Icons.person, color: Colors.white, size: 16),
+    );
+  }
+
+  Widget _statusChip(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 10),
+        const SizedBox(width: 3),
+        Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  Widget _googleSignInChip(BuildContext context, AuthService auth) {
+    return GestureDetector(
+      onTap: () async {
+        AudioService.playClick();
+        await auth.signInWithGoogle();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.login, color: Colors.white70, size: 10),
+            const SizedBox(width: 4),
+            Text(
+              context.translate('sign_in_google'),
+              style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _AlertDialogWrapper extends StatelessWidget {
   final String title;
   final Widget content;
   final List<Widget> actions;
+  final bool canPop; // Propiedad para controlar el cierre
 
   const _AlertDialogWrapper({
     required this.title,
     required this.content,
     required this.actions,
+    this.canPop = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: Colors.brown.shade900,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Colors.orange, width: 2),
+    return PopScope(
+      canPop: canPop,
+      child: AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+        ),
+        content: content,
+        actions: actions,
       ),
-      title: Text(
-        title,
-        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-      ),
-      content: content,
-      actions: actions,
     );
   }
 }
@@ -913,85 +1216,301 @@ class _WelcomeDialog extends StatefulWidget {
 }
 
 class _WelcomeDialogState extends State<_WelcomeDialog> {
-  int _step = 0; // 0: Idioma, 1: Nombre
-  final TextEditingController _nameController = TextEditingController();
+  int _step = 0;
+  bool _isLoading = false;
+  bool _signedInWithGoogle = false;
+  final _nameController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    final auth = context.read<AuthService>();
+    await auth.signInWithGoogle();
+    if (!mounted) return;
+    // Use Firebase Auth user directly — always populated immediately by Google.
+    final firebaseUser = auth.firebaseUser;
+    final fullName = firebaseUser?.displayName ?? auth.profile?.displayName ?? '';
+    final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final firstName = parts.isNotEmpty ? parts.first : fullName.trim();
+    setState(() {
+      _isLoading = false;
+      _signedInWithGoogle = auth.isSignedIn;
+      if (firstName.isNotEmpty) _nameController.text = firstName;
+      _step = 1;
+    });
+  }
+
+  void _handleGuest() {
+    setState(() {
+      _nameController.clear();
+      _signedInWithGoogle = false;
+      _step = 1;
+    });
+  }
+
+  void _handleConfirm() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+    AudioService.playClick();
+    Navigator.pop(context);
+    widget.onComplete(name);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: Colors.brown.shade900,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Colors.orange, width: 2),
-      ),
-      title: Text(
-        _step == 0 ? "BIENVENIDO / WELCOME" : context.translate('enter_name_title'),
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-      ),
-      content: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: _step == 0 ? _buildLanguageStep() : _buildNameStep(),
-      ),
-      actions: [
-        if (_step == 1)
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            onPressed: () {
-              AudioService.playClick(); // ✅ Sonido
-              if (_nameController.text.trim().isNotEmpty) {
-                final String name = _nameController.text.trim();
-                Navigator.pop(context); // Primero cerramos este diálogo
-                widget.onComplete(name); // Luego notificamos para abrir el siguiente
-              }
-            },
-            child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildLanguageStep() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text(
-          "Selecciona tu idioma\nSelect your language",
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70, fontSize: 14),
+    return PopScope(
+      canPop: false,
+      child: AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
         ),
-        const SizedBox(height: 20),
-        _langOption("Español", "🇩🇴", Language.es),
-        const SizedBox(height: 12),
-        _langOption("English", "🇺🇸", Language.en),
+        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+        title: Column(
+          children: [
+            Text(
+              context.translate('welcome_to_parche'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _StepIndicator(step: _step),
+            const SizedBox(height: 8),
+            Text(
+              _step == 0
+                  ? context.translate('create_your_profile')
+                  : context.translate('confirm_your_name'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+          ],
+        ),
+        content: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(begin: const Offset(0.25, 0), end: Offset.zero)
+                  .animate(animation),
+              child: child,
+            ),
+          ),
+          child: _step == 0 ? _buildStep0(context) : _buildStep1(context),
+        ),
+        actions: _step == 1
+            ? [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  onPressed: _handleConfirm,
+                  child: Text(
+                    context.translate('confirm'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ]
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildStep0(BuildContext context) {
+    final showBonus = !PrefsService.signupBonusClaimed;
+    return SizedBox(
+      key: const ValueKey('step0'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black87,
+                  minimumSize: const Size(double.infinity, 52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 2,
+                ),
+                onPressed: _isLoading ? null : _handleGoogleSignIn,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+                      )
+                    : const Text(
+                        'G',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4285F4),
+                        ),
+                      ),
+                label: Text(
+                  context.translate('continue_with_google'),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+              ),
+              if (showBonus)
+              Positioned(
+                top: -10,
+                right: -6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade700,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    '+50 XP',
+                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white70,
+              side: const BorderSide(color: Colors.white38),
+              minimumSize: const Size(double.infinity, 44),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: _handleGuest,
+            child: Text(context.translate('play_as_guest')),
+          ),
+          const SizedBox(height: 16),
+          Text.rich(
+            TextSpan(
+              style: const TextStyle(color: Colors.white54, fontSize: 11),
+              children: [
+                TextSpan(text: context.translate('privacy_policy_agree_prefix')),
+                TextSpan(
+                  text: context.translate('privacy_policy'),
+                  style: const TextStyle(
+                    color: Colors.orange,
+                    decoration: TextDecoration.underline,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () => launchUrl(Uri.parse('https://parche.app/privacy')),
+                ),
+              ],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep1(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    // Use Firebase Auth user directly for photo — always populated immediately by Google.
+    final photoUrl = auth.firebaseUser?.photoURL ?? auth.profile?.photoUrl;
+    return SizedBox(
+      key: const ValueKey('step1'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_signedInWithGoogle) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade700,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                context.translate('xp_bonus_received'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          CircleAvatar(
+            radius: 36,
+            backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+            backgroundColor: Colors.orange.shade800,
+            child: photoUrl == null
+                ? const Icon(Icons.person, size: 36, color: Colors.white)
+                : null,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _nameController,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            textCapitalization: TextCapitalization.words,
+            onSubmitted: (_) => _handleConfirm(),
+            decoration: InputDecoration(
+              hintText: context.translate('name_hint'),
+              hintStyle: const TextStyle(color: Colors.white54),
+              enabledBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.orange),
+              ),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.orange),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepIndicator extends StatelessWidget {
+  final int step;
+  const _StepIndicator({required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _StepDot(filled: step >= 0),
+        Container(width: 32, height: 2, color: step >= 1 ? Colors.orange : Colors.white24),
+        _StepDot(filled: step >= 1),
+        const SizedBox(width: 8),
+        Text(
+          context.translate('step_n_of_2', args: {'n': '${step + 1}'}),
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        ),
       ],
     );
   }
+}
 
-  Widget _langOption(String label, String flag, Language lang) {
-    return ListTile(
-      tileColor: Colors.black26,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      leading: Text(flag, style: const TextStyle(fontSize: 24)),
-      title: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      onTap: () {
-        AudioService.playClick(); // ✅ Sonido
-        context.read<LanguageProvider>().setLanguage(lang);
-        setState(() => _step = 1);
-      },
-    );
-  }
+class _StepDot extends StatelessWidget {
+  final bool filled;
+  const _StepDot({required this.filled});
 
-  Widget _buildNameStep() {
-    return TextField(
-      controller: _nameController,
-      autofocus: true,
-      style: const TextStyle(color: Colors.white),
-      textCapitalization: TextCapitalization.words,
-      decoration: InputDecoration(
-        hintText: context.translate('name_hint'),
-        hintStyle: const TextStyle(color: Colors.white54),
-        enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orange)),
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: filled ? Colors.orange : Colors.white24,
       ),
     );
   }

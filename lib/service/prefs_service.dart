@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import '../models/xp_receipt.dart';
 
 enum GameSpeed { normal, fast }
 
@@ -52,6 +53,7 @@ class PrefsService {
   static bool get hasSavedGame => _prefs.containsKey('saved_local_game');
 
   // 🌐 Idioma
+  static bool get hasLanguagePreference => _prefs.containsKey('language_code');
   static String get languageCode => _prefs.getString('language_code') ?? 'es';
   static Future<void> setLanguage(String code) => _prefs.setString('language_code', code);
 
@@ -83,6 +85,10 @@ class PrefsService {
   static int get playerLevel => _prefs.getInt('player_level') ?? 1;
   static set playerLevel(int value) => _prefs.setInt('player_level', value);
 
+  // 🎁 Sign-up bonus — one-time, reset on account deletion via PrefsService.clear()
+  static bool get signupBonusClaimed => _prefs.getBool('signup_bonus_claimed') ?? false;
+  static set signupBonusClaimed(bool value) => _prefs.setBool('signup_bonus_claimed', value);
+
   // 🚫 Moderación: Lista de bloqueados persistente
   static List<String> get blockedPlayerIds {
     String? json = _prefs.getString('blocked_players');
@@ -96,6 +102,37 @@ class PrefsService {
 
   static set blockedPlayerIds(List<String> ids) {
     _prefs.setString('blocked_players', jsonEncode(ids));
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // 🔄 Sync Queue — offline XP receipts awaiting cloud validation
+  // ────────────────────────────────────────────────────────────────
+
+  static List<XpReceipt> get pendingSyncReceipts {
+    final raw = _prefs.getString('pending_sync_receipts');
+    if (raw == null || raw.isEmpty) return [];
+    return xpReceiptsFromJson(raw);
+  }
+
+  static set pendingSyncReceipts(List<XpReceipt> receipts) =>
+      _prefs.setString('pending_sync_receipts', xpReceiptsToJson(receipts));
+
+  // 📅 Daily offline XP counter
+  static int get todayOfflineXp => _prefs.getInt('today_offline_xp') ?? 0;
+  static set todayOfflineXp(int value) => _prefs.setInt('today_offline_xp', value);
+
+  static DateTime? get lastDailyReset {
+    final raw = _prefs.getString('last_daily_reset');
+    if (raw == null) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  static set lastDailyReset(DateTime? value) {
+    if (value == null) {
+      _prefs.remove('last_daily_reset');
+    } else {
+      _prefs.setString('last_daily_reset', value.toIso8601String());
+    }
   }
 
   static Future<void> clear() async {

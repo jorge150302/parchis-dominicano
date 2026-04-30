@@ -68,14 +68,15 @@ class LevelManager {
     return total;
   }
   
-  /// Calcula cuánto XP se gana por una partida.
+  /// Calcula cuánto XP se gana por una partida (valor base completo).
+  /// El ratio offline (20%) y el tope diario son responsabilidad de SyncQueueService.
   static int calculateMatchXP({
     required int position, // 0 para 1º, 1 para 2º...
     required int totalPlayers,
-    required bool isOnline,
+    bool isOnline = true, // kept for call-site compat; ignored here
   }) {
     int xp = 0;
-    
+
     if (totalPlayers == 4) {
       if (position == 0) xp = 100;
       else if (position == 1) xp = 40;
@@ -86,7 +87,6 @@ class LevelManager {
       if (position == 0) xp = 60;
     }
 
-    // Si es offline contra la IA, la recompensa es la mitad
-    return isOnline ? xp : (xp / 2).floor();
+    return xp;
   }
 }

@@ -18,6 +18,8 @@ import '../widgets/home_zone_widget.dart';
 import '../../service/socket_service.dart';
 import '../../service/prefs_service.dart';
 import '../../service/audio_service.dart';
+import '../../service/auth_service.dart';
+import '../../service/sync_queue_service.dart';
 
 class GameScreen extends StatefulWidget {
   final int playerCount;
@@ -59,6 +61,7 @@ class _GameScreenState extends State<GameScreen> {
   // Variables para el sistema de niveles
   int _lastGainedXp = 0;
   bool _didLevelUp = false;
+  bool _dailyCapReached = false;
 
   @override
   void initState() {
@@ -151,23 +154,31 @@ class _GameScreenState extends State<GameScreen> {
     int myPosition = finisherIds.indexOf(targetId);
 
     if (myPosition != -1) {
-      _lastGainedXp = LevelManager.calculateMatchXP(
+      final rawXp = LevelManager.calculateMatchXP(
         position: myPosition,
         totalPlayers: controller.players.length,
+      );
+
+      final syncQueue = context.read<SyncQueueService>();
+      final int oldLevel = PrefsService.playerLevel;
+
+      _lastGainedXp = syncQueue.awardMatchXp(
+        rawXp: rawXp,
         isOnline: controller.isOnline,
       );
 
-      int oldXp = PrefsService.totalXp;
-      int newXp = oldXp + _lastGainedXp;
-      
-      PrefsService.totalXp = newXp;
-      
-      int oldLevel = PrefsService.playerLevel;
-      int newLevel = LevelManager.calculateLevel(newXp);
-      
-      if (newLevel > oldLevel) {
+      if (PrefsService.playerLevel > oldLevel) {
         _didLevelUp = true;
-        PrefsService.playerLevel = newLevel;
+      }
+
+      // Check if daily offline cap was hit
+      if (!controller.isOnline && rawXp > 0 && _lastGainedXp == 0) {
+        _dailyCapReached = true;
+      }
+
+      // Increment cloud win counter for online first-place
+      if (controller.isOnline && myPosition == 0) {
+        context.read<AuthService>().incrementWins();
       }
     }
   }
@@ -921,6 +932,33 @@ class _GameScreenState extends State<GameScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Daily Mastery Cap notification
+            if (!widget.isTutorial && _dailyCapReached)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade900.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.amberAccent, width: 2),
+                ),
+                child: const Column(
+                  children: [
+                    Text(
+                      '🏆 Daily Mastery Reached!',
+                      style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      "You've maximized your practice XP for today. Take your skills to the Online Arena to continue leveling up and climbing the global ranks!",
+                      style: TextStyle(color: Colors.white, fontSize: 11),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+
             // Sección de XP y Nivel MEJORADA con Barra Circular
             if (!widget.isTutorial && _lastGainedXp > 0)
               Container(

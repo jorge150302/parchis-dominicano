@@ -79,7 +79,7 @@ class GameHudWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(.9),
+        color: color.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
       ),

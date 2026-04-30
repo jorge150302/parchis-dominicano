@@ -1,7 +1,10 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend_parchis/menu/online_lobby_screen.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
+import 'package:frontend_parchis/service/auth_service.dart';
+import 'package:frontend_parchis/service/sync_queue_service.dart';
 import 'package:provider/provider.dart';
 
 import 'config/language_provider.dart';
@@ -18,8 +21,10 @@ import 'game/logic/board_presets.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await PrefsService.init(); 
-  
+  await PrefsService.init();
+  // Requires google-services.json in android/app/
+  // Run `flutterfire configure` or download it from your Firebase Console.
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
@@ -32,6 +37,11 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: socketService),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProxyProvider<AuthService, SyncQueueService>(
+          create: (ctx) => SyncQueueService(ctx.read<AuthService>()),
+          update: (ctx, auth, prev) => prev ?? SyncQueueService(auth),
+        ),
       ],
       builder: (context, _) {
         return MaterialApp(

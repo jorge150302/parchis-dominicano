@@ -99,6 +99,12 @@ abstract class GameController extends ChangeNotifier {
     }
   }
 
+  Future<void> _heavyVibrate() async {
+    if (PrefsService.vibrationEnabled) {
+      await HapticFeedback.heavyImpact();
+    }
+  }
+
   /// ✅ Reproduce el sonido de victoria y ESPERA a que termine totalmente
   /// para evitar que el siguiente turno lo corte.
   Future<void> playFanfare() async {
@@ -340,7 +346,7 @@ class LocalGameController extends GameController {
       final cap = engine.penaltyThreeSixes(currentPlayer);
       if (cap != null) _capturedTokenController.add(cap);
       await playSendToHomeSound();
-      if (_isHumanTurn) _vibrate();
+      if (_isHumanTurn) _heavyVibrate();
       engine.nextTurn();
       startTurn();
       return;
@@ -489,12 +495,12 @@ class LocalGameController extends GameController {
         _capturedTokenController.add(cap);
       }
       await playSendToHomeSound();
-      if (_isHumanTurn) _vibrate();
+      if (_isHumanTurn) _heavyVibrate();
       await Future.delayed(Duration(milliseconds: (600 / _audioPlaybackRate).round()));
     } else if (actionRes.moved) {
        if (actionRes.sentToStart) {
          await playSendToHomeSound();
-         if (_isHumanTurn) _vibrate();
+         if (_isHumanTurn) _heavyVibrate();
        }
     }
     
@@ -906,12 +912,12 @@ class NetworkGameController extends GameController {
         ));
 
         _capturedTokenController.add(CapturedToken(
-          playerIndex: player.index, 
-          asset: player.tokenAsset, 
+          playerIndex: player.index,
+          asset: player.tokenAsset,
           fromPosition: oldPos
         ));
         await playSendToHomeSound();
-        _vibrate();
+        _heavyVibrate();
       }
     }
     

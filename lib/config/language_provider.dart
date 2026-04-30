@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../service/prefs_service.dart';
@@ -14,8 +16,17 @@ class LanguageProvider extends ChangeNotifier {
   }
 
   void _loadLanguage() {
-    final langCode = PrefsService.languageCode;
-    _currentLanguage = langCode == 'en' ? Language.en : Language.es;
+    if (!PrefsService.hasLanguagePreference) {
+      // First launch: detect from device locale.
+      // Supported: 'es' → Spanish, everything else → English.
+      final deviceLang = ui.PlatformDispatcher.instance.locale.languageCode;
+      _currentLanguage = deviceLang == 'es' ? Language.es : Language.en;
+      // Persist so the next launch skips detection.
+      PrefsService.setLanguage(_currentLanguage.name);
+    } else {
+      final langCode = PrefsService.languageCode;
+      _currentLanguage = langCode == 'en' ? Language.en : Language.es;
+    }
   }
 
   Future<void> setLanguage(Language language) async {
@@ -190,6 +201,20 @@ class LanguageProvider extends ChangeNotifier {
       'quick_msg_oops': '¡Rayos!',
       'quick_msg_hello': '¡Hola!',
       'quick_msg_play_fast': '¡Juega rápido!',
+      // Google Auth
+      'sign_in_google': 'Iniciar sesión con Google',
+      'sign_out_google': 'Cerrar sesión de Google',
+      'syncing': 'Sincronizando...',
+      'offline_xp_pending': 'XP Offline Pendiente',
+      // Onboarding
+      'welcome_to_parche': '¡Bienvenido a Parché!',
+      'create_your_profile': 'Crea tu perfil',
+      'continue_with_google': 'Continuar con Google',
+      'play_as_guest': 'Jugar como Invitado',
+      'privacy_policy_agree_prefix': 'Al continuar, aceptas nuestra ',
+      'step_n_of_2': 'Paso {n} de 2',
+      'confirm_your_name': 'Confirma tu nombre',
+      'xp_bonus_received': '+50 XP ¡Bonus de bienvenida!',
     },
     Language.en: {
       'waiting_players': 'Waiting for Players...',
@@ -345,6 +370,20 @@ class LanguageProvider extends ChangeNotifier {
       'quick_msg_oops': 'Oops!',
       'quick_msg_hello': 'Hello!',
       'quick_msg_play_fast': 'Play fast!',
+      // Google Auth
+      'sign_in_google': 'Sign in with Google',
+      'sign_out_google': 'Sign out of Google',
+      'syncing': 'Syncing...',
+      'offline_xp_pending': 'Offline XP Pending',
+      // Onboarding
+      'welcome_to_parche': 'Welcome to Parché!',
+      'create_your_profile': 'Create your profile',
+      'continue_with_google': 'Continue with Google',
+      'play_as_guest': 'Play as Guest',
+      'privacy_policy_agree_prefix': 'By continuing, you agree to our ',
+      'step_n_of_2': 'Step {n} of 2',
+      'confirm_your_name': 'Confirm your name',
+      'xp_bonus_received': '+50 XP Welcome Bonus!',
     },
   };
 }
