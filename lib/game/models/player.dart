@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 class Token {
   final int id;
@@ -67,8 +66,10 @@ class Player {
   int extraTurns;
   bool isAI;
   bool isAutoPlaying;
-  bool isConnected; // ✅ Nuevo campo para estado de conexión
+  bool isConnected;
   int lastDiceValue;
+  String avatarType;
+  String? avatarIconId;
 
   Player({
     required this.id,
@@ -81,8 +82,10 @@ class Player {
     this.extraTurns = 0,
     this.isAI = false,
     this.isAutoPlaying = false,
-    this.isConnected = true, // ✅ Por defecto conectado
+    this.isConnected = true,
     this.lastDiceValue = 1,
+    this.avatarType = 'google',
+    this.avatarIconId,
   }) : tokens = List.generate(tokenCount, (i) => Token(id: i));
 
   bool get isFinished => tokens.every((t) => t.isFinished);
@@ -99,6 +102,8 @@ class Player {
     'isAutoPlaying': isAutoPlaying,
     'isConnected': isConnected,
     'lastDiceValue': lastDiceValue,
+    'avatarType': avatarType,
+    'avatarIconId': avatarIconId,
     'tokens': tokens.map((t) => t.toJson()).toList(),
   };
 
@@ -116,6 +121,8 @@ class Player {
       isAutoPlaying: json['isAutoPlaying'] ?? false,
       isConnected: json['isConnected'] ?? true,
       lastDiceValue: json['lastDiceValue'] ?? 1,
+      avatarType: json['avatarType'] as String? ?? 'google',
+      avatarIconId: json['avatarIconId'] as String?,
     );
     final List tokensJson = json['tokens'];
     for (int i = 0; i < tokensJson.length; i++) {
@@ -155,6 +162,8 @@ class Player {
       isAutoPlaying: isAutoPlaying,
       isConnected: isConnected,
       lastDiceValue: lastDiceValue,
+      avatarType: avatarType,
+      avatarIconId: avatarIconId,
     );
     for (int i = 0; i < tokens.length; i++) {
       p.tokens[i].position = tokens[i].position;

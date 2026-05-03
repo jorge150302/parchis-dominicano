@@ -78,11 +78,13 @@ class LevelManager {
     int xp = 0;
 
     if (totalPlayers == 4) {
-      if (position == 0) xp = 100;
-      else if (position == 1) xp = 40;
+      if (position == 0) {
+        xp = 100;
+      } else if (position == 1) xp = 40;
     } else if (totalPlayers == 3) {
-      if (position == 0) xp = 80;
-      else if (position == 1) xp = 20;
+      if (position == 0) {
+        xp = 80;
+      } else if (position == 1) xp = 20;
     } else if (totalPlayers == 2) {
       if (position == 0) xp = 60;
     }

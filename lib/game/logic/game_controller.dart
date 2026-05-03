@@ -219,8 +219,9 @@ class LocalGameController extends GameController {
     if (isMyTurn) {
       currentPlayer.isAutoPlaying = value;
       notifyListeners();
-      if (value && engine.phase == GamePhase.idle) rollDice();
-      else if (value && engine.phase == GamePhase.choosing_token) _checkAutoMove(force: true);
+      if (value && engine.phase == GamePhase.idle) {
+        rollDice();
+      } else if (value && engine.phase == GamePhase.choosing_token) _checkAutoMove(force: true);
     }
   }
 
@@ -315,8 +316,9 @@ class LocalGameController extends GameController {
 
     for (int i = 0; i < 12; i++) {
       if (_isTutorial && i == 11) {
-        if (_tutorialDiceIndex == 0) diceValue = 5;
-        else if (_tutorialDiceIndex == 1) diceValue = 5;
+        if (_tutorialDiceIndex == 0) {
+          diceValue = 5;
+        } else if (_tutorialDiceIndex == 1) diceValue = 5;
         else if (_tutorialDiceIndex == 2) diceValue = 6;
         else if (_tutorialDiceIndex == 3) diceValue = 1;
         else diceValue = random.nextInt(6) + 1;
@@ -390,8 +392,11 @@ class LocalGameController extends GameController {
     if (force || (PrefsService.autoMoveEnabled && movableTokenIds.length == 1)) {
       Future.delayed(Duration(milliseconds: _autoMoveDelayMs), () {
         if (engine.phase == GamePhase.choosing_token && (force || movableTokenIds.length == 1) && !inputLocked) {
-          if (force) _triggerAISelection();
-          else selectToken(movableTokenIds.first);
+          if (force) {
+            _triggerAISelection();
+          } else {
+            selectToken(movableTokenIds.first);
+          }
         }
       });
     }
@@ -429,8 +434,9 @@ class LocalGameController extends GameController {
           final cell = engine.board.getCell(targetPos);
           if (cell.action != null) {
              final actionType = cell.action!.type;
-             if (actionType == BoardActionType.goToStart) priority -= 150; 
-             else if (actionType == BoardActionType.skipTurn) priority -= 140;
+             if (actionType == BoardActionType.goToStart) {
+               priority -= 150;
+             } else if (actionType == BoardActionType.skipTurn) priority -= 140;
              else if (actionType == BoardActionType.moveTo && cell.action!.targetNumber! < targetPos) priority -= 130;
              else if (actionType == BoardActionType.rollAgain) priority += 20;
           }
@@ -673,11 +679,13 @@ class NetworkGameController extends GameController {
         (p) => p.id == id,
         orElse: () {
           final p = Player(
-            id: id, 
-            name: playerData['name'], 
-            index: slotIndex, 
+            id: id,
+            name: playerData['name'],
+            index: slotIndex,
             tokenAsset: tokensAssets[slotIndex % tokensAssets.length],
-            tokenCount: 2 
+            tokenCount: 2,
+            avatarType: playerData['avatarType'] as String? ?? 'google',
+            avatarIconId: playerData['avatarIconId'] as String?,
           );
           engine.players.add(p);
           return p;
@@ -686,6 +694,10 @@ class NetworkGameController extends GameController {
 
       player.lastDiceValue = playerData['lastDiceValue'] ?? player.lastDiceValue;
       player.isAutoPlaying = playerData['isAutoPlaying'] ?? player.isAutoPlaying;
+      if (playerData.containsKey('avatarType')) {
+        player.avatarType = playerData['avatarType'] as String? ?? player.avatarType;
+        player.avatarIconId = playerData['avatarIconId'] as String?;
+      }
 
       final List? tokensData = playerData['tokens'];
       if (tokensData != null) {
@@ -732,7 +744,7 @@ class NetworkGameController extends GameController {
       player.isAI = playerData['isAI'] ?? player.isAI;
     }
 
-    final String? previousPlayerId = engine.currentPlayer.id;
+    final String previousPlayerId = engine.currentPlayer.id;
     if (currentPlayerId != null) {
       engine.setCurrentPlayerById(currentPlayerId);
       if (currentPlayerId == PrefsService.playerId && previousPlayerId != currentPlayerId) {

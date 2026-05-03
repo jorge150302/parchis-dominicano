@@ -12,6 +12,8 @@ import '../service/audio_service.dart';
 import '../service/auth_service.dart';
 import '../service/sync_queue_service.dart';
 import '../game/logic/level_manager.dart';
+import '../widgets/user_avatar_widget.dart';
+import '../widgets/avatar_selector_sheet.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -557,15 +559,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               ListTile(
-                                leading: CircleAvatar(
+                                leading: UserAvatarWidget(
+                                  profile: auth.profile,
+                                  firebaseUser: auth.firebaseUser,
                                   radius: 18,
-                                  backgroundColor: Colors.orange.shade800,
-                                  backgroundImage: (auth.profile?.photoUrl ?? auth.firebaseUser?.photoURL) != null
-                                      ? NetworkImage(auth.profile?.photoUrl ?? auth.firebaseUser!.photoURL!)
-                                      : null,
-                                  child: (auth.profile?.photoUrl ?? auth.firebaseUser?.photoURL) == null
-                                      ? const Icon(Icons.person, color: Colors.white, size: 18)
-                                      : null,
                                 ),
                                 title: Text(
                                   auth.profile?.displayName.isNotEmpty == true
@@ -932,124 +929,147 @@ class _PlayerProfileHeader extends StatelessWidget {
             ? profile!.displayName
             : PrefsService.playerName;
 
-        return GestureDetector(
-          onTap: onTapName,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Avatar + name row
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildAvatar(profile?.photoUrl ?? auth.firebaseUser?.photoURL),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        name.isNotEmpty ? name : '...',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    if (auth.isSignedIn)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Icon(Icons.verified, color: Colors.blueAccent, size: 13),
-                      )
-                    else
-                      const Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Icon(Icons.edit, color: Colors.white38, size: 11),
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 5),
-
-                // XP bar
-                Tooltip(
-                  message: tooltipMessage,
-                  triggerMode: TooltipTriggerMode.tap,
-                  preferBelow: true,
-                  decoration: BoxDecoration(
-                    color: Colors.brown.shade800,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orangeAccent),
-                  ),
-                  textStyle: const TextStyle(color: Colors.white, fontSize: 12),
-                  child: SizedBox(
-                    width: 148,
-                    height: 20,
+        return Container(
+          constraints: const BoxConstraints(maxWidth: 240),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // ── Avatar — tap to change ──────────────────────────────────
+              GestureDetector(
+                onTap: auth.isSignedIn ? () => showAvatarSelectorSheet(context, auth) : null,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: ClipOval(
                     child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: LinearProgressIndicator(
-                            value: LevelManager.getLevelProgress(PrefsService.totalXp),
-                            backgroundColor: Colors.white12,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.orangeAccent.withValues(alpha: 0.55),
-                            ),
-                            minHeight: 20,
-                          ),
+                        UserAvatarWidget(
+                          profile: profile,
+                          firebaseUser: auth.firebaseUser,
+                          radius: 22,
                         ),
-                        Center(
-                          child: Text(
-                            '$rankName  Lv.$playerLevel',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                        if (auth.isSignedIn)
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              height: 16,
+                              color: Colors.black54,
+                              child: const Icon(
+                                Icons.photo_camera,
+                                size: 11,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 5),
-
-                // Sync badge or Google Sign-In chip
-                if (auth.isSyncing)
-                  _statusChip(Icons.sync, context.translate('syncing'), Colors.blueAccent)
-                else if (syncQueue.hasPendingReceipts)
-                  _statusChip(Icons.upload, context.translate('offline_xp_pending'), Colors.amberAccent)
-                else if (!auth.isSignedIn)
-                  _googleSignInChip(context, auth),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              // ── Name + XP + chips ───────────────────────────────────────
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Name row — tap to rename
+                    GestureDetector(
+                      onTap: onTapName,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name.isNotEmpty ? name : '...',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          if (auth.isSignedIn)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Icon(Icons.verified, color: Colors.blueAccent, size: 12),
+                            ),
+                          const Padding(
+                            padding: EdgeInsets.only(left: 4),
+                            child: Icon(Icons.edit, color: Colors.white54, size: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    // XP bar
+                    Tooltip(
+                      message: tooltipMessage,
+                      triggerMode: TooltipTriggerMode.tap,
+                      preferBelow: true,
+                      decoration: BoxDecoration(
+                        color: Colors.brown.shade800,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orangeAccent),
+                      ),
+                      textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                      child: SizedBox(
+                        height: 20,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: LevelManager.getLevelProgress(PrefsService.totalXp),
+                                backgroundColor: Colors.white12,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.orangeAccent.withValues(alpha: 0.55),
+                                ),
+                                minHeight: 20,
+                              ),
+                            ),
+                            Center(
+                              child: Text(
+                                '$rankName  Lv.$playerLevel',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // Sync badge or Google Sign-In chip
+                    if (auth.isSyncing)
+                      _statusChip(Icons.sync, context.translate('syncing'), Colors.blueAccent)
+                    else if (syncQueue.hasPendingReceipts)
+                      _statusChip(Icons.upload, context.translate('offline_xp_pending'), Colors.amberAccent)
+                    else if (!auth.isSignedIn)
+                      _googleSignInChip(context, auth),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildAvatar(String? photoUrl) {
-    if (photoUrl != null && photoUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: 14,
-        backgroundImage: NetworkImage(photoUrl),
-        backgroundColor: Colors.orange.shade800,
-      );
-    }
-    return CircleAvatar(
-      radius: 14,
-      backgroundColor: Colors.orange.shade800,
-      child: const Icon(Icons.person, color: Colors.white, size: 16),
     );
   }
 
@@ -1451,8 +1471,6 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
 
   Widget _buildStep1(BuildContext context) {
     final auth = context.watch<AuthService>();
-    // Use Firebase Auth user directly for photo — always populated immediately by Google.
-    final photoUrl = auth.firebaseUser?.photoURL ?? auth.profile?.photoUrl;
     return SizedBox(
       key: const ValueKey('step1'),
       child: Column(
@@ -1476,13 +1494,10 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
             ),
             const SizedBox(height: 12),
           ],
-          CircleAvatar(
+          UserAvatarWidget(
+            profile: auth.profile,
+            firebaseUser: auth.firebaseUser,
             radius: 36,
-            backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-            backgroundColor: Colors.orange.shade800,
-            child: photoUrl == null
-                ? const Icon(Icons.person, size: 36, color: Colors.white)
-                : null,
           ),
           const SizedBox(height: 16),
           TextField(

@@ -149,7 +149,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                             scale: 0.8,
                             child: Switch(
                               value: vsAI,
-                              activeColor: Colors.orangeAccent,
+                              activeThumbColor: Colors.orangeAccent,
                               onChanged: (v) {
                                 AudioService.playClick(); // ✅ Sonido
                                 setState(() {

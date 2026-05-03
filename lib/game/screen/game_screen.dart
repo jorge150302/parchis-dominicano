@@ -20,6 +20,7 @@ import '../../service/prefs_service.dart';
 import '../../service/audio_service.dart';
 import '../../service/auth_service.dart';
 import '../../service/sync_queue_service.dart';
+import '../../models/avatar_icons.dart';
 
 class GameScreen extends StatefulWidget {
   final int playerCount;
@@ -1073,7 +1074,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
                 trailing: Image.asset(p.tokenAsset, width: 30),
               );
-            }).toList(),
+            }),
           ],
         ),
         actions: [
@@ -1393,6 +1394,20 @@ class _PlayerCornerWidget extends StatelessWidget {
     );
   }
 
+  Widget _buildPlayerAvatar(Player player, double size) {
+    if (player.avatarType == 'icon') {
+      final icon = avatarIconById(player.avatarIconId);
+      if (icon != null) {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundColor: icon.color,
+          child: Icon(icon.icon, color: Colors.white, size: size * 0.65),
+        );
+      }
+    }
+    return Image.asset(player.tokenAsset, width: size, height: size);
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
@@ -1428,7 +1443,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset(player.tokenAsset, width: 14, height: 14),
+                    _buildPlayerAvatar(player, 14),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(

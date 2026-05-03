@@ -78,6 +78,19 @@ class PrefsService {
   static int get autoMoveDelayMs => _prefs.getInt('auto_move_delay_ms') ?? 600;
   static set autoMoveDelayMs(int value) => _prefs.setInt('auto_move_delay_ms', value);
 
+  // 🎭 Avatar
+  static String get avatarType => _prefs.getString('avatar_type') ?? 'google';
+  static set avatarType(String value) => _prefs.setString('avatar_type', value);
+
+  static String? get avatarIconId => _prefs.getString('avatar_icon_id');
+  static set avatarIconId(String? value) {
+    if (value == null) {
+      _prefs.remove('avatar_icon_id');
+    } else {
+      _prefs.setString('avatar_icon_id', value);
+    }
+  }
+
   // 🏆 Sistema de Niveles y XP
   static int get totalXp => _prefs.getInt('total_xp') ?? 0;
   static set totalXp(int value) => _prefs.setInt('total_xp', value);

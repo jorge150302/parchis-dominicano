@@ -255,7 +255,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 title: Text(context.translate('public_room', listen: false), style: const TextStyle(fontSize: 14, color: Colors.white)),
                 subtitle: Text(context.translate('public_room_subtitle', listen: false), style: const TextStyle(fontSize: 12, color: Colors.white70)),
                 value: isPublic,
-                activeColor: Colors.orange,
+                activeThumbColor: Colors.orange,
                 onChanged: (v) {
                   AudioService.playClick(); // ✅ Sonido
                   setDialogState(() => isPublic = v);
