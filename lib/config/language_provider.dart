@@ -202,6 +202,8 @@ class LanguageProvider extends ChangeNotifier {
       'quick_msg_hello': '¡Hola!',
       'quick_msg_play_fast': '¡Juega rápido!',
       // Google Auth
+      'sign_in_required': 'Inicia sesión para jugar en línea',
+      'sign_in_required_content': 'Necesitas una cuenta de Google para el modo en línea.',
       'sign_in_google': 'Iniciar sesión con Google',
       'sign_out_google': 'Cerrar sesión de Google',
       'syncing': 'Sincronizando...',
@@ -371,6 +373,8 @@ class LanguageProvider extends ChangeNotifier {
       'quick_msg_hello': 'Hello!',
       'quick_msg_play_fast': 'Play fast!',
       // Google Auth
+      'sign_in_required': 'Sign in to play online',
+      'sign_in_required_content': 'You need a Google account to access online mode.',
       'sign_in_google': 'Sign in with Google',
       'sign_out_google': 'Sign out of Google',
       'syncing': 'Syncing...',

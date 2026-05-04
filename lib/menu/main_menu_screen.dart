@@ -340,6 +340,55 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
+  void _showSignInRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: Text(
+          context.translate('sign_in_required'),
+          style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          context.translate('sign_in_required_content'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(ctx);
+            },
+            child: Text(context.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black87,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Text('G', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF4285F4))),
+            label: Text(context.translate('sign_in_google'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              AudioService.playClick();
+              Navigator.pop(ctx);
+              final auth = context.read<AuthService>();
+              final profile = await auth.signInWithGoogle();
+              if (!mounted) return;
+              if (profile != null) {
+                Navigator.pushNamed(context, '/online_lobby');
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleOfflineClick() {
     AudioService.playClick();
 
@@ -885,6 +934,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         color: Colors.green,
                         onTap: () {
                           AudioService.playClick();
+                          final auth = context.read<AuthService>();
+                          if (!auth.isSignedIn) {
+                            _showSignInRequiredDialog();
+                            return;
+                          }
                           Navigator.pushNamed(context, '/online_lobby');
                         },
                       )

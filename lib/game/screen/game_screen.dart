@@ -1394,18 +1394,45 @@ class _PlayerCornerWidget extends StatelessWidget {
     );
   }
 
+  static const _kSlotColors = [
+    Color(0xFFE53935), // red   – index 0
+    Color(0xFF1E88E5), // blue  – index 1
+    Color(0xFF43A047), // green – index 2
+    Color(0xFFFFB300), // yellow – index 3
+  ];
+
   Widget _buildPlayerAvatar(Player player, double size) {
+    final ringColor = _kSlotColors[player.index % _kSlotColors.length];
+
+    final Widget inner;
     if (player.avatarType == 'icon') {
       final icon = avatarIconById(player.avatarIconId);
-      if (icon != null) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundColor: icon.color,
-          child: Icon(icon.icon, color: Colors.white, size: size * 0.65),
-        );
-      }
+      inner = icon != null
+          ? CircleAvatar(
+              radius: size / 2,
+              backgroundColor: icon.color,
+              child: Icon(icon.icon, color: Colors.white, size: size * 0.6),
+            )
+          : CircleAvatar(
+              radius: size / 2,
+              backgroundImage: AssetImage(player.tokenAsset),
+            );
+    } else {
+      inner = CircleAvatar(
+        radius: size / 2,
+        backgroundImage: AssetImage(player.tokenAsset),
+      );
     }
-    return Image.asset(player.tokenAsset, width: size, height: size);
+
+    return Container(
+      width: size + 4,
+      height: size + 4,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: ringColor, width: 2),
+      ),
+      child: inner,
+    );
   }
 
   @override

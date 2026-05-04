@@ -16,6 +16,11 @@ class SocketService with ChangeNotifier {
   bool _isConnecting = false;
   String? _lastUrl;
   Timer? _reconnectTimer;
+  String? _cachedIdToken;
+
+  static const _authEvents = {'create_game', 'join_game', 'find_match'};
+
+  void cacheIdToken(String? token) => _cachedIdToken = token;
   
   // Ping/Latency
   Timer? _pingTimer;
@@ -138,6 +143,7 @@ class SocketService with ChangeNotifier {
       'level': PrefsService.playerLevel,
       'avatarType': PrefsService.avatarType,
       if (PrefsService.avatarIconId != null) 'avatarIconId': PrefsService.avatarIconId,
+      if (_cachedIdToken != null && _authEvents.contains(event)) 'idToken': _cachedIdToken,
       'data': ?data,
     };
     

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -7,7 +8,7 @@ import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/config/env.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 import '../config/language_provider.dart';
-import '../service/audio_service.dart'; // Importamos el servicio de audio
+import '../service/audio_service.dart';
 
 class OnlineLobbyScreen extends StatefulWidget {
   const OnlineLobbyScreen({super.key});
@@ -29,10 +30,20 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   final String _serverUrl = Env.serverUrl;
 
+  Future<void> _cacheIdToken() async {
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      socketService.cacheIdToken(token);
+    } catch (_) {
+      socketService.cacheIdToken(null);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _socketSubscription = socketService.events.listen(_handleServerEvent);
+    _cacheIdToken();
 
     _roomCodeController.addListener(() {
       if (mounted) setState(() {});
@@ -106,6 +117,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         final String? code = data['code'];
         if (code == 'MATCH_NOT_FOUND') {
           _showMatchNotFoundOptions();
+        } else if (code == 'UNAUTHORIZED') {
+          _showError(context.translate('sign_in_required', listen: false));
+          Navigator.of(context).pop();
         } else {
           _showError(data['message'] ?? 'Error desconocido');
         }
