@@ -947,32 +947,30 @@ class _PlayerProfileHeader extends StatelessWidget {
                 child: SizedBox(
                   width: 44,
                   height: 44,
-                  child: ClipOval(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        UserAvatarWidget(
-                          profile: profile,
-                          firebaseUser: auth.firebaseUser,
-                          radius: 22,
-                        ),
-                        if (auth.isSignedIn)
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              height: 16,
-                              color: Colors.black54,
-                              child: const Icon(
-                                Icons.photo_camera,
-                                size: 11,
-                                color: Colors.white,
-                              ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      UserAvatarWidget(
+                        profile: profile,
+                        firebaseUser: auth.firebaseUser,
+                        radius: 22,
+                      ),
+                      if (auth.isSignedIn)
+                        Positioned(
+                          bottom: -2,
+                          right: -2,
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: Colors.orangeAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.black54, width: 1.5),
                             ),
+                            child: const Icon(Icons.edit, size: 11, color: Colors.white),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ),
               ),

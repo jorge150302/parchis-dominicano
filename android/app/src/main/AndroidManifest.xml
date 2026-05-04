@@ -7,9 +7,9 @@
         android:label="Parché"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="false"
-        android:fullBackupContent="false"> <!-- ✅ DESACTIVA BACKUP PARA EVITAR DATOS VIEJOS -->
+        android:fullBackupContent="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

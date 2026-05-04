@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'firebase_options.dart';
 import 'package:frontend_parchis/menu/online_lobby_screen.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
@@ -24,7 +25,7 @@ void main() async {
   await PrefsService.init();
   // Requires google-services.json in android/app/
   // Run `flutterfire configure` or download it from your Firebase Console.
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
