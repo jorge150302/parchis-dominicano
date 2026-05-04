@@ -18,7 +18,9 @@ import 'game/screen/game_screen.dart';
 import 'game/logic/game_controller.dart';
 import 'game/logic/game_engine.dart';
 import 'game/logic/board_generator.dart';
-import 'game/logic/board_presets.dart';
+import 'game/logic/board_actions_config.dart';
+import 'game/logic/level_manager.dart';
+import 'game/models/board_action.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,9 +69,28 @@ class MyApp extends StatelessWidget {
               bool isResume = args?['isResume'] ?? false;
               bool isTutorial = args?['isTutorial'] ?? false;
               Map<String, dynamic>? savedState = args?['savedState'];
+              final difficulty = (args?['difficulty'] as GameDifficulty?) ?? GameDifficulty.medium;
 
-              // ✅ Tablero MODO PRUEBA de 10 casillas
-              final board = generateBoard(classicActionPositions, classicActions, totalCells: 10);
+              final List<int> actionPositions;
+              final List<BoardAction> actions;
+              final int totalCells;
+
+              switch (difficulty) {
+                case GameDifficulty.easy:
+                  actionPositions = easyActionPositions;
+                  actions = easyActions;
+                  totalCells = 50;
+                case GameDifficulty.hard:
+                  actionPositions = hardActionPositions;
+                  actions = hardActions;
+                  totalCells = 100;
+                case GameDifficulty.medium:
+                  actionPositions = mediumActionPositions;
+                  actions = mediumActions;
+                  totalCells = 100;
+              }
+
+              final board = generateBoard(actionPositions, actions, totalCells: totalCells);
               late final GameEngine engine;
 
               if (isResume && savedState != null) {
@@ -83,13 +104,14 @@ class MyApp extends StatelessWidget {
                   return ChangeNotifierProvider<GameController>(
                     create: (_) => (roomCode != null)
                         ? NetworkGameController(engine: engine, socketService: socketService)
-                        : LocalGameController(engine: engine, vsAI: vsAI, isTutorial: isTutorial),
+                        : LocalGameController(engine: engine, vsAI: vsAI, isTutorial: isTutorial, difficulty: difficulty),
                     child: GameScreen(
                       playerCount: playersCount,
                       roomCode: roomCode,
                       playerNames: playerNames,
                       isResume: isResume,
                       isTutorial: isTutorial,
+                      difficulty: difficulty,
                     ),
                   );
                 },

@@ -4,7 +4,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../config/language_provider.dart';
 import '../service/prefs_service.dart';
-import '../service/audio_service.dart'; 
+import '../service/audio_service.dart';
+import '../game/logic/level_manager.dart';
 
 class PlayerSelectionScreen extends StatefulWidget {
   const PlayerSelectionScreen({super.key});
@@ -16,6 +17,7 @@ class PlayerSelectionScreen extends StatefulWidget {
 class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
   int? selectedPlayers;
   bool vsAI = true;
+  GameDifficulty _difficulty = GameDifficulty.medium;
   final List<TextEditingController> _nameControllers = List.generate(4, (_) => TextEditingController());
 
   @override
@@ -162,6 +164,8 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                         ],
                       ),
                     ).animate().fadeIn(delay: 300.ms),
+                    const SizedBox(height: 16),
+                    _buildDifficultySelector(),
                     const SizedBox(height: 20),
                     _playerCard(2),
                     const SizedBox(height: 12),
@@ -222,6 +226,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                                   'playerCount': selectedPlayers,
                                   'vsAI': vsAI,
                                   'playerNames': playerNames,
+                                  'difficulty': _difficulty,
                                 },
                               );
                             },
@@ -271,6 +276,72 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildDifficultySelector() {
+    final options = [
+      (GameDifficulty.easy, context.translate('difficulty_easy'), Colors.green),
+      (GameDifficulty.medium, context.translate('difficulty_medium'), Colors.orangeAccent),
+      (GameDifficulty.hard, context.translate('difficulty_hard'), Colors.redAccent),
+    ];
+
+    return Column(
+      children: [
+        Text(
+          context.translate('difficulty'),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: options.map((entry) {
+            final (diff, label, color) = entry;
+            final isSelected = _difficulty == diff;
+            return GestureDetector(
+              onTap: () {
+                AudioService.playClick();
+                setState(() => _difficulty = diff);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? color.withValues(alpha: 0.9) : Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: isSelected ? color : Colors.white60, width: 1.5),
+                ),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _difficultyDesc(),
+          style: const TextStyle(color: Colors.white, fontSize: 11),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ).animate().fadeIn(delay: 250.ms);
+  }
+
+  String _difficultyDesc() {
+    switch (_difficulty) {
+      case GameDifficulty.easy:
+        return context.translate('difficulty_easy_desc');
+      case GameDifficulty.medium:
+        return context.translate('difficulty_medium_desc');
+      case GameDifficulty.hard:
+        return context.translate('difficulty_hard_desc');
+    }
   }
 
   Widget _buildNameInputs() {

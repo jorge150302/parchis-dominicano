@@ -13,6 +13,7 @@ import '../models/player.dart';
 import 'game_engine.dart';
 import 'board_generator.dart';
 import 'board_presets.dart';
+import 'level_manager.dart';
 import '../models/board_action.dart';
 
 abstract class GameController extends ChangeNotifier {
@@ -172,10 +173,16 @@ abstract class GameController extends ChangeNotifier {
 
 class LocalGameController extends GameController {
   final bool vsAI;
+  final GameDifficulty difficulty;
   bool _isTutorial = false;
   int _tutorialDiceIndex = 0;
 
-  LocalGameController({required super.engine, this.vsAI = false, bool isTutorial = false}) {
+  LocalGameController({
+    required super.engine,
+    this.vsAI = false,
+    bool isTutorial = false,
+    this.difficulty = GameDifficulty.medium,
+  }) {
     _isTutorial = isTutorial;
   }
 
@@ -406,54 +413,107 @@ class LocalGameController extends GameController {
     Future.delayed(_aiSelectionDelay, () {
       if (movableTokenIds.isEmpty) return;
 
-      int selectedId = movableTokenIds.first;
-      int maxPriority = -200;
+      switch (difficulty) {
+        case GameDifficulty.easy:
+          // Random pick — no strategy
+          selectToken(movableTokenIds[random.nextInt(movableTokenIds.length)]);
 
-      for (int tokenId in movableTokenIds) {
-        int priority = 0;
-        final token = currentPlayer.tokens[tokenId];
-        final targetPos = token.position + diceValue;
+        case GameDifficulty.medium:
+          selectToken(_pickMediumAI());
 
-        if (targetPos >= engine.board.finalPosition) {
-          priority = 100;
-        }
-        else if (targetPos > 0) {
-          bool canCapture = false;
-          for (var other in engine.players) {
-            if (other.id == currentPlayer.id) continue;
-            for (var otherToken in other.tokens) {
-              if (!otherToken.isFinished && otherToken.position == targetPos) {
-                canCapture = true;
-                break;
-              }
-            }
-            if (canCapture) break;
-          }
-          if (canCapture) priority = 90;
+        case GameDifficulty.hard:
+          selectToken(_pickHardAI());
+      }
+    });
+  }
 
-          final cell = engine.board.getCell(targetPos);
-          if (cell.action != null) {
-             final actionType = cell.action!.type;
-             if (actionType == BoardActionType.goToStart) {
-               priority -= 150;
-             } else if (actionType == BoardActionType.skipTurn) priority -= 140;
-             else if (actionType == BoardActionType.moveTo && cell.action!.targetNumber! < targetPos) priority -= 130;
-             else if (actionType == BoardActionType.rollAgain) priority += 20;
-          }
-        }
+  // Baseline strategy: avoid bad cells, prefer captures and finish.
+  int _pickMediumAI() {
+    int selectedId = movableTokenIds.first;
+    int maxPriority = -200;
 
-        if (priority == 0) {
-          priority = 10 + token.position;
-        }
+    for (int tokenId in movableTokenIds) {
+      int priority = 0;
+      final token = currentPlayer.tokens[tokenId];
+      final targetPos = token.position + diceValue;
 
-        if (priority > maxPriority) {
-          maxPriority = priority;
-          selectedId = tokenId;
+      if (targetPos >= engine.board.finalPosition) {
+        priority = 100;
+      } else if (targetPos > 0) {
+        if (_canCapture(targetPos)) { priority = 90; }
+
+        final cell = engine.board.getCell(targetPos);
+        if (cell.action != null) {
+          final actionType = cell.action!.type;
+          if (actionType == BoardActionType.goToStart) { priority -= 150; }
+          else if (actionType == BoardActionType.skipTurn) { priority -= 140; }
+          else if (actionType == BoardActionType.moveTo &&
+              cell.action!.targetNumber! < targetPos) { priority -= 130; }
+          else if (actionType == BoardActionType.rollAgain) { priority += 20; }
         }
       }
 
-      selectToken(selectedId);
-    });
+      if (priority == 0) { priority = 10 + token.position; }
+
+      if (priority > maxPriority) {
+        maxPriority = priority;
+        selectedId = tokenId;
+      }
+    }
+
+    return selectedId;
+  }
+
+  // Aggressive strategy: hunts captures, breaks ties by proximity to finish.
+  int _pickHardAI() {
+    int selectedId = movableTokenIds.first;
+    int maxPriority = -200;
+
+    for (int tokenId in movableTokenIds) {
+      int priority = 0;
+      final token = currentPlayer.tokens[tokenId];
+      final targetPos = token.position + diceValue;
+
+      if (targetPos >= engine.board.finalPosition) {
+        priority = 100;
+      } else if (targetPos > 0) {
+        // Captures valued above almost everything else
+        if (_canCapture(targetPos)) { priority = 120; }
+
+        final cell = engine.board.getCell(targetPos);
+        if (cell.action != null) {
+          final actionType = cell.action!.type;
+          if (actionType == BoardActionType.goToStart) { priority -= 150; }
+          else if (actionType == BoardActionType.skipTurn) { priority -= 140; }
+          else if (actionType == BoardActionType.moveTo &&
+              cell.action!.targetNumber! < targetPos) { priority -= 130; }
+          else if (actionType == BoardActionType.rollAgain) { priority += 20; }
+        }
+      }
+
+      // Tie-break: tokens closer to finish get slightly higher priority
+      if (priority == 0) {
+        priority = 10 + token.position +
+            (token.position * 10 ~/ engine.board.finalPosition);
+      }
+
+      if (priority > maxPriority) {
+        maxPriority = priority;
+        selectedId = tokenId;
+      }
+    }
+
+    return selectedId;
+  }
+
+  bool _canCapture(int targetPos) {
+    for (final other in engine.players) {
+      if (other.id == currentPlayer.id) { continue; }
+      for (final t in other.tokens) {
+        if (!t.isFinished && t.position == targetPos) { return true; }
+      }
+    }
+    return false;
   }
 
   Future<void> _moveStepByStep(int tokenId, int steps) async {

@@ -217,6 +217,15 @@ class LanguageProvider extends ChangeNotifier {
       'step_n_of_3': 'Paso {n} de 3',
       'confirm_your_name': 'Confirma tu nombre',
       'xp_bonus_received': '+50 XP ¡Bonus de bienvenida!',
+      // Difficulty
+      'difficulty': 'Dificultad',
+      'difficulty_easy': 'Fácil',
+      'difficulty_medium': 'Normal',
+      'difficulty_hard': 'Difícil',
+      'difficulty_easy_desc': '50 casillas · Sin penalizaciones · ×0.5 XP',
+      'difficulty_medium_desc': '100 casillas · Clásico · ×1.0 XP',
+      'difficulty_hard_desc': '100 casillas · Más penalizaciones · ×1.5 XP',
+      'difficulty_last_place_no_xp': '4° lugar no recibe XP',
     },
     Language.en: {
       'waiting_players': 'Waiting for Players...',
@@ -388,6 +397,15 @@ class LanguageProvider extends ChangeNotifier {
       'step_n_of_3': 'Step {n} of 3',
       'confirm_your_name': 'Confirm your name',
       'xp_bonus_received': '+50 XP Welcome Bonus!',
+      // Difficulty
+      'difficulty': 'Difficulty',
+      'difficulty_easy': 'Easy',
+      'difficulty_medium': 'Normal',
+      'difficulty_hard': 'Hard',
+      'difficulty_easy_desc': '50 cells · No penalties · ×0.5 XP',
+      'difficulty_medium_desc': '100 cells · Classic · ×1.0 XP',
+      'difficulty_hard_desc': '100 cells · More penalties · ×1.5 XP',
+      'difficulty_last_place_no_xp': '4th place earns no XP',
     },
   };
 }

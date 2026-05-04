@@ -1,3 +1,5 @@
+enum GameDifficulty { easy, medium, hard }
+
 class LevelManager {
   /// Retorna la cantidad de XP necesaria para subir AL SIGUIENTE nivel desde el nivel actual.
   static int xpRequiredForLevel(int level) {
@@ -68,27 +70,36 @@ class LevelManager {
     return total;
   }
   
-  /// Calcula cuánto XP se gana por una partida (valor base completo).
+  /// Calcula cuánto XP se gana por una partida.
+  /// En partidas de 4 jugadores, el 4º lugar recibe 0 XP.
   /// El ratio offline (20%) y el tope diario son responsabilidad de SyncQueueService.
   static int calculateMatchXP({
     required int position, // 0 para 1º, 1 para 2º...
     required int totalPlayers,
-    bool isOnline = true, // kept for call-site compat; ignored here
+    GameDifficulty difficulty = GameDifficulty.medium,
   }) {
-    int xp = 0;
+    int baseXp = 0;
 
     if (totalPlayers == 4) {
-      if (position == 0) {
-        xp = 100;
-      } else if (position == 1) xp = 40;
+      if (position == 0) { baseXp = 100; }
+      else if (position == 1) { baseXp = 40; }
+      else if (position == 2) { baseXp = 15; }
+      // 4th place: 0
     } else if (totalPlayers == 3) {
-      if (position == 0) {
-        xp = 80;
-      } else if (position == 1) xp = 20;
+      if (position == 0) { baseXp = 80; }
+      else if (position == 1) { baseXp = 20; }
+      else if (position == 2) { baseXp = 10; }
     } else if (totalPlayers == 2) {
-      if (position == 0) xp = 60;
+      if (position == 0) { baseXp = 60; }
+      else if (position == 1) { baseXp = 10; }
     }
 
-    return xp;
+    const multipliers = {
+      GameDifficulty.easy: 0.5,
+      GameDifficulty.medium: 1.0,
+      GameDifficulty.hard: 1.5,
+    };
+
+    return (baseXp * multipliers[difficulty]!).floor();
   }
 }

@@ -28,6 +28,7 @@ class GameScreen extends StatefulWidget {
   final List<String>? playerNames;
   final bool isResume;
   final bool isTutorial;
+  final GameDifficulty difficulty;
 
   const GameScreen({
     super.key,
@@ -36,6 +37,7 @@ class GameScreen extends StatefulWidget {
     this.playerNames,
     this.isResume = false,
     this.isTutorial = false,
+    this.difficulty = GameDifficulty.medium,
   });
 
   @override
@@ -158,6 +160,7 @@ class _GameScreenState extends State<GameScreen> {
       final rawXp = LevelManager.calculateMatchXP(
         position: myPosition,
         totalPlayers: controller.players.length,
+        difficulty: widget.difficulty,
       );
 
       final syncQueue = context.read<SyncQueueService>();

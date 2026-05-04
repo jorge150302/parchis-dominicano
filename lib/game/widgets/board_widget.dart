@@ -28,6 +28,8 @@ class _BoardWidgetState extends State<BoardWidget> {
   static const int columns = 10;
   final Map<int, GlobalKey> _cellKeys = {};
 
+  int get _rows => (widget.board.cells.length / columns).ceil();
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +44,7 @@ class _BoardWidgetState extends State<BoardWidget> {
     final cells = widget.board.cells.reversed.toList();
 
     return AspectRatio(
-      aspectRatio: 1,
+      aspectRatio: columns / _rows,
       child: Stack(
         children: [
           GridView.builder(
