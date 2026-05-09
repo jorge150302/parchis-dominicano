@@ -2,12 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 import 'package:frontend_parchis/service/audio_service.dart';
-
 import '../models/game_event.dart';
 import '../models/player.dart';
 import 'game_engine.dart';
@@ -15,6 +14,11 @@ import 'board_generator.dart';
 import 'board_presets.dart';
 import 'level_manager.dart';
 import '../models/board_action.dart';
+
+// Set to true to start human tokens 1 step from the finish line for quick testing.
+// Only active in debug builds (kDebugMode).
+const bool kTestModeEnabled = true
+;
 
 abstract class GameController extends ChangeNotifier {
   final GameEngine engine;
@@ -34,6 +38,7 @@ abstract class GameController extends ChangeNotifier {
   final AudioPlayer sendToHomeAudio = AudioPlayer();
 
   bool _fanfarePlaying = false;
+  bool get isFanfarePlaying => _fanfarePlaying;
   
   final Random random = Random();
 
@@ -90,6 +95,8 @@ abstract class GameController extends ChangeNotifier {
       try {
         if (!immediate) await player.stop();
         await player.setPlaybackRate(_audioPlaybackRate);
+        // Re-check after awaits: fanfare may have started while we were preparing.
+        if (player == diceAudio && _fanfarePlaying) return;
         await player.play(AssetSource(asset));
       } catch (e) {
         debugPrint("Error playing sound $asset: $e");
@@ -114,18 +121,25 @@ abstract class GameController extends ChangeNotifier {
   Future<void> playFanfare() async {
     if (PrefsService.soundEnabled) {
       _fanfarePlaying = true;
+      notifyListeners();
       try {
         await fanfareAudio.stop();
         await fanfareAudio.setPlaybackRate(_audioPlaybackRate);
         await fanfareAudio.play(AssetSource('sounds/fanfarreas.mp3'));
-        await fanfareAudio.onPlayerComplete.first.timeout(
-          const Duration(seconds: 5),
-          onTimeout: () => null,
+        final completer = Completer<void>();
+        final sub = fanfareAudio.onPlayerComplete.listen((_) {
+          if (!completer.isCompleted) completer.complete();
+        });
+        await completer.future.timeout(
+          const Duration(seconds: 6),
+          onTimeout: () {},
         );
+        await sub.cancel();
       } catch (e) {
         debugPrint("Error en playFanfare: $e");
       } finally {
         _fanfarePlaying = false;
+        notifyListeners();
       }
     }
   }
@@ -145,7 +159,8 @@ abstract class GameController extends ChangeNotifier {
 
   void startTurn();
   Future<void> rollDice();
-  Future<void> selectToken(int tokenId); 
+  Future<void> selectToken(int tokenId);
+  void forceFinish() {}
   void sendChatMessage(String message);
   void sendQuickChat(String message);
   void toggleAutoPlay(bool value);
@@ -188,6 +203,25 @@ class LocalGameController extends GameController {
     this.difficulty = GameDifficulty.medium,
   }) {
     _isTutorial = isTutorial;
+  }
+
+  @override
+  void setPlayers(List<Player> newPlayers) {
+    super.setPlayers(newPlayers);
+    if (kTestModeEnabled && !_isTutorial) {
+      _applyTestMode();
+    }
+  }
+
+  void _applyTestMode() {
+    final finalPos = engine.board.finalPosition;
+    for (final player in engine.players) {
+      if (!vsAI || player.index == 0) {
+        for (final token in player.tokens) {
+          token.position = finalPos - 1;
+        }
+      }
+    }
   }
 
   bool get _isHumanTurn => !vsAI || currentPlayer.index == 0;
@@ -288,6 +322,27 @@ class LocalGameController extends GameController {
   }
 
   @override
+  void forceFinish() {
+    if (engine.phase == GamePhase.finished) return;
+    final unfinished = engine.players
+        .where((p) => !engine.finisherIds.contains(p.id))
+        .toList();
+    unfinished.sort((a, b) {
+      final aCount = a.tokens.where((t) => t.isFinished).length;
+      final bCount = b.tokens.where((t) => t.isFinished).length;
+      if (bCount != aCount) return bCount.compareTo(aCount);
+      final aTotal = a.tokens.fold<int>(0, (s, t) => s + (t.isFinished ? engine.board.finalPosition : (t.position > 0 ? t.position : 0)));
+      final bTotal = b.tokens.fold<int>(0, (s, t) => s + (t.isFinished ? engine.board.finalPosition : (t.position > 0 ? t.position : 0)));
+      return bTotal.compareTo(aTotal);
+    });
+    for (final p in unfinished) engine.finisherIds.add(p.id);
+    engine.phase = GamePhase.finished;
+    inputLocked = true;
+    PrefsService.savedLocalGame = null;
+    notifyListeners();
+  }
+
+  @override
   Future<void> selectToken(int tokenId) async {
     if (engine.phase != GamePhase.choosing_token || inputLocked) return;
     
@@ -319,7 +374,7 @@ class LocalGameController extends GameController {
 
   @override
   Future<void> rollDice() async {
-    if (rollingDice || engine.phase != GamePhase.idle || inputLocked) return;
+    if (rollingDice || engine.phase != GamePhase.idle || inputLocked || isFanfarePlaying) return;
 
     inputLocked = true;
     rollingDice = true;
@@ -336,6 +391,8 @@ class LocalGameController extends GameController {
         else if (_tutorialDiceIndex == 2) diceValue = 6;
         else if (_tutorialDiceIndex == 3) diceValue = 1;
         else diceValue = random.nextInt(6) + 1;
+      } else if (kTestModeEnabled && i == 11) {
+        diceValue = 1;
       } else {
         diceValue = random.nextInt(6) + 1;
       }
@@ -346,6 +403,13 @@ class LocalGameController extends GameController {
 
     if (PrefsService.gameSpeed == GameSpeed.normal) {
       await Future.delayed(const Duration(milliseconds: 200));
+    }
+
+    if (engine.phase == GamePhase.finished) {
+      rollingDice = false;
+      rollingPlayerId = null;
+      notifyListeners();
+      return;
     }
 
     if (_isTutorial) _tutorialDiceIndex++;
@@ -526,20 +590,23 @@ class LocalGameController extends GameController {
   Future<void> _moveStepByStep(int tokenId, int steps) async {
     engine.phase = GamePhase.moving;
     for (int i = 0; i < steps; i++) {
-      playMoveSound(); 
+      if (engine.phase == GamePhase.finished) return;
+      playMoveSound();
       engine.stepForward(currentPlayer, tokenId);
       notifyListeners();
-      
+
       if (currentPlayer.tokens[tokenId].isFinished) {
          await diceAudio.stop();
          await playFanfare();
          if (_isHumanTurn) _vibrate();
          break;
       }
-      
-      await Future.delayed(_stepDelay); 
+
+      await Future.delayed(_stepDelay);
     }
-    
+
+    if (engine.phase == GamePhase.finished) return;
+
     // ✅ Verificamos si cayó en una casilla de acción para sonar el CLIC de botón
     // Se excluye 'goToStart' porque tiene su propio sonido de "send to home"
     final currentPos = currentPlayer.tokens[tokenId].position;
@@ -644,7 +711,7 @@ class NetworkGameController extends GameController {
 
   @override
   Future<void> rollDice() async {
-    if (!isMyTurn || engine.phase != GamePhase.idle || rollingDice) return;
+    if (!isMyTurn || engine.phase != GamePhase.idle || rollingDice || isFanfarePlaying) return;
     
     rollingDice = true;
     rollingPlayerId = PrefsService.playerId;
@@ -788,7 +855,8 @@ class NetworkGameController extends GameController {
             if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
               if (!wasFinished && token.position != -1 && !_animatingTokens.contains(animKey)) {
                  _animateTokenMovement(player, tId, engine.board.finalPosition);
-              } else {
+              } else if (!_animatingTokens.contains(animKey)) {
+                // Animation not running: apply state directly and play fanfare.
                 token.position = -1;
                 token.isFinished = true;
                 if (!wasFinished) {
@@ -801,6 +869,10 @@ class NetworkGameController extends GameController {
                     type: 'bonus'
                   ));
                 }
+              } else {
+                // Animation already running — it will handle fanfare when it reaches the end.
+                token.position = -1;
+                token.isFinished = true;
               }
             } else if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
               _animateTokenMovement(player, tId, serverPos);
@@ -899,7 +971,7 @@ class NetworkGameController extends GameController {
   Future<void> _animateTokenMovement(Player player, int tokenId, int targetPos) async {
     String animKey = "${player.id}_$tokenId";
     _animatingTokens.add(animKey);
-    
+
     final token = player.tokens[tokenId];
     
     if (token.isFinished) {

@@ -66,6 +66,11 @@ class _GameScreenState extends State<GameScreen> {
   bool _didLevelUp = false;
   bool _dailyCapReached = false;
 
+  // Early-finish / instant-victory state
+  bool _progressUpdated = false;
+  bool _earlyFinishAvailable = false;
+  bool _myVictoryDialogShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -147,7 +152,8 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _updatePlayerProgress(GameController controller) {
-    if (widget.isTutorial) return;
+    if (widget.isTutorial || _progressUpdated) return;
+    _progressUpdated = true;
 
     // Capture context-dependent refs before any async calls
     final auth = context.read<AuthService>();
@@ -253,6 +259,26 @@ class _GameScreenState extends State<GameScreen> {
             }
           });
         }
+      }
+    }
+
+    // Offline: show "Finish Match" button once the human player's tokens are all done
+    if (!controller.isOnline && !widget.isTutorial && !_earlyFinishAvailable &&
+        controller.engine.phase != GamePhase.finished &&
+        controller.engine.finisherIds.contains('1')) {
+      setState(() => _earlyFinishAvailable = true);
+    }
+
+    // Online: show finish dialog whenever this player appears in finisherIds (any position)
+    if (controller.isOnline && !_myVictoryDialogShown) {
+      final myId = PrefsService.playerId;
+      final fids = controller.engine.finisherIds;
+      final myPos = fids.indexOf(myId);
+      if (myPos != -1) {
+        _myVictoryDialogShown = true;
+        _updatePlayerProgress(controller);
+        if (myPos == 0) _confettiController.play();
+        _showVictoryDialog(controller, position: myPos);
       }
     }
 
@@ -412,6 +438,32 @@ class _GameScreenState extends State<GameScreen> {
                         _buildFloatingEvents(),
                         if (isWaiting) _buildWaitingOverlay(),
                         if (widget.isTutorial && _tutorialStep > 0) _buildTutorialOverlay(),
+                        if (_earlyFinishAvailable &&
+                            !controller.isOnline &&
+                            controller.engine.phase != GamePhase.finished)
+                          Positioned(
+                            bottom: 16,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.flag_rounded, color: Colors.white),
+                                label: const Text(
+                                  'Finish Current Match',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade700,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                ),
+                                onPressed: () {
+                                  AudioService.playClick();
+                                  controller.forceFinish();
+                                },
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -924,6 +976,76 @@ class _GameScreenState extends State<GameScreen> {
         )
       );
     });
+  }
+
+  void _showVictoryDialog(GameController controller, {required int position}) async {
+    final socketSrv = context.read<SocketService>();
+    final nav = Navigator.of(context);
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    final ordinals = ['1st', '2nd', '3rd', '4th'];
+    final ordinal = position < ordinals.length ? ordinals[position] : '${position + 1}th';
+    final emoji = position == 0 ? '🏆' : position == 1 ? '🥈' : position == 2 ? '🥉' : '🎮';
+    final title = position == 0 ? '$emoji You Won!' : '$emoji You Finished $ordinal!';
+    final subtitle = position == 0
+        ? 'Congratulations! You finished in 1st place.'
+        : 'You secured $ordinal place. Keep watching or leave now.';
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 3),
+        ),
+        title: Center(
+          child: Text(
+            title,
+            style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 22),
+          ),
+        ),
+        content: Text(
+          '$subtitle\nWhat would you like to do?',
+          style: const TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton(
+                onPressed: () {
+                  AudioService.playClick();
+                  Navigator.of(ctx).pop();
+                },
+                child: const Text(
+                  '👀 Stay & Watch',
+                  style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  AudioService.playClick();
+                  socketSrv.send('leave_match');
+                  Navigator.of(ctx).pop();
+                  nav.pushNamedAndRemoveUntil('/menu', (r) => false);
+                },
+                child: const Text(
+                  '🚪 Leave Match',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
   }
 
   void _showGameFinishedDialog() async {
@@ -1461,7 +1583,7 @@ class _PlayerCornerWidget extends StatelessWidget {
     final bool isMe = controller.isOnline ? player.id == PrefsService.playerId : !player.isAI;
     final bool isTurn = controller.currentPlayer.id == player.id;
     final bool isRolling = controller.rollingDice && controller.rollingPlayerId == player.id;
-    final bool canTap = isTurn && isMe && controller.engine.phase == GamePhase.idle && !controller.rollingDice;
+    final bool canTap = isTurn && isMe && controller.engine.phase == GamePhase.idle && !controller.rollingDice && !controller.isFanfarePlaying;
     final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
     final String? activeMessage = controller.playerQuickMessages[player.id];
 
