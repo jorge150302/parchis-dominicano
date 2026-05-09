@@ -149,12 +149,34 @@ class _GameScreenState extends State<GameScreen> {
   void _updatePlayerProgress(GameController controller) {
     if (widget.isTutorial) return;
 
+    // Capture context-dependent refs before any async calls
+    final auth = context.read<AuthService>();
+    final syncQueue = context.read<SyncQueueService>();
+
     final myId = PrefsService.playerId;
-    // Si es offline, el ID suele ser "1" para el humano
+    // Offline player ID is always "1"
     final String targetId = controller.isOnline ? myId : "1";
-    
+
     final finisherIds = controller.engine.finisherIds;
-    int myPosition = finisherIds.indexOf(targetId);
+    final int myPosition = finisherIds.indexOf(targetId);
+    final bool isWin = myPosition == 0;
+
+    // Captures only tracked on LocalGameController
+    final int captures = controller is LocalGameController
+        ? controller.humanCaptureCount
+        : 0;
+
+    // Record match stats (local + Firestore if signed in)
+    auth.updateMatchStats(
+      captures: captures,
+      isWin: isWin,
+      isOnline: controller.isOnline,
+    );
+
+    // Online first-place win also increments Firestore wins via incrementWins
+    if (controller.isOnline && isWin) {
+      auth.incrementWins();
+    }
 
     if (myPosition != -1) {
       final rawXp = LevelManager.calculateMatchXP(
@@ -163,26 +185,20 @@ class _GameScreenState extends State<GameScreen> {
         difficulty: widget.difficulty,
       );
 
-      final syncQueue = context.read<SyncQueueService>();
       final int oldLevel = PrefsService.playerLevel;
 
       _lastGainedXp = syncQueue.awardMatchXp(
         rawXp: rawXp,
         isOnline: controller.isOnline,
+        difficulty: widget.difficulty,
       );
 
       if (PrefsService.playerLevel > oldLevel) {
         _didLevelUp = true;
       }
 
-      // Check if daily offline cap was hit
       if (!controller.isOnline && rawXp > 0 && _lastGainedXp == 0) {
         _dailyCapReached = true;
-      }
-
-      // Increment cloud win counter for online first-place
-      if (controller.isOnline && myPosition == 0) {
-        context.read<AuthService>().incrementWins();
       }
     }
   }

@@ -138,6 +138,7 @@ class LanguageProvider extends ChangeNotifier {
       'tutorial_exit_content': '¿Estás seguro de que quieres abandonar el tutorial? Todo tu progreso actual se perderá.',
       // Privacy & Account
       'privacy_policy': 'Política de Privacidad',
+      'credits': 'Créditos',
       'delete_account': 'Eliminar cuenta',
       'delete_account_confirm': '¿Estás seguro de que quieres eliminar tu cuenta permanentemente? Esta acción no se puede deshacer.',
       'delete_account_success': 'Tu cuenta y datos han sido eliminados permanentemente.',
@@ -318,6 +319,7 @@ class LanguageProvider extends ChangeNotifier {
       'tutorial_exit_content': 'Are you sure you want to leave the tutorial? All current progress will be lost.',
       // Privacy & Account
       'privacy_policy': 'Privacy Policy',
+      'credits': 'Credits',
       'delete_account': 'Delete account',
       'delete_account_confirm': 'Are you sure you want to permanently delete your account? This action cannot be undone.',
       'delete_account_success': 'Your account and data have been permanently deleted.',

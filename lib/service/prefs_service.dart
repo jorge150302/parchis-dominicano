@@ -148,6 +148,19 @@ class PrefsService {
     }
   }
 
+  // 🗑️ Pending account deletion (set when Firebase auth delete fails offline)
+  static bool get pendingAccountDeletion =>
+      _prefs.getBool('pending_account_deletion') ?? false;
+  static set pendingAccountDeletion(bool value) =>
+      _prefs.setBool('pending_account_deletion', value);
+
+  // 📊 Player Statistics (local mirror; synced to Firestore when online)
+  static int get matchesPlayed => _prefs.getInt('matches_played') ?? 0;
+  static set matchesPlayed(int value) => _prefs.setInt('matches_played', value);
+
+  static int get tokensCapture => _prefs.getInt('tokens_capture') ?? 0;
+  static set tokensCapture(int value) => _prefs.setInt('tokens_capture', value);
+
   static Future<void> clear() async {
     await _prefs.clear();
   }

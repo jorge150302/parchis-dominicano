@@ -32,6 +32,8 @@ abstract class GameController extends ChangeNotifier {
   final AudioPlayer diceAudio = AudioPlayer();
   final AudioPlayer fanfareAudio = AudioPlayer();
   final AudioPlayer sendToHomeAudio = AudioPlayer();
+
+  bool _fanfarePlaying = false;
   
   final Random random = Random();
 
@@ -84,8 +86,9 @@ abstract class GameController extends ChangeNotifier {
 
   Future<void> _playSound(AudioPlayer player, String asset, {bool immediate = false}) async {
     if (PrefsService.soundEnabled) {
+      if (player == diceAudio && _fanfarePlaying) return;
       try {
-        if (!immediate) await player.stop(); 
+        if (!immediate) await player.stop();
         await player.setPlaybackRate(_audioPlaybackRate);
         await player.play(AssetSource(asset));
       } catch (e) {
@@ -110,18 +113,19 @@ abstract class GameController extends ChangeNotifier {
   /// para evitar que el siguiente turno lo corte.
   Future<void> playFanfare() async {
     if (PrefsService.soundEnabled) {
+      _fanfarePlaying = true;
       try {
         await fanfareAudio.stop();
         await fanfareAudio.setPlaybackRate(_audioPlaybackRate);
         await fanfareAudio.play(AssetSource('sounds/fanfarreas.mp3'));
-        
-        // Esperamos a que termine la reproducción antes de continuar la lógica del juego
         await fanfareAudio.onPlayerComplete.first.timeout(
-          const Duration(seconds: 5), 
+          const Duration(seconds: 5),
           onTimeout: () => null,
         );
       } catch (e) {
         debugPrint("Error en playFanfare: $e");
+      } finally {
+        _fanfarePlaying = false;
       }
     }
   }
@@ -188,6 +192,8 @@ class LocalGameController extends GameController {
 
   bool get _isHumanTurn => !vsAI || currentPlayer.index == 0;
 
+  int humanCaptureCount = 0;
+
   void _saveGame() {
     if (_isTutorial) return; 
     if (engine.phase == GamePhase.finished) {
@@ -196,17 +202,18 @@ class LocalGameController extends GameController {
       final state = engine.toJson();
       state['vsAI'] = vsAI;
       state['diceValue'] = diceValue;
+      state['difficulty'] = difficulty.index;
       PrefsService.savedLocalGame = jsonEncode(state);
     }
   }
 
   Duration get _aiDecisionDelay => PrefsService.gameSpeed == GameSpeed.fast
-      ? const Duration(milliseconds: 300)
-      : const Duration(milliseconds: 1200);
+      ? const Duration(milliseconds: 150)
+      : const Duration(milliseconds: 800);
 
   Duration get _aiSelectionDelay => PrefsService.gameSpeed == GameSpeed.fast
-      ? const Duration(milliseconds: 200)
-      : const Duration(milliseconds: 800);
+      ? const Duration(milliseconds: 80)
+      : const Duration(milliseconds: 450);
 
   Duration get _stepDelay => PrefsService.gameSpeed == GameSpeed.fast
       ? const Duration(milliseconds: 100)
@@ -373,12 +380,12 @@ class LocalGameController extends GameController {
       notifyListeners();
       await Future.delayed(_eventDelay);
       
-      if (diceValue == 6) {
-        startTurn();
-      } else {
-        engine.nextTurn();
-        startTurn();
+      // Cancel extra turn awarded by registerSix — can't move so turn is forfeit
+      if (diceValue == 6 && currentPlayer.extraTurns > 0) {
+        currentPlayer.extraTurns--;
       }
+      engine.nextTurn();
+      startTurn();
     } else {
       engine.phase = GamePhase.choosing_token;
       inputLocked = false;
@@ -524,6 +531,7 @@ class LocalGameController extends GameController {
       notifyListeners();
       
       if (currentPlayer.tokens[tokenId].isFinished) {
+         await diceAudio.stop();
          await playFanfare();
          if (_isHumanTurn) _vibrate();
          break;
@@ -557,6 +565,7 @@ class LocalGameController extends GameController {
 
     final captured = engine.resolveCollisions(currentPlayer, tokenId);
     if (captured.isNotEmpty) {
+      if (_isHumanTurn) humanCaptureCount += captured.length;
       for (var cap in captured) {
         _capturedTokenController.add(cap);
       }

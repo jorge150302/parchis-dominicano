@@ -163,6 +163,81 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
+  void _showStatsDialog() {
+    AudioService.playClick();
+    final auth = context.read<AuthService>();
+    final profile = auth.profile;
+
+    // Prefer cloud values when signed in; fall back to local prefs
+    final int matches = profile?.matchesPlayed ?? PrefsService.matchesPlayed;
+    final int wins = profile?.wins ?? 0;
+    final double winRate = matches > 0 ? wins / matches : 0.0;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(25),
+          side: const BorderSide(color: Colors.orangeAccent, width: 2),
+        ),
+        title: const Text(
+          'ESTADÍSTICAS',
+          style: TextStyle(
+            color: Colors.orangeAccent,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _StatRow(
+              icon: Icons.sports_esports,
+              label: 'Partidas jugadas',
+              value: '$matches',
+              color: Colors.blueAccent,
+            ),
+            const SizedBox(height: 12),
+            _StatRow(
+              icon: Icons.emoji_events,
+              label: 'Victorias',
+              value: '$wins',
+              color: Colors.amber,
+            ),
+            const SizedBox(height: 12),
+            _StatRow(
+              icon: Icons.percent,
+              label: 'Tasa de victoria',
+              value: '${(winRate * 100).toStringAsFixed(1)}%',
+              color: Colors.greenAccent,
+            ),
+            if (matches == 0) ...[
+              const SizedBox(height: 20),
+              const Text(
+                'Juega tu primera partida\npara ver tus estadísticas.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(context);
+            },
+            child: const Text(
+              'CERRAR',
+              style: TextStyle(color: Colors.orangeAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showCreditsDialog() {
     final bool isSpanish = context.read<LanguageProvider>().currentLanguage == Language.es;
 
@@ -394,7 +469,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
     // Inform when daily cap is reached — player can still play for fun
     final syncQueue = context.read<SyncQueueService>();
-    if (syncQueue.isDailyCapped) {
+    if (syncQueue.isDailyCapped(GameDifficulty.hard)) {
       _showDailyMasteryDialog(onPlayAnyway: _navigateToOffline);
       return;
     }
@@ -597,6 +672,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         AudioService.playClick();
                         Navigator.pop(context);
                         Navigator.pushNamed(context, '/privacy');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline, color: Colors.white70),
+                      title: Text(context.translate('credits'), style: const TextStyle(color: Colors.white70)),
+                      onTap: () {
+                        AudioService.playClick();
+                        Navigator.pop(context);
+                        _showCreditsDialog();
                       },
                     ),
                     // ── Google Account ──────────────────────────────────
@@ -857,8 +941,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.info_outline, color: Colors.white70, size: 22),
-                    onPressed: _showCreditsDialog,
+                    icon: const Icon(Icons.bar_chart, color: Colors.white70, size: 22),
+                    onPressed: _showStatsDialog,
                   ).animate().fadeIn(delay: 700.ms).scale(),
                 ],
               ),
@@ -1632,6 +1716,52 @@ class _StepDot extends StatelessWidget {
         shape: BoxShape.circle,
         color: filled ? Colors.orange : Colors.white24,
       ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 }

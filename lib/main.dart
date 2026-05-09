@@ -69,7 +69,11 @@ class MyApp extends StatelessWidget {
               bool isResume = args?['isResume'] ?? false;
               bool isTutorial = args?['isTutorial'] ?? false;
               Map<String, dynamic>? savedState = args?['savedState'];
-              final difficulty = (args?['difficulty'] as GameDifficulty?) ?? GameDifficulty.medium;
+              // Restore difficulty from saved state when resuming, else use route arg
+              final savedDifficultyIndex = savedState?['difficulty'] as int?;
+              final difficulty = savedDifficultyIndex != null
+                  ? GameDifficulty.values[savedDifficultyIndex]
+                  : (args?['difficulty'] as GameDifficulty?) ?? GameDifficulty.medium;
 
               final List<int> actionPositions;
               final List<BoardAction> actions;
