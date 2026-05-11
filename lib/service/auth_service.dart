@@ -95,6 +95,12 @@ class AuthService extends ChangeNotifier {
     if (!kIsWeb) await _googleSignIn.signOut();
     await _auth.signOut();
     _profile = null;
+    // Wipe local mirror so the next account sign-in cannot inherit this account's XP.
+    PrefsService.totalXp = 0;
+    PrefsService.playerLevel = 1;
+    PrefsService.matchesPlayed = 0;
+    PrefsService.tokensCapture = 0;
+    PrefsService.wins = 0;
     notifyListeners();
     return SignOutStatus.success;
   }
