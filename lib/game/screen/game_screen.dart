@@ -159,6 +159,7 @@ class _GameScreenState extends State<GameScreen> {
     final auth = context.read<AuthService>();
     final syncQueue = context.read<SyncQueueService>();
 
+    final bool vsAI = controller is LocalGameController && controller.vsAI;
     final myId = PrefsService.playerId;
     // Offline player ID is always "1"
     final String targetId = controller.isOnline ? myId : "1";
@@ -184,7 +185,8 @@ class _GameScreenState extends State<GameScreen> {
       auth.incrementWins();
     }
 
-    if (myPosition != -1) {
+    // XP only awarded for online matches or vs-AI offline — not local multiplayer
+    if (myPosition != -1 && (controller.isOnline || vsAI)) {
       final rawXp = LevelManager.calculateMatchXP(
         position: myPosition,
         totalPlayers: controller.players.length,
@@ -1074,32 +1076,57 @@ class _GameScreenState extends State<GameScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Daily Mastery Cap notification
+            // Daily cap notification — shown after the game, difficulty-specific
             if (!widget.isTutorial && _dailyCapReached)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade900.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.amberAccent, width: 2),
-                ),
-                child: const Column(
-                  children: [
-                    Text(
-                      '🏆 Daily Mastery Reached!',
-                      style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 14),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      "You've maximized your practice XP for today. Take your skills to the Online Arena to continue leveling up and climbing the global ranks!",
-                      style: TextStyle(color: Colors.white, fontSize: 11),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
+              Builder(builder: (ctx) {
+                final syncQueue = ctx.read<SyncQueueService>();
+
+                // Modes other than the one just played that still have XP available
+                final available = [
+                  GameDifficulty.easy,
+                  GameDifficulty.medium,
+                  GameDifficulty.hard,
+                ].where((d) =>
+                  d != widget.difficulty && !syncQueue.isDailyCapped(d)
+                ).map((d) => ctx.translate('difficulty_${d.name}')).toList();
+
+                final String title;
+                final String content;
+                if (available.isEmpty) {
+                  // Every mode is now capped
+                  title = ctx.translate('daily_mastery_title');
+                  content = ctx.translate('daily_mastery_content');
+                } else {
+                  final modeName = ctx.translate('difficulty_${widget.difficulty.name}');
+                  final availableStr = available.join(' / ');
+                  title = ctx.translate('daily_mastery_capped_title', args: {'mode': modeName});
+                  content = ctx.translate('daily_mastery_capped_content', args: {'mode': modeName, 'available': availableStr});
+                }
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade900.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.amberAccent, width: 2),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        content,
+                        style: const TextStyle(color: Colors.white, fontSize: 11),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                );
+              }),
 
             // Sección de XP y Nivel MEJORADA con Barra Circular
             if (!widget.isTutorial && _lastGainedXp > 0)

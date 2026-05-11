@@ -130,9 +130,13 @@ class PrefsService {
   static set pendingSyncReceipts(List<XpReceipt> receipts) =>
       _prefs.setString('pending_sync_receipts', xpReceiptsToJson(receipts));
 
-  // 📅 Daily offline XP counter
-  static int get todayOfflineXp => _prefs.getInt('today_offline_xp') ?? 0;
-  static set todayOfflineXp(int value) => _prefs.setInt('today_offline_xp', value);
+  // 📅 Daily offline XP counters — one per difficulty
+  static int get todayEasyXp   => _prefs.getInt('today_easy_xp')   ?? 0;
+  static int get todayMediumXp => _prefs.getInt('today_medium_xp') ?? 0;
+  static int get todayHardXp   => _prefs.getInt('today_hard_xp')   ?? 0;
+  static set todayEasyXp(int v)   => _prefs.setInt('today_easy_xp',   v);
+  static set todayMediumXp(int v) => _prefs.setInt('today_medium_xp', v);
+  static set todayHardXp(int v)   => _prefs.setInt('today_hard_xp',   v);
 
   static DateTime? get lastDailyReset {
     final raw = _prefs.getString('last_daily_reset');
@@ -160,6 +164,9 @@ class PrefsService {
 
   static int get tokensCapture => _prefs.getInt('tokens_capture') ?? 0;
   static set tokensCapture(int value) => _prefs.setInt('tokens_capture', value);
+
+  static int get wins => _prefs.getInt('wins') ?? 0;
+  static set wins(int value) => _prefs.setInt('wins', value);
 
   static Future<void> clear() async {
     await _prefs.clear();

@@ -209,6 +209,17 @@ class LanguageProvider extends ChangeNotifier {
       'sign_out_google': 'Cerrar sesión de Google',
       'syncing': 'Sincronizando...',
       'offline_xp_pending': 'XP Offline Pendiente',
+      // Auth error messages
+      'auth_signout_confirm_title': '¿Cerrar sesión?',
+      'auth_signout_confirm_body': '¿Estás seguro de que quieres cerrar sesión de tu cuenta de Google?',
+      'auth_signout_confirm_btn': 'Cerrar sesión',
+      'auth_no_internet_signin': 'Se requiere conexión a Internet para iniciar sesión.',
+      'auth_signin_failed': 'Error al iniciar sesión. Inténtalo de nuevo.',
+      'auth_no_internet_signout': 'Se requiere conexión a Internet para cerrar sesión.',
+      'auth_no_internet_delete': 'Se requiere conexión a Internet para eliminar tu cuenta. Conéctate e inténtalo de nuevo.',
+      'auth_delete_failed': 'No se pudo eliminar la cuenta. Tu cuenta no ha sido modificada. Inténtalo de nuevo.',
+      'auth_delete_title': 'Error al Eliminar Cuenta',
+      'auth_delete_loading': 'Eliminando cuenta...',
       // Onboarding
       'welcome_to_parche': '¡Bienvenido a Parché!',
       'create_your_profile': 'Crea tu perfil',
@@ -227,6 +238,28 @@ class LanguageProvider extends ChangeNotifier {
       'difficulty_medium_desc': '100 casillas · Clásico · ×1.0 XP',
       'difficulty_hard_desc': '100 casillas · Más penalizaciones · ×1.5 XP',
       'difficulty_last_place_no_xp': '4° lugar no recibe XP',
+      // Statistics
+      'stats_title': 'ESTADÍSTICAS',
+      'stats_matches_played': 'Partidas jugadas',
+      'stats_wins': 'Victorias',
+      'stats_win_rate': 'Tasa de victoria',
+      'stats_no_data': 'Juega tu primera partida\npara ver tus estadísticas.',
+      // Daily mastery
+      'daily_mastery_title': '🏆 ¡Dominio Diario Alcanzado!',
+      'daily_mastery_content': 'Has alcanzado el máximo de XP de práctica por hoy. ¡Lleva tus habilidades al Modo Online para seguir subiendo de nivel y escalar en los rankings globales!',
+      'daily_mastery_capped_title': '⭐ ¡XP {mode} Agotada!',
+      'daily_mastery_capped_content': 'Has alcanzado el límite de XP en modo {mode} por hoy. ¡Todavía puedes ganar XP en {available}!',
+      // Guest XP migration dialog
+      'migration_title': '¡Tienes Progreso Sin Conectar!',
+      'migration_content': 'Tu cuenta de Google está en Nivel {cloudLevel}, pero jugando sin conexión llegaste al Nivel {guestLevel}. ¿Qué progreso quieres conservar?',
+      'migration_keep': 'Progreso sin conexión (Nivel {guestLevel})',
+      'migration_fresh': 'Mi cuenta (Nivel {cloudLevel})',
+      'daily_mastery_play_fun': 'Jugar por diversión',
+      'daily_mastery_go_online': '¡Ir en línea!',
+      // Level tooltip
+      'level_max': '¡Nivel Máximo alcanzado!',
+      'level_xp_progress': '{current} / {required} XP para Nivel {next}',
+      'level_rank_missing': '\nTe faltan {missing} XP para ser {rank}',
     },
     Language.en: {
       'waiting_players': 'Waiting for Players...',
@@ -390,6 +423,17 @@ class LanguageProvider extends ChangeNotifier {
       'sign_out_google': 'Sign out of Google',
       'syncing': 'Syncing...',
       'offline_xp_pending': 'Offline XP Pending',
+      // Auth error messages
+      'auth_signout_confirm_title': 'Sign out?',
+      'auth_signout_confirm_body': 'Are you sure you want to sign out of your Google account?',
+      'auth_signout_confirm_btn': 'Sign out',
+      'auth_no_internet_signin': 'Internet connection is required to sign in.',
+      'auth_signin_failed': 'Sign-in failed. Please try again.',
+      'auth_no_internet_signout': 'Internet connection is required to sign out.',
+      'auth_no_internet_delete': 'Internet connection is required to delete your account. Please connect and try again.',
+      'auth_delete_failed': 'Failed to delete account. Your account has not been changed. Please try again.',
+      'auth_delete_title': 'Account Deletion Failed',
+      'auth_delete_loading': 'Deleting account...',
       // Onboarding
       'welcome_to_parche': 'Welcome to Parché!',
       'create_your_profile': 'Create your profile',
@@ -408,6 +452,28 @@ class LanguageProvider extends ChangeNotifier {
       'difficulty_medium_desc': '100 cells · Classic · ×1.0 XP',
       'difficulty_hard_desc': '100 cells · More penalties · ×1.5 XP',
       'difficulty_last_place_no_xp': '4th place earns no XP',
+      // Statistics
+      'stats_title': 'STATISTICS',
+      'stats_matches_played': 'Matches played',
+      'stats_wins': 'Wins',
+      'stats_win_rate': 'Win rate',
+      'stats_no_data': 'Play your first match\nto see your statistics.',
+      // Daily mastery
+      'daily_mastery_title': '🏆 Daily Mastery Reached!',
+      'daily_mastery_content': 'You\'ve maximized your practice XP for today. Take your skills to the Online Arena to continue leveling up and climbing the global ranks!',
+      'daily_mastery_capped_title': '⭐ {mode} XP Maxed!',
+      'daily_mastery_capped_content': 'You\'ve reached today\'s {mode} XP limit. You can still earn XP on {available}!',
+      // Guest XP migration dialog
+      'migration_title': 'You Have Offline Progress!',
+      'migration_content': 'Your Google account is at Level {cloudLevel}, but playing offline you reached Level {guestLevel}. Which progress do you want to keep?',
+      'migration_keep': 'Offline Progress (Level {guestLevel})',
+      'migration_fresh': 'My Account (Level {cloudLevel})',
+      'daily_mastery_play_fun': 'Play for fun',
+      'daily_mastery_go_online': 'Go Online!',
+      // Level tooltip
+      'level_max': 'Maximum Level reached!',
+      'level_xp_progress': '{current} / {required} XP for Level {next}',
+      'level_rank_missing': '\n{missing} XP left to become {rank}',
     },
   };
 }

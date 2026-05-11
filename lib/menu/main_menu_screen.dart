@@ -24,10 +24,14 @@ class MainMenuScreen extends StatefulWidget {
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
   StreamSubscription? _socketSub;
+  late final AuthService _authService;
 
   @override
   void initState() {
     super.initState();
+    _authService = context.read<AuthService>();
+    _authService.addListener(_onAuthChanged);
+
     _socketSub = context.read<SocketService>().events.listen((event) {
       if (event['event'] == 'user_data_deleted') {
         _handleAccountDeleted();
@@ -43,8 +47,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     });
   }
 
+  void _onAuthChanged() {
+    if (_authService.needsMigrationDialog && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _authService.needsMigrationDialog) {
+          _showMigrationDialog();
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _authService.removeListener(_onAuthChanged);
     _socketSub?.cancel();
     super.dispose();
   }
@@ -170,23 +185,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
     // Prefer cloud values when signed in; fall back to local prefs
     final int matches = profile?.matchesPlayed ?? PrefsService.matchesPlayed;
-    final int wins = profile?.wins ?? 0;
+    final int wins = profile?.wins ?? PrefsService.wins;
     final double winRate = matches > 0 ? wins / matches : 0.0;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: Colors.brown.shade900,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(25),
           side: const BorderSide(color: Colors.orangeAccent, width: 2),
         ),
-        title: const Text(
-          'ESTADÍSTICAS',
-          style: TextStyle(
-            color: Colors.orangeAccent,
-            fontWeight: FontWeight.bold,
-          ),
+        title: Text(
+          ctx.translate('stats_title'),
+          style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         content: Column(
@@ -194,29 +206,29 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           children: [
             _StatRow(
               icon: Icons.sports_esports,
-              label: 'Partidas jugadas',
+              label: ctx.translate('stats_matches_played'),
               value: '$matches',
               color: Colors.blueAccent,
             ),
             const SizedBox(height: 12),
             _StatRow(
               icon: Icons.emoji_events,
-              label: 'Victorias',
+              label: ctx.translate('stats_wins'),
               value: '$wins',
               color: Colors.amber,
             ),
             const SizedBox(height: 12),
             _StatRow(
               icon: Icons.percent,
-              label: 'Tasa de victoria',
+              label: ctx.translate('stats_win_rate'),
               value: '${(winRate * 100).toStringAsFixed(1)}%',
               color: Colors.greenAccent,
             ),
             if (matches == 0) ...[
               const SizedBox(height: 20),
-              const Text(
-                'Juega tu primera partida\npara ver tus estadísticas.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+              Text(
+                ctx.translate('stats_no_data'),
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -226,11 +238,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           TextButton(
             onPressed: () {
               AudioService.playClick();
-              Navigator.pop(context);
+              Navigator.pop(ctx);
             },
-            child: const Text(
-              'CERRAR',
-              style: TextStyle(color: Colors.orangeAccent),
+            child: Text(
+              ctx.translate('close').toUpperCase(),
+              style: const TextStyle(color: Colors.orangeAccent),
             ),
           ),
         ],
@@ -372,6 +384,62 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
+  void _showMigrationDialog() {
+    final auth = context.read<AuthService>();
+    final syncQueue = context.read<SyncQueueService>();
+    final guestXp = auth.guestXpBeforeMigration;
+    final cloudXp = auth.profile?.xp ?? 0;
+    final offlineDelta = guestXp - cloudXp; // XP earned offline, not total
+    final guestLevel = LevelManager.calculateLevel(guestXp).toString();
+    final cloudLevel = (auth.profile?.level ?? 1).toString();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.greenAccent, width: 2),
+        ),
+        title: Text(
+          ctx.translate('migration_title'),
+          style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: Text(
+          ctx.translate('migration_content', args: {'guestLevel': guestLevel, 'cloudLevel': cloudLevel}),
+          style: const TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          TextButton(
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(ctx);
+              auth.clearMigrationDialog();
+            },
+            child: Text(ctx.translate('migration_fresh', args: {'cloudLevel': cloudLevel}), style: const TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(ctx);
+              syncQueue.enqueueGuestMigration(offlineDelta);
+              auth.clearMigrationDialog();
+            },
+            child: Text(
+              ctx.translate('migration_keep', args: {'guestLevel': guestLevel}),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showDailyMasteryDialog({required VoidCallback onPlayAnyway}) {
     showDialog(
       context: context,
@@ -381,14 +449,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: Colors.amberAccent, width: 2),
         ),
-        title: const Text(
-          '🏆 Daily Mastery Reached!',
-          style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold),
+        title: Text(
+          context.translate('daily_mastery_title'),
+          style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
-        content: const Text(
-          "You've maximized your practice XP for today. Take your skills to the Online Arena to continue leveling up and climbing the global ranks!",
-          style: TextStyle(color: Colors.white),
+        content: Text(
+          context.translate('daily_mastery_content'),
+          style: const TextStyle(color: Colors.white),
           textAlign: TextAlign.center,
         ),
         actionsAlignment: MainAxisAlignment.spaceEvenly,
@@ -399,7 +467,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               Navigator.pop(context);
               onPlayAnyway();
             },
-            child: const Text('Play for fun', style: TextStyle(color: Colors.white54)),
+            child: Text(context.translate('daily_mastery_play_fun'), style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -408,7 +476,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               Navigator.pop(context);
               Navigator.pushNamed(context, '/online_lobby');
             },
-            child: const Text('Go Online!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(context.translate('daily_mastery_go_online'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -452,10 +520,27 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               AudioService.playClick();
               Navigator.pop(ctx);
               final auth = context.read<AuthService>();
-              final profile = await auth.signInWithGoogle();
+              final status = await auth.signInWithGoogle();
               if (!mounted) return;
-              if (profile != null) {
-                Navigator.pushNamed(context, '/online_lobby');
+              if (status == SignInStatus.success) {
+                Navigator.pushNamed(this.context, '/online_lobby');
+              } else if (status == SignInStatus.offline || status == SignInStatus.error) {
+                final key = status == SignInStatus.offline
+                    ? 'auth_no_internet_signin'
+                    : 'auth_signin_failed';
+                showDialog(
+                  context: this.context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: Colors.brown.shade900,
+                    content: Text(ctx.translate(key), style: const TextStyle(color: Colors.white)),
+                    actions: [
+                      TextButton(
+                        onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+                        child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+                      ),
+                    ],
+                  ),
+                );
               }
             },
           ),
@@ -467,13 +552,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   void _handleOfflineClick() {
     AudioService.playClick();
 
-    // Inform when daily cap is reached — player can still play for fun
     final syncQueue = context.read<SyncQueueService>();
-    if (syncQueue.isDailyCapped(GameDifficulty.hard)) {
+    final allCapped = syncQueue.isDailyCapped(GameDifficulty.easy) &&
+        syncQueue.isDailyCapped(GameDifficulty.medium) &&
+        syncQueue.isDailyCapped(GameDifficulty.hard);
+    if (allCapped) {
+      // Every mode capped — warn upfront so user doesn't play a full game for 0 XP
       _showDailyMasteryDialog(onPlayAnyway: _navigateToOffline);
-      return;
+    } else {
+      _navigateToOffline();
     }
-    _navigateToOffline();
   }
 
   void _navigateToOffline() {
@@ -733,8 +821,48 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                   ),
                                   onPressed: () {
                                     AudioService.playClick();
-                                    auth.signOut();
-                                    Navigator.pop(context);
+                                    showDialog(
+                                      context: this.context,
+                                      builder: (ctx) => AlertDialog(
+                                        backgroundColor: Colors.brown.shade900,
+                                        title: Text(ctx.translate('auth_signout_confirm_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        content: Text(ctx.translate('auth_signout_confirm_body'), style: const TextStyle(color: Colors.white70)),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+                                            child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                            onPressed: () async {
+                                              AudioService.playClick();
+                                              Navigator.pop(ctx);
+                                              final status = await auth.signOut();
+                                              if (!mounted) return;
+                                              switch (status) {
+                                                case SignOutStatus.success:
+                                                  Navigator.pop(this.context);
+                                                case SignOutStatus.offline:
+                                                  showDialog(
+                                                    context: this.context,
+                                                    builder: (d) => AlertDialog(
+                                                      backgroundColor: Colors.brown.shade900,
+                                                      content: Text(d.translate('auth_no_internet_signout'), style: const TextStyle(color: Colors.white)),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () { AudioService.playClick(); Navigator.pop(d); },
+                                                          child: Text(d.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                              }
+                                            },
+                                            child: Text(ctx.translate('auth_signout_confirm_btn'), style: const TextStyle(color: Colors.white)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
                                   },
                                 ),
                               ),
@@ -776,8 +904,27 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                   ),
                                   onPressed: () async {
                                     AudioService.playClick();
-                                    await auth.signInWithGoogle();
-                                    // Dialog rebuilds automatically via Consumer
+                                    final status = await auth.signInWithGoogle();
+                                    if (!mounted) return;
+                                    if (status == SignInStatus.offline || status == SignInStatus.error) {
+                                      final key = status == SignInStatus.offline
+                                          ? 'auth_no_internet_signin'
+                                          : 'auth_signin_failed';
+                                      showDialog(
+                                        context: this.context,
+                                        builder: (ctx) => AlertDialog(
+                                          backgroundColor: Colors.brown.shade900,
+                                          content: Text(ctx.translate(key), style: const TextStyle(color: Colors.white)),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+                                              child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+                                    // success: Consumer rebuilds dialog automatically
                                   },
                                 ),
                               ),
@@ -838,7 +985,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   void _confirmDeleteAccount(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: Colors.brown.shade900,
         title: Text(context.translate('delete_account'), style: const TextStyle(color: Colors.red)),
         content: Text(
@@ -849,28 +996,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           TextButton(
             onPressed: () {
               AudioService.playClick();
-              Navigator.pop(context);
+              Navigator.pop(ctx);
             },
             child: Text(context.translate('cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
+            onPressed: () async {
               AudioService.playClick();
-
-              // Capture refs before any async gap
-              final auth = context.read<AuthService>();
-              final socket = context.read<SocketService>();
-              final playerId = PrefsService.playerId;
-
-              // Fire Firebase cleanup in background — do NOT await
-              auth.deleteAccount();
-
-              // Inform game server
-              socket.send('delete_user_data', {'playerId': playerId});
-
-              // Immediately clear local prefs and navigate
-              _handleAccountDeleted();
+              Navigator.pop(ctx);
+              await _runDeleteAccount();
             },
             child: Text(context.translate('confirm'), style: const TextStyle(color: Colors.white)),
           ),
@@ -879,19 +1014,93 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
+  Future<void> _runDeleteAccount() async {
+    if (!mounted) return;
+
+    showDialog(
+      context: this.context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.brown,
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: Colors.white),
+            const SizedBox(width: 16),
+            Text(ctx.translate('auth_delete_loading'), style: const TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+
+    final auth = this.context.read<AuthService>();
+    final socket = this.context.read<SocketService>();
+    final playerId = PrefsService.playerId;
+
+    final status = await auth.deleteAccount();
+
+    if (!mounted) return;
+    Navigator.of(this.context).pop();
+
+    switch (status) {
+      case DeleteAccountStatus.success:
+        socket.send('delete_user_data', {'playerId': playerId});
+        _handleAccountDeleted();
+      case DeleteAccountStatus.cancelled:
+        break;
+      case DeleteAccountStatus.offline:
+        _showDeleteError('auth_no_internet_delete');
+      case DeleteAccountStatus.error:
+        _showDeleteError('auth_delete_failed');
+    }
+  }
+
+  void _showDeleteError(String messageKey) {
+    showDialog(
+      context: this.context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        title: Text(ctx.translate('auth_delete_title'), style: const TextStyle(color: Colors.red)),
+        content: Text(ctx.translate(messageKey), style: const TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(
+            onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+            child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(ctx);
+              _runDeleteAccount();
+            },
+            child: Text(ctx.translate('confirm'), style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _getLevelTooltipMessage(int playerLevel) {
-    if (playerLevel >= 100) return "¡Nivel Máximo alcanzado!";
+    if (playerLevel >= 100) return context.translate('level_max');
 
     final int currentXpInLevel = LevelManager.getXpInCurrentLevel(PrefsService.totalXp);
     final int xpRequired = LevelManager.xpRequiredForLevel(playerLevel);
     final nextRank = LevelManager.getNextRankInfo(playerLevel);
 
-    String message = "$currentXpInLevel / $xpRequired XP para Nivel ${playerLevel + 1}";
+    String message = context.translate('level_xp_progress', args: {
+      'current': '$currentXpInLevel',
+      'required': '$xpRequired',
+      'next': '${playerLevel + 1}',
+    });
 
     if (nextRank != null) {
       final int totalXpNeededForNextRank = LevelManager.totalXpToReachLevel(nextRank['level']);
       final int xpMissingForNextRank = totalXpNeededForNextRank - PrefsService.totalXp;
-      message += "\nTe faltan $xpMissingForNextRank XP para ser ${nextRank['name']}";
+      message += context.translate('level_rank_missing', args: {
+        'missing': '$xpMissingForNextRank',
+        'rank': '${nextRank['name']}',
+      });
     }
 
     return message;
@@ -1193,7 +1402,7 @@ class _PlayerProfileHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     // Sync badge or Google Sign-In chip
-                    if (auth.isSyncing)
+                    if (syncQueue.isSyncing)
                       _statusChip(Icons.sync, context.translate('syncing'), Colors.blueAccent)
                     else if (syncQueue.hasPendingReceipts)
                       _statusChip(Icons.upload, context.translate('offline_xp_pending'), Colors.amberAccent)
@@ -1224,7 +1433,26 @@ class _PlayerProfileHeader extends StatelessWidget {
     return GestureDetector(
       onTap: () async {
         AudioService.playClick();
-        await auth.signInWithGoogle();
+        final status = await auth.signInWithGoogle();
+        if (!context.mounted) return;
+        if (status == SignInStatus.offline || status == SignInStatus.error) {
+          final key = status == SignInStatus.offline
+              ? 'auth_no_internet_signin'
+              : 'auth_signin_failed';
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: Colors.brown.shade900,
+              content: Text(ctx.translate(key), style: const TextStyle(color: Colors.white)),
+              actions: [
+                TextButton(
+                  onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+                  child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+                ),
+              ],
+            ),
+          );
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -1387,9 +1615,31 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     final auth = context.read<AuthService>();
-    await auth.signInWithGoogle();
+    final status = await auth.signInWithGoogle();
     if (!mounted) return;
-    // Use Firebase Auth user directly — always populated immediately by Google.
+
+    if (status == SignInStatus.offline || status == SignInStatus.error) {
+      setState(() => _isLoading = false);
+      final key = status == SignInStatus.offline
+          ? 'auth_no_internet_signin'
+          : 'auth_signin_failed';
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.brown.shade900,
+          content: Text(ctx.translate(key), style: const TextStyle(color: Colors.white)),
+          actions: [
+            TextButton(
+              onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+              child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // cancelled or success — advance to name step
     final firebaseUser = auth.firebaseUser;
     final fullName = firebaseUser?.displayName ?? auth.profile?.displayName ?? '';
     final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
@@ -1607,54 +1857,58 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
 
   Widget _buildStep1(BuildContext context) {
     final auth = context.watch<AuthService>();
+    final double avatarRadius = _signedInWithGoogle ? 28 : 36;
+    final double topGap = _signedInWithGoogle ? 8 : 16;
     return SizedBox(
       key: const ValueKey('step1'),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_signedInWithGoogle) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade700,
-                borderRadius: BorderRadius.circular(20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_signedInWithGoogle) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade700,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  context.translate('xp_bonus_received'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
               ),
-              child: Text(
-                context.translate('xp_bonus_received'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+              const SizedBox(height: 8),
+            ],
+            UserAvatarWidget(
+              profile: auth.profile,
+              firebaseUser: auth.firebaseUser,
+              radius: avatarRadius,
+            ),
+            SizedBox(height: topGap),
+            TextField(
+              controller: _nameController,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              textCapitalization: TextCapitalization.words,
+              onSubmitted: (_) => _handleConfirm(),
+              decoration: InputDecoration(
+                hintText: context.translate('name_hint'),
+                hintStyle: const TextStyle(color: Colors.white54),
+                enabledBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
           ],
-          UserAvatarWidget(
-            profile: auth.profile,
-            firebaseUser: auth.firebaseUser,
-            radius: 36,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _nameController,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            textCapitalization: TextCapitalization.words,
-            onSubmitted: (_) => _handleConfirm(),
-            decoration: InputDecoration(
-              hintText: context.translate('name_hint'),
-              hintStyle: const TextStyle(color: Colors.white54),
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.orange),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.orange),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
+        ),
       ),
     );
   }
