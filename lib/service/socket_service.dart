@@ -18,7 +18,7 @@ class SocketService with ChangeNotifier {
   Timer? _reconnectTimer;
   String? _cachedIdToken;
 
-  static const _authEvents = {'create_game', 'join_game', 'find_match'};
+  static const _authEvents = {'create_game', 'join_game', 'find_match', 'register_session'};
 
   void cacheIdToken(String? token) => _cachedIdToken = token;
   

@@ -27,6 +27,7 @@ class GameScreen extends StatefulWidget {
   final String? roomCode;
   final List<String>? playerNames;
   final bool isResume;
+  final bool isRejoin;
   final bool isTutorial;
   final GameDifficulty difficulty;
 
@@ -36,6 +37,7 @@ class GameScreen extends StatefulWidget {
     this.roomCode,
     this.playerNames,
     this.isResume = false,
+    this.isRejoin = false,
     this.isTutorial = false,
     this.difficulty = GameDifficulty.medium,
   });
@@ -71,6 +73,10 @@ class _GameScreenState extends State<GameScreen> {
   bool _earlyFinishAvailable = false;
   bool _myVictoryDialogShown = false;
 
+  // Online-exit / surrender state
+  bool _exitHandled = false;
+  String? _lastShownSurrender;
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +91,11 @@ class _GameScreenState extends State<GameScreen> {
       _lastFinisherCount = controller.engine.finisherIds.length;
       _lastMessageCount = controller.chatMessages.length;
       _lastSeconds = controller.secondsRemaining;
+
+      // Cold rejoin: socket connected but no game_state yet — ask server.
+      if (widget.isRejoin && controller is NetworkGameController) {
+        context.read<SocketService>().send('request_sync');
+      }
 
       if (widget.isResume && controller is LocalGameController) {
         final savedJson = PrefsService.savedLocalGame;
@@ -284,6 +295,38 @@ class _GameScreenState extends State<GameScreen> {
       }
     }
 
+    // Handle server-driven exit signals (surrender confirmed / match not found).
+    if (controller is NetworkGameController) {
+      final reason = controller.exitReason;
+      if (reason != null && !_exitHandled) {
+        _exitHandled = true;
+        if (reason == GameExitReason.matchNotFound) {
+          context.read<AuthService>().clearActiveMatchId();
+          // Player was in a match but can't rejoin (grace expired / room cleaned).
+          // Count as abandoned only when they had actually been playing (players loaded).
+          if (!_progressUpdated && controller.players.isNotEmpty) {
+            _progressUpdated = true;
+            context.read<AuthService>().updateMatchStats(
+              captures: 0,
+              isWin: false,
+              isOnline: true,
+            );
+          }
+        }
+        if (mounted) {
+          Navigator.of(context).popUntil((r) => r.settings.name == '/menu');
+        }
+      }
+      final surrenderedName = controller.lastSurrenderedName;
+      if (surrenderedName != null && surrenderedName != _lastShownSurrender) {
+        _lastShownSurrender = surrenderedName;
+        final msg = context.translate('player_left_match', listen: false, args: {'name': surrenderedName});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+        );
+      }
+    }
+
     if (controller.engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
       _isGameFinishedDialogShown = true;
       _updatePlayerProgress(controller);
@@ -323,10 +366,31 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {});
   }
 
+  /// Sends surrender (online) then navigates to menu, guarding against double-pop.
+  void _exitGame() {
+    if (!mounted) return;
+    final controller = context.read<GameController>();
+    if (controller.isOnline && !_exitHandled) {
+      _exitHandled = true;
+      context.read<SocketService>().send('surrender');
+      PrefsService.lastRoomCode = null;
+      // Record loss + match count if progress not already saved (player surrendered mid-game).
+      if (!_progressUpdated) {
+        _progressUpdated = true;
+        context.read<AuthService>().updateMatchStats(
+          captures: 0,
+          isWin: false,
+          isOnline: true,
+        );
+      }
+    }
+    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+  }
+
   Future<bool> _confirmExit() async {
     final controller = context.read<GameController>();
     if (controller.engine.phase == GamePhase.finished) return true;
-    
+
     String title = context.translate('exit_game_title', listen: false);
     String content = '';
 
@@ -387,7 +451,8 @@ class _GameScreenState extends State<GameScreen> {
     final controller = context.watch<GameController>();
     final socketSrv = context.watch<SocketService>();
     
-    final bool isWaiting = controller.isOnline && controller.players.length < widget.playerCount;
+    final int expectedPlayers = controller.maxPlayers > 0 ? controller.maxPlayers : widget.playerCount;
+    final bool isWaiting = controller.isOnline && controller.players.length < expectedPlayers;
     final bool isReconnecting = controller.isOnline && (!socketSrv.isConnected || socketSrv.isConnecting);
 
     return PopScope(
@@ -396,12 +461,12 @@ class _GameScreenState extends State<GameScreen> {
         if (didPop) return;
         
         if (controller.engine.phase == GamePhase.finished) {
-           Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-           return;
+          Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+          return;
         }
 
         if (await _confirmExit() && mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+          _exitGame();
         }
       },
       child: Scaffold(
@@ -954,11 +1019,11 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           IconButton(
-            icon: Icon(widget.isTutorial ? Icons.arrow_back : Icons.exit_to_app, color: Colors.white70, size: 22), 
+            icon: Icon(widget.isTutorial ? Icons.arrow_back : Icons.exit_to_app, color: Colors.white70, size: 22),
             onPressed: () async {
               AudioService.playClick();
               if (await _confirmExit() && mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                _exitGame();
               }
             }
           ),
@@ -1013,8 +1078,10 @@ class _GameScreenState extends State<GameScreen> {
           textAlign: TextAlign.center,
         ),
         actions: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               TextButton(
                 onPressed: () {
@@ -1569,6 +1636,30 @@ class _PlayerCornerWidget extends StatelessWidget {
     Color(0xFFFFB300), // yellow – index 3
   ];
 
+  Widget _buildFinishedBadge(BuildContext context, GameController controller) {
+    final position = controller.engine.finisherIds.indexOf(player.id);
+    final ordinals = ['1°', '2°', '3°', '4°'];
+    final label = position >= 0 && position < ordinals.length ? ordinals[position] : '✓';
+    final colors = [Colors.amber, Colors.grey.shade400, Colors.brown.shade400, Colors.blueGrey];
+    final color = position >= 0 && position < colors.length ? colors[position] : Colors.blueGrey;
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 2),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 16)),
+          Text('👀', style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPlayerAvatar(Player player, double size) {
     final ringColor = _kSlotColors[player.index % _kSlotColors.length];
 
@@ -1699,7 +1790,9 @@ class _PlayerCornerWidget extends StatelessWidget {
         ),
         const SizedBox(height: 4), 
         
-        if (!player.isFinished)
+        if (player.isFinished)
+          _buildFinishedBadge(context, controller)
+        else
           GestureDetector(
             onTap: () {
                if (canTap) {
@@ -1799,9 +1892,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                 ],
               ),
             ),
-          )
-        else
-          const SizedBox(height: 58), 
+          ),
 
         const SizedBox(height: 8),
         HomeZoneWidget(player: player),

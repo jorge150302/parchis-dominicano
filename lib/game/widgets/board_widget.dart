@@ -192,7 +192,12 @@ class _TokenObserver extends StatelessWidget {
     final RenderBox? boardBox = context.findAncestorRenderObjectOfType<RenderBox>();
     
     if (cellBox != null && boardBox != null) {
-      final cellPos = cellBox.localToGlobal(Offset.zero, ancestor: boardBox);
+      final Offset cellPos;
+      try {
+        cellPos = cellBox.localToGlobal(Offset.zero, ancestor: boardBox);
+      } catch (_) {
+        return Offset.zero;
+      }
       final cellSize = cellBox.size;
       
       double offsetX = 0;

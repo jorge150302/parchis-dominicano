@@ -12,6 +12,7 @@ class UserProfile {
   // 'google' = use Google profile photo; 'icon' = use a predefined icon
   final String avatarType;
   final String? avatarIconId;
+  final String? activeMatchId;
 
   const UserProfile({
     required this.uid,
@@ -24,6 +25,7 @@ class UserProfile {
     this.tokensCapture = 0,
     this.avatarType = 'google',
     this.avatarIconId,
+    this.activeMatchId,
   });
 
   bool get usesCustomIcon => avatarType == 'icon' && avatarIconId != null;
@@ -41,6 +43,7 @@ class UserProfile {
       tokensCapture: data['tokens_capture'] as int? ?? 0,
       avatarType: data['avatar_type'] as String? ?? 'google',
       avatarIconId: data['avatar_icon_id'] as String?,
+      activeMatchId: data['active_match_id'] as String?,
     );
   }
 
@@ -69,6 +72,7 @@ class UserProfile {
     int? tokensCapture,
     String? avatarType,
     Object? avatarIconId = _unset,
+    Object? activeMatchId = _unset,
   }) {
     return UserProfile(
       uid: uid,
@@ -83,6 +87,9 @@ class UserProfile {
       avatarIconId: identical(avatarIconId, _unset)
           ? this.avatarIconId
           : avatarIconId as String?,
+      activeMatchId: identical(activeMatchId, _unset)
+          ? this.activeMatchId
+          : activeMatchId as String?,
     );
   }
 }

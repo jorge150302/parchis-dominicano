@@ -266,6 +266,22 @@ class AuthService extends ChangeNotifier {
     await _loadOrCreateProfile(user);
   }
 
+  /// Clears active_match_id in Firestore — called when a rejoin fails or the
+  /// match is gone so the stale field doesn't trigger another rejoin attempt.
+  Future<void> clearActiveMatchId() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      await _db.collection('users').doc(user.uid).update({'active_match_id': null});
+      if (_profile != null) {
+        _profile = _profile!.copyWith(activeMatchId: null);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('clearActiveMatchId error: $e');
+    }
+  }
+
   /// Called by the UI after the user makes a choice in the migration dialog.
   void clearMigrationDialog() {
     _needsMigrationDialog = false;

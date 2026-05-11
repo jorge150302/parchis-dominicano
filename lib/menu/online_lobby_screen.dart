@@ -7,8 +7,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:frontend_parchis/config/env.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
+import 'package:provider/provider.dart';
 import '../config/language_provider.dart';
+import '../game/logic/game_controller.dart';
 import '../service/audio_service.dart';
+import '../service/auth_service.dart';
 
 class OnlineLobbyScreen extends StatefulWidget {
   const OnlineLobbyScreen({super.key});
@@ -39,11 +42,19 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     }
   }
 
+  Future<void> _registerSession() async {
+    await _cacheIdToken();
+    try {
+      await socketService.connect(_serverUrl);
+      socketService.send('register_session', {});
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
     _socketSubscription = socketService.events.listen(_handleServerEvent);
-    _cacheIdToken();
+    _registerSession();
 
     _roomCodeController.addListener(() {
       if (mounted) setState(() {});
@@ -120,6 +131,15 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         } else if (code == 'UNAUTHORIZED') {
           _showError(context.translate('sign_in_required', listen: false));
           Navigator.of(context).pop();
+        } else if (code == 'ALREADY_IN_GAME') {
+          final String? activeRoom = data['roomCode'] as String?;
+          if (activeRoom != null && activeRoom.isNotEmpty) {
+            _navigateToGame(roomCode: activeRoom, playerCount: 4);
+          } else {
+            Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+          }
+        } else if (code == 'SESSION_CONFLICT') {
+          _showSessionConflictDialog();
         } else {
           _showError(data['message'] ?? 'Error desconocido');
         }
@@ -256,11 +276,11 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             children: [
               ...[2, 3, 4].map((n) => ListTile(
                 title: Text('$n ${context.translate('players_count', listen: false)}', style: const TextStyle(color: Colors.white)),
-                leading: n == 4 
+                leading: n == 4
                   ? Image.asset('assets/icon/four_players.png', width: 24, height: 24, color: Colors.orangeAccent, filterQuality: FilterQuality.high, fit: BoxFit.contain)
                   : Icon(n == 2 ? Icons.group : Icons.groups, color: Colors.orangeAccent),
                 onTap: () {
-                  AudioService.playClick(); // ✅ Sonido
+                  AudioService.playClick();
                   Navigator.pop(context, n);
                 },
               )),
@@ -271,7 +291,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 value: isPublic,
                 activeThumbColor: Colors.orange,
                 onChanged: (v) {
-                  AudioService.playClick(); // ✅ Sonido
+                  AudioService.playClick();
                   setDialogState(() => isPublic = v);
                 },
               ),
@@ -294,7 +314,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     });
     try {
       await socketService.connect(_serverUrl);
-      socketService.send('create_game', {'name': PrefsService.playerName, 'maxPlayers': maxPlayers, 'isPublic': isPublic});
+      socketService.send('create_game', {
+        'name': PrefsService.playerName,
+        'maxPlayers': maxPlayers,
+        'isPublic': isPublic,
+        if (kOnlineTestModeEnabled) 'testMode': true,
+      });
     } catch (e) {
       setState(() => _isLoading = false);
       _showError('No se pudo conectar: $e');
@@ -353,6 +378,18 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
+  Future<void> _showSessionConflictDialog() async {
+    socketService.disconnect();
+    await context.read<AuthService>().signOut();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(context.translate('session_conflict_content', listen: false)),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 4),
+    ));
+    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+  }
+
   void _copyToClipboard(String text, {String? successMsg}) {
     AudioService.playClick(); // ✅ Sonido
     Clipboard.setData(ClipboardData(text: text));
@@ -367,8 +404,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lastCode = PrefsService.lastRoomCode;
-
     return Scaffold(
       body: Stack(
         children: [
@@ -404,21 +439,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                           ],
                         )
                       else ...[
-                        if (lastCode != null && lastCode.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 20),
-                            child: _lobbyCard(
-                              icon: Icons.history,
-                              title: context.translate('rejoin_match'),
-                              subtitle: lastCode,
-                              color: Colors.orange.shade700,
-                              onTap: () {
-                                AudioService.playClick(); // ✅ Sonido
-                                _connectAndJoin(manualCode: lastCode);
-                              },
-                            ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
-                          ),
-
                         _lobbyCard(
                           icon: Icons.bolt,
                           title: context.translate('quick_match'),

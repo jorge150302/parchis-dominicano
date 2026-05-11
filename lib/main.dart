@@ -67,6 +67,7 @@ class MyApp extends StatelessWidget {
               bool vsAI = args?['vsAI'] ?? false;
               List<String>? playerNames = args?['playerNames'];
               bool isResume = args?['isResume'] ?? false;
+              bool isRejoin = args?['isRejoin'] ?? false;
               bool isTutorial = args?['isTutorial'] ?? false;
               Map<String, dynamic>? savedState = args?['savedState'];
               // Restore difficulty from saved state when resuming, else use route arg
@@ -114,6 +115,7 @@ class MyApp extends StatelessWidget {
                       roomCode: roomCode,
                       playerNames: playerNames,
                       isResume: isResume,
+                      isRejoin: isRejoin,
                       isTutorial: isTutorial,
                       difficulty: difficulty,
                     ),

@@ -186,21 +186,26 @@ class SyncQueueService extends ChangeNotifier {
 
   String _receiptId() => DateTime.now().microsecondsSinceEpoch.toString();
 
+  static const _maxReceiptsPerBatch = 20;
+
   Future<void> _attemptSync() async {
     if (_isSyncing || !_authService.isSignedIn) return;
-    final receipts = List<XpReceipt>.from(PrefsService.pendingSyncReceipts);
-    if (receipts.isEmpty) return;
+    final all = List<XpReceipt>.from(PrefsService.pendingSyncReceipts);
+    if (all.isEmpty) return;
+
+    // Send at most 20; keep the rest for the next call.
+    final batch = all.take(_maxReceiptsPerBatch).toList();
+    final leftover = all.skip(_maxReceiptsPerBatch).toList();
 
     _isSyncing = true;
     notifyListeners();
-    // Clear before the async call to avoid re-sending receipts from re-entrant triggers.
-    PrefsService.pendingSyncReceipts = [];
+    PrefsService.pendingSyncReceipts = leftover;
 
     try {
       final idToken = await _authService.firebaseUser?.getIdToken();
       if (idToken == null) {
         final newer = PrefsService.pendingSyncReceipts;
-        PrefsService.pendingSyncReceipts = [...receipts, ...newer];
+        PrefsService.pendingSyncReceipts = [...batch, ...newer];
         return;
       }
 
@@ -210,7 +215,7 @@ class SyncQueueService extends ChangeNotifier {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'id_token': idToken,
-          'receipts': receipts.map((r) => r.toJson()).toList(),
+          'receipts': batch.map((r) => r.toJson()).toList(),
         }),
       ).timeout(const Duration(seconds: 15));
 
@@ -218,15 +223,17 @@ class SyncQueueService extends ChangeNotifier {
         debugPrint('[SyncQueue] ✅ XP synced: ${response.body}');
         await _authService.reloadProfile();
         notifyListeners();
+        // Send remaining receipts if any.
+        if (PrefsService.pendingSyncReceipts.isNotEmpty) _attemptSync();
       } else {
         debugPrint('[SyncQueue] ⚠️ Server error ${response.statusCode}: ${response.body}');
         final newer = PrefsService.pendingSyncReceipts;
-        PrefsService.pendingSyncReceipts = [...receipts, ...newer];
+        PrefsService.pendingSyncReceipts = [...batch, ...newer];
       }
     } catch (e) {
       debugPrint('[SyncQueue] ⚠️ Sync failed: $e');
       final newer = PrefsService.pendingSyncReceipts;
-      PrefsService.pendingSyncReceipts = [...receipts, ...newer];
+      PrefsService.pendingSyncReceipts = [...batch, ...newer];
     } finally {
       _isSyncing = false;
       notifyListeners();

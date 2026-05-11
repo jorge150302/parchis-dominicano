@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config/env.dart';
 import '../config/language_provider.dart';
 import '../service/socket_service.dart';
 import '../service/prefs_service.dart';
@@ -25,6 +27,7 @@ class MainMenuScreen extends StatefulWidget {
 class _MainMenuScreenState extends State<MainMenuScreen> {
   StreamSubscription? _socketSub;
   late final AuthService _authService;
+  bool _rejoinDispatched = false;
 
   @override
   void initState() {
@@ -35,10 +38,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     _socketSub = context.read<SocketService>().events.listen((event) {
       if (event['event'] == 'user_data_deleted') {
         _handleAccountDeleted();
+      } else if (event['event'] == 'error' &&
+          (event['data']?['code']) == 'SESSION_CONFLICT') {
+        _handleSessionConflict();
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Profile may already be loaded if authStateChanges fired before listener was added.
+      _tryRejoin();
       if (PrefsService.playerName.isEmpty) {
         _showWelcomeFlow();
       } else if (PrefsService.isFirstTime) {
@@ -47,14 +55,39 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     });
   }
 
-  void _onAuthChanged() {
-    if (_authService.needsMigrationDialog && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _authService.needsMigrationDialog) {
-          _showMigrationDialog();
-        }
-      });
+  /// Attempts rejoin if profile has activeMatchId and we haven't dispatched yet.
+  void _tryRejoin() {
+    if (_rejoinDispatched || !mounted) return;
+    if (_authService.needsMigrationDialog) return;
+    final activeMatchId = _authService.profile?.activeMatchId;
+    if (activeMatchId != null && activeMatchId.isNotEmpty) {
+      _rejoinDispatched = true;
+      _rejoinActiveMatch(activeMatchId);
     }
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    if (_authService.needsMigrationDialog) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _authService.needsMigrationDialog) _showMigrationDialog();
+      });
+      return;
+    }
+    _tryRejoin();
+  }
+
+  Future<void> _rejoinActiveMatch(String roomCode) async {
+    if (!mounted) return;
+    try {
+      await socketService.connect(Env.serverUrl);
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.pushNamed(context, '/game', arguments: {
+      'roomCode': roomCode,
+      'playerCount': 4,
+      'isRejoin': true,
+    });
   }
 
   @override
@@ -62,6 +95,32 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     _authService.removeListener(_onAuthChanged);
     _socketSub?.cancel();
     super.dispose();
+  }
+
+  Future<void> _handleSessionConflict() async {
+    socketService.disconnect();
+    await context.read<AuthService>().signOut();
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.brown.shade900,
+        title: Text(
+          ctx.translate('session_conflict_title'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          ctx.translate('session_conflict_content'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+            child: Text(ctx.translate('close'), style: const TextStyle(color: Colors.white70)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleAccountDeleted() async {
@@ -85,6 +144,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => _WelcomeDialog(
+        onSessionCheck: _checkSessionConflict,
         onComplete: (name) {
           if (!mounted) return;
           setState(() {
@@ -523,6 +583,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               final status = await auth.signInWithGoogle();
               if (!mounted) return;
               if (status == SignInStatus.success) {
+                await _checkSessionConflict();
+                if (!mounted) return;
+                if (!auth.isSignedIn) return;
                 Navigator.pushNamed(this.context, '/online_lobby');
               } else if (status == SignInStatus.offline || status == SignInStatus.error) {
                 final key = status == SignInStatus.offline
@@ -906,6 +969,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                     AudioService.playClick();
                                     final status = await auth.signInWithGoogle();
                                     if (!mounted) return;
+                                    if (status == SignInStatus.success) {
+                                      await _checkSessionConflict();
+                                      if (!mounted) return;
+                                    }
                                     if (status == SignInStatus.offline || status == SignInStatus.error) {
                                       final key = status == SignInStatus.offline
                                           ? 'auth_no_internet_signin'
@@ -1147,6 +1214,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     rankName: rankName,
                     tooltipMessage: _getLevelTooltipMessage(playerLevel),
                     onTapName: _showNameDialog,
+                    onSignIn: _checkSessionConflict,
                   ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
                   const SizedBox(width: 4),
                   IconButton(
@@ -1254,17 +1322,32 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
 // ─── Player Profile Header ────────────────────────────────────────────────────
 
+// Session-conflict helpers — defined at file level so _WelcomeDialogState
+// can call them via callback without needing access to _MainMenuScreenState.
+
+Future<void> _checkSessionConflict() async {
+  try {
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    socketService.cacheIdToken(token);
+    await socketService.connect(Env.serverUrl);
+    socketService.send('register_session', {});
+    await Future.delayed(const Duration(seconds: 2));
+  } catch (_) {}
+}
+
 class _PlayerProfileHeader extends StatelessWidget {
   final int playerLevel;
   final String rankName;
   final String tooltipMessage;
   final VoidCallback onTapName;
+  final Future<void> Function()? onSignIn;
 
   const _PlayerProfileHeader({
     required this.playerLevel,
     required this.rankName,
     required this.tooltipMessage,
     required this.onTapName,
+    this.onSignIn,
   });
 
   @override
@@ -1435,6 +1518,10 @@ class _PlayerProfileHeader extends StatelessWidget {
         AudioService.playClick();
         final status = await auth.signInWithGoogle();
         if (!context.mounted) return;
+        if (status == SignInStatus.success) {
+          await onSignIn?.call();
+          if (!context.mounted) return;
+        }
         if (status == SignInStatus.offline || status == SignInStatus.error) {
           final key = status == SignInStatus.offline
               ? 'auth_no_internet_signin'
@@ -1594,7 +1681,8 @@ class _MenuButton extends StatelessWidget {
 class _WelcomeDialog extends StatefulWidget {
   final Function(String) onComplete;
   final VoidCallback onStartTutorial;
-  const _WelcomeDialog({required this.onComplete, required this.onStartTutorial});
+  final Future<void> Function()? onSessionCheck;
+  const _WelcomeDialog({required this.onComplete, required this.onStartTutorial, this.onSessionCheck});
 
   @override
   State<_WelcomeDialog> createState() => _WelcomeDialogState();
@@ -1636,6 +1724,14 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
           ],
         ),
       );
+      return;
+    }
+
+    // Session conflict check: ensure this account isn't active on another device.
+    await widget.onSessionCheck?.call();
+    if (!mounted) return;
+    if (!auth.isSignedIn) {
+      setState(() => _isLoading = false);
       return;
     }
 

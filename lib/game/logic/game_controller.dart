@@ -12,12 +12,14 @@ import '../models/player.dart';
 import 'game_engine.dart';
 import 'board_generator.dart';
 import 'board_presets.dart';
+import 'board_actions_config.dart';
 import 'level_manager.dart';
 import '../models/board_action.dart';
 
 // Set to true to start human tokens 1 step from the finish line for quick testing.
 // Only active in debug builds (kDebugMode).
-const bool kTestModeEnabled = true
+const bool kTestModeEnabled = true;
+const bool kOnlineTestModeEnabled = false
 ;
 
 abstract class GameController extends ChangeNotifier {
@@ -659,11 +661,18 @@ class LocalGameController extends GameController {
   }
 }
 
+enum GameExitReason { surrendered, matchNotFound }
+
 class NetworkGameController extends GameController {
   final SocketService socketService;
   StreamSubscription? _socketSubscription;
-  final Set<String> _animatingTokens = {}; 
+  final Set<String> _animatingTokens = {};
   int _lastServerDiceValue = 1;
+
+  // Set by server events — GameScreen reacts to these.
+  int? myFinishPosition;       // rank (1-indexed) when you_finished received
+  GameExitReason? exitReason;  // non-null signals GameScreen to leave
+  String? lastSurrenderedName; // name of player who just surrendered
 
   NetworkGameController({required super.engine, required this.socketService}) {
     _socketSubscription = socketService.events.listen(_handleServerEvent);
@@ -761,11 +770,32 @@ class NetworkGameController extends GameController {
         notifyListeners();
         break;
       case 'chat': _handleChatMessage(data); break;
-      case 'quick_chat': 
+      case 'quick_chat':
         final String pid = data['senderId'] ?? '';
         final String msg = data['message'] ?? '';
         if (pid.isNotEmpty && msg.isNotEmpty && !blockedPlayerIds.contains(pid)) {
           setQuickMessage(pid, msg);
+        }
+        break;
+      // Server confirmed this player finished — position is 1-indexed rank.
+      case 'you_finished':
+        myFinishPosition = data['position'] as int? ?? 1;
+        notifyListeners();
+        break;
+      // This player surrendered or match is gone — signal GameScreen to exit.
+      case 'surrendered':
+        exitReason = GameExitReason.surrendered;
+        notifyListeners();
+        break;
+      // Another player surrendered — show info.
+      case 'player_surrendered':
+        lastSurrenderedName = data['playerName'] as String? ?? '';
+        notifyListeners();
+        break;
+      case 'error':
+        if (data['code'] == 'MATCH_NOT_FOUND' || data['code'] == 'CANNOT_REJOIN') {
+          exitReason = GameExitReason.matchNotFound;
+          notifyListeners();
         }
         break;
     }
@@ -779,7 +809,12 @@ class NetworkGameController extends GameController {
     final int? serverBoardSize = data['boardSize']; 
     
     if (serverBoardSize != null && serverBoardSize != engine.board.cells.length) {
-      final newBoard = generateBoard(classicActionPositions, classicActions, totalCells: serverBoardSize);
+      final preset = serverBoardSize == 50
+          ? (positions: easyActionPositions, actions: easyActions)
+          : serverBoardSize == 100
+              ? (positions: mediumActionPositions, actions: mediumActions)
+              : (positions: mediumActionPositions, actions: mediumActions);
+      final newBoard = generateBoard(preset.positions, preset.actions, totalCells: serverBoardSize);
       engine.board.cells.clear();
       engine.board.cells.addAll(newBoard.cells);
     }
@@ -979,40 +1014,32 @@ class NetworkGameController extends GameController {
       return;
     }
 
-    if (targetPos > token.position) {
+    final int diff = targetPos - token.position;
+    if (diff > 0 && diff <= 6) {
       while (token.position < targetPos) {
-        playMoveSound(); 
+        playMoveSound();
         token.position++;
         notifyListeners();
-        
+
         if (token.position >= engine.board.finalPosition) {
-          token.position = -1; 
+          token.position = -1;
           token.isFinished = true;
           notifyListeners();
-          
+
           engine.events.add(GameEvent(
             messageKey: 'token_finished_bonus',
             args: {'name': player.name},
             playerId: player.id,
             type: 'bonus'
           ));
-          
-          await playFanfare(); // ✅ Bloquea hasta el fin del audio
+
+          await playFanfare();
           _vibrate();
           break;
         }
         await Future.delayed(const Duration(milliseconds: 250));
       }
-      
-      // ✅ Sonido de clic al terminar movimiento en una casilla con acción (Online)
-      // Se excluye 'goToStart' porque tiene su propio sonido de "send to home"
-      if (token.position > 0) {
-        final cell = engine.board.getCell(token.position);
-        if (cell.action != null && cell.action!.type != BoardActionType.goToStart) {
-          AudioService.playClick();
-        }
-      }
-    } else if (targetPos < token.position || (targetPos - token.position).abs() > 6) {
+    } else if (diff != 0) {
       if (targetPos == 0 && token.isFinished) {
          _animatingTokens.remove(animKey);
          return;

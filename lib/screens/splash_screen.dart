@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:frontend_parchis/service/prefs_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,15 +19,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
       Timer(const Duration(milliseconds: 2000), () {
         if (mounted) {
-          final lastRoom = PrefsService.lastRoomCode;
-
-          // ✅ REGLA 2: Si el usuario recarga la página (Web),
-          // detectamos si tenía una sala activa para reconectarlo automáticamente.
-          if (lastRoom != null && lastRoom.isNotEmpty) {
-            Navigator.of(context).pushReplacementNamed('/online_lobby');
-          } else {
-            Navigator.of(context).pushReplacementNamed('/menu');
-          }
+          Navigator.of(context).pushReplacementNamed('/menu');
         }
       });
     });
