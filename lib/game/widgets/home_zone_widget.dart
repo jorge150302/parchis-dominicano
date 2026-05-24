@@ -22,7 +22,6 @@ class HomeZoneWidget extends StatelessWidget {
         : true;
 
     final tokensAtHome = player.tokens.where((t) => t.position == 0 && !t.isFinished).toList();
-    final tokensFinished = player.tokens.where((t) => t.isFinished).toList();
     final baseColor = _getPlayerColor(player.index);
 
     Widget content = AnimatedContainer(
@@ -67,11 +66,6 @@ class HomeZoneWidget extends StatelessWidget {
                   onTap: isSelectable ? () => controller.selectToken(token.id) : null,
                 );
               }),
-              
-              ...tokensFinished.map((t) =>
-                const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20)
-                  .animate().scale(curve: Curves.bounceOut)
-              ),
             ],
           ),
         ],

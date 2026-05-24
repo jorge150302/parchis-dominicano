@@ -235,7 +235,6 @@ class LanguageProvider extends ChangeNotifier {
       'privacy_policy_agree_prefix': 'Al continuar, aceptas nuestra ',
       'step_n_of_3': 'Paso {n} de 3',
       'confirm_your_name': 'Confirma tu nombre',
-      'xp_bonus_received': '+50 XP ¡Bonus de bienvenida!',
       // Difficulty
       'difficulty': 'Dificultad',
       'difficulty_easy': 'Fácil',
@@ -267,6 +266,55 @@ class LanguageProvider extends ChangeNotifier {
       'level_max': '¡Nivel Máximo alcanzado!',
       'level_xp_progress': '{current} / {required} XP para Nivel {next}',
       'level_rank_missing': '\nTe faltan {missing} XP para ser {rank}',
+      // Privacy Policy Content
+      'privacy_policy_title': 'POLÍTICA DE PRIVACIDAD',
+      'privacy_last_updated': 'Última actualización: 13 de mayo de 2026',
+      'privacy_intro': 'En Parché, nos tomamos muy en serio la protección de tus datos personales. '
+          'Esta Política de Privacidad explica qué información recopilamos, cómo la usamos y cómo puedes controlarla.',
+      'privacy_s1_title': '1. Información que Recopilamos',
+      'privacy_s1_body': 'Recopilamos los siguientes datos para ofrecerte la experiencia de juego:\n'
+          '• Cuenta Google: nombre, correo electrónico y foto de perfil al iniciar sesión con Google.\n'
+          '• Identificador de dispositivo: UUID generado para identificarte en partidas.\n'
+          '• Datos de juego: XP, nivel, victorias, estadísticas y nombre de usuario.\n'
+          '• Mensajes de chat: los mensajes que envías durante las partidas.',
+      'privacy_s2_title': '2. Uso de la Información',
+      'privacy_s2_body': 'Utilizamos tus datos exclusivamente para:\n'
+          '• Gestionar tu cuenta y progresión en el juego.\n'
+          '• Habilitar el juego multijugador en tiempo real.\n'
+          '• Sincronizar tu progreso entre dispositivos.\n'
+          '• Mostrar tu nombre y estadísticas en el tablero y clasificaciones.\n'
+          '• Moderar contenido y garantizar un entorno de juego justo.',
+      'privacy_s3_title': '3. Servicios de Terceros',
+      'privacy_s3_body': 'La aplicación usa los siguientes servicios de terceros:\n'
+          '• Google Firebase (Autenticación, Firestore, Cloud) — de Google LLC.\n'
+          '• Google Sign-In — para autenticación segura de cuentas.\n'
+          'Consulta la política de privacidad de Google en policies.google.com.',
+      'privacy_s4_title': '4. Compartición de Datos',
+      'privacy_s4_body': 'No vendemos ni compartimos tus datos con terceros con fines publicitarios o comerciales. '
+          'Los datos solo se comparten con los servicios mencionados arriba, necesarios para el funcionamiento de la app.',
+      'privacy_s5_title': '5. Retención de Datos',
+      'privacy_s5_body': 'Conservamos tus datos mientras tu cuenta permanezca activa. '
+          'Al eliminar tu cuenta, todos tus datos (perfil, progreso, historial) se borran permanentemente en un plazo de 30 días.',
+      'privacy_s6_title': '6. Tus Derechos y Eliminación de Datos',
+      'privacy_s6_body': 'Tienes derecho a acceder, corregir y eliminar tus datos personales en cualquier momento.\n'
+          '• Eliminación desde la App: Ve a Ajustes → "Eliminar cuenta".\n'
+          '• Por correo: jorgeluisalmanzar@gmail.com — Asunto: "Solicitud de eliminación de datos".\n'
+          'Cumplimos con las políticas de seguridad de datos de Google Play y App Store.',
+      'privacy_s7_title': '7. Privacidad de Menores',
+      'privacy_s7_body': 'El modo sin conexión de Parché está disponible para usuarios de todas las edades y no recopila ningún dato personal.\n'
+          'Las funciones en línea (inicio de sesión con Google, multijugador, sincronización en la nube) requieren tener 13 años o más, '
+          'conforme a los Términos de Servicio de Google y la normativa COPPA.\n'
+          'No recopilamos intencionalmente datos personales de menores de 13 años a través de los servicios en línea. '
+          'Si crees que un menor ha proporcionado datos, contáctanos para eliminarlos.',
+      'privacy_s8_title': '8. Seguridad',
+      'privacy_s8_body': 'Toda la comunicación usa cifrado SSL/TLS. '
+          'Los datos se almacenan en Google Firebase, que cumple con los estándares ISO 27001 y SOC 2.',
+      'privacy_s9_title': '9. Cambios en Esta Política',
+      'privacy_s9_body': 'Podemos actualizar esta política periódicamente. '
+          'Te notificaremos de cambios importantes a través de la aplicación.',
+      'privacy_s10_title': '10. Contacto',
+      'privacy_s10_body': 'Para preguntas o para ejercer tus derechos:\nCorreo: jorgeluisalmanzar@gmail.com',
+      'privacy_view_web': 'Ver versión web completa',
     },
     Language.en: {
       'waiting_players': 'Waiting for Players...',
@@ -456,7 +504,6 @@ class LanguageProvider extends ChangeNotifier {
       'privacy_policy_agree_prefix': 'By continuing, you agree to our ',
       'step_n_of_3': 'Step {n} of 3',
       'confirm_your_name': 'Confirm your name',
-      'xp_bonus_received': '+50 XP Welcome Bonus!',
       // Difficulty
       'difficulty': 'Difficulty',
       'difficulty_easy': 'Easy',
@@ -488,6 +535,55 @@ class LanguageProvider extends ChangeNotifier {
       'level_max': 'Maximum Level reached!',
       'level_xp_progress': '{current} / {required} XP for Level {next}',
       'level_rank_missing': '\n{missing} XP left to become {rank}',
+      // Privacy Policy Content
+      'privacy_policy_title': 'PRIVACY POLICY',
+      'privacy_last_updated': 'Last updated: May 13, 2026',
+      'privacy_intro': 'At Parché, we take the protection of your personal data seriously. '
+          'This Privacy Policy explains what information we collect, how we use it, and how you can control it.',
+      'privacy_s1_title': '1. Information We Collect',
+      'privacy_s1_body': 'We collect the following data to provide you with the gaming experience:\n'
+          '• Google Account: name, email address, and profile photo when you sign in with Google.\n'
+          '• Device identifier: a UUID generated to identify you in matches.\n'
+          '• Game data: XP, level, wins, match statistics, and chosen username.\n'
+          '• Chat messages: messages you send during matches.',
+      'privacy_s2_title': '2. How We Use Your Information',
+      'privacy_s2_body': 'We use your data exclusively to:\n'
+          '• Manage your account and in-game progression.\n'
+          '• Enable real-time multiplayer gaming.\n'
+          '• Sync your progress across devices.\n'
+          '• Display your name and stats on the board and leaderboards.\n'
+          '• Moderate content and ensure a fair gaming environment.',
+      'privacy_s3_title': '3. Third-Party Services',
+      'privacy_s3_body': 'The app uses the following third-party services:\n'
+          '• Google Firebase (Authentication, Firestore, Cloud) — by Google LLC.\n'
+          '• Google Sign-In — for secure account authentication.\n'
+          "See Google's Privacy Policy at policies.google.com.",
+      'privacy_s4_title': '4. Data Sharing',
+      'privacy_s4_body': 'We do not sell or share your personal data with third parties for advertising or commercial purposes. '
+          'Data is only shared with the third-party services listed above, required for the app to function.',
+      'privacy_s5_title': '5. Data Retention',
+      'privacy_s5_body': 'We retain your data for as long as your account remains active. '
+          'When you delete your account, all your data (profile, progress, history) is permanently deleted within 30 days.',
+      'privacy_s6_title': '6. Your Rights & Data Deletion',
+      'privacy_s6_body': 'You have the right to access, correct, and delete your personal data at any time.\n'
+          '• In-App Deletion: Go to Settings → "Delete account".\n'
+          '• Email Request: jorgeluisalmanzar@gmail.com — Subject: "Data Deletion Request".\n'
+          'We comply with Google Play and App Store data safety policies.',
+      'privacy_s7_title': "7. Children's Privacy",
+      'privacy_s7_body': "Parché's offline mode is available to users of all ages and collects no personal data.\n"
+          'Online features (Google Sign-In, multiplayer, cloud sync) require users to be 13 or older, '
+          "in accordance with Google's Terms of Service and COPPA regulations.\n"
+          'We do not knowingly collect personal data from children under 13 through our online services. '
+          'If you believe a child has provided data, contact us to have it removed.',
+      'privacy_s8_title': '8. Security',
+      'privacy_s8_body': 'All communication uses SSL/TLS encryption. '
+          'Data is securely stored in Google Firebase, which complies with ISO 27001 and SOC 2 security standards.',
+      'privacy_s9_title': '9. Changes to This Policy',
+      'privacy_s9_body': 'We may update this Privacy Policy periodically. '
+          'We will notify you of significant changes through the app.',
+      'privacy_s10_title': '10. Contact Us',
+      'privacy_s10_body': 'For questions or to exercise your rights:\nEmail: jorgeluisalmanzar@gmail.com',
+      'privacy_view_web': 'View full web version',
     },
   };
 }

@@ -21,7 +21,6 @@ class AuthService extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   UserProfile? _profile;
-  bool _needsSignupBonus = false;
   bool _needsMigrationDialog = false;
   int _guestXpBeforeMigration = 0;
   bool _profileLoading = false;
@@ -29,7 +28,6 @@ class AuthService extends ChangeNotifier {
   bool _wasSignedIn = false;
 
   UserProfile? get profile => _profile;
-  bool get needsSignupBonus => _needsSignupBonus;
   bool get needsMigrationDialog => _needsMigrationDialog;
   int get guestXpBeforeMigration => _guestXpBeforeMigration;
   bool get isSignedIn => _auth.currentUser != null;
@@ -176,7 +174,6 @@ class AuthService extends ChangeNotifier {
     }
     _profileLoading = true;
     _profileLoadCompleter = Completer<void>();
-    _needsSignupBonus = false;
     _needsMigrationDialog = false;
 
     try {
@@ -198,13 +195,10 @@ class AuthService extends ChangeNotifier {
         PrefsService.playerLevel = 1;
 
         if (localXp > 0) {
-          // New account but has guest XP — offer migration instead of signup bonus.
+          // New account but has guest XP — offer migration.
           _guestXpBeforeMigration = localXp;
           _needsMigrationDialog = true;
           debugPrint('[AuthService] New account with guest XP ($localXp) — migration dialog pending');
-        } else {
-          _needsSignupBonus = true;
-          debugPrint('[AuthService] New account — XP=0, signup bonus pending via server');
         }
 
         try {
@@ -286,7 +280,6 @@ class AuthService extends ChangeNotifier {
   void clearMigrationDialog() {
     _needsMigrationDialog = false;
     _guestXpBeforeMigration = 0;
-    PrefsService.signupBonusClaimed = true;
     notifyListeners();
   }
 

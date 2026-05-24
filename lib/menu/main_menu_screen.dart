@@ -331,46 +331,34 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           children: [
             const Text(
               "PARCHÉ",
-              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2),
+              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 3),
+            ),
+            const SizedBox(height: 10),
+            const Text("🇩🇴", style: TextStyle(fontSize: 36)),
+            const SizedBox(height: 6),
+            Text(
+              isSpanish ? "Hecho en República Dominicana" : "Made in Dominican Republic",
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const Divider(color: Colors.white24, height: 32),
+            Text(
+              isSpanish ? "CREADO POR" : "CREATED BY",
+              style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1),
             ),
             const SizedBox(height: 10),
             const Text(
-              "v1.0.0",
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-            const Divider(color: Colors.white24, height: 30),
-            Text(
-              isSpanish ? "EFECTOS DE SONIDO" : "SOUND EFFECTS",
-              style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            RichText(
+              "Jorge Luis Almánzar Valenzuela",
+              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
-              text: TextSpan(
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-                children: [
-                  const TextSpan(text: "Sound Effect by "),
-                  TextSpan(
-                    text: "u_qpfzpydtro",
-                    style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()..onTap = () {
-                      AudioService.playClick();
-                      launchUrl(Uri.parse("https://pixabay.com/users/u_qpfzpydtro-29496424/"));
-                    },
-                  ),
-                  const TextSpan(text: " from "),
-                  TextSpan(
-                    text: "Pixabay",
-                    style: const TextStyle(color: Colors.blueAccent, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()..onTap = () {
-                      AudioService.playClick();
-                      launchUrl(Uri.parse("https://pixabay.com/"));
-                    },
-                  ),
-                ],
-              ),
             ),
-            const SizedBox(height: 20),
+            const Divider(color: Colors.white24, height: 32),
+            const Text(
+              "Flutter · Firebase · Dart Frog",
+              style: TextStyle(color: Colors.white38, fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
           ],
         ),
         actions: [
@@ -930,105 +918,84 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
+                              const Divider(color: Colors.white24),
+                              ListTile(
+                                leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                                title: Text(context.translate('delete_account'), style: const TextStyle(color: Colors.redAccent)),
+                                onTap: () {
+                                  AudioService.playClick();
+                                  _confirmDeleteAccount(context);
+                                },
+                              ),
                             ],
                           );
                         }
 
                         // Not signed in — show Google Sign-In button
-                        final showBonus = !PrefsService.signupBonusClaimed;
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black87,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                  icon: const Text(
-                                    'G',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF4285F4),
-                                    ),
-                                  ),
-                                  label: Text(
-                                    context.translate('sign_in_google'),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                  ),
-                                  onPressed: () async {
-                                    AudioService.playClick();
-                                    final status = await auth.signInWithGoogle();
-                                    if (!mounted) return;
-                                    if (status == SignInStatus.success) {
-                                      await _checkSessionConflict();
-                                      if (!mounted) return;
-                                    }
-                                    if (status == SignInStatus.offline || status == SignInStatus.error) {
-                                      final key = status == SignInStatus.offline
-                                          ? 'auth_no_internet_signin'
-                                          : 'auth_signin_failed';
-                                      showDialog(
-                                        context: this.context,
-                                        builder: (ctx) => AlertDialog(
-                                          backgroundColor: Colors.brown.shade900,
-                                          content: Text(ctx.translate(key), style: const TextStyle(color: Colors.white)),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
-                                              child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }
-                                    // success: Consumer rebuilds dialog automatically
-                                  },
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black87,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 2,
+                              ),
+                              icon: const Text(
+                                'G',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF4285F4),
                                 ),
                               ),
-                              if (showBonus)
-                                Positioned(
-                                  top: -10,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.amber.shade700,
-                                      borderRadius: BorderRadius.circular(12),
+                              label: Text(
+                                context.translate('sign_in_google'),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              onPressed: () async {
+                                AudioService.playClick();
+                                final status = await auth.signInWithGoogle();
+                                if (!mounted) return;
+                                if (status == SignInStatus.success) {
+                                  await _checkSessionConflict();
+                                  if (!mounted) return;
+                                }
+                                if (status == SignInStatus.offline || status == SignInStatus.error) {
+                                  final key = status == SignInStatus.offline
+                                      ? 'auth_no_internet_signin'
+                                      : 'auth_signin_failed';
+                                  showDialog(
+                                    context: this.context,
+                                    builder: (ctx) => AlertDialog(
+                                      backgroundColor: Colors.brown.shade900,
+                                      content: Text(ctx.translate(key), style: const TextStyle(color: Colors.white)),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () { AudioService.playClick(); Navigator.pop(ctx); },
+                                          child: Text(ctx.translate('cancel'), style: const TextStyle(color: Colors.white70)),
+                                        ),
+                                      ],
                                     ),
-                                    child: const Text(
-                                      '+50 XP',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
+                                  );
+                                }
+                                // success: Consumer rebuilds dialog automatically
+                              },
+                            ),
                           ),
                         );
                       },
                     ),
-                    // ── Danger zone ─────────────────────────────────────
-                    const Divider(color: Colors.white24),
-                    ListTile(
-                      leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                      title: Text(context.translate('delete_account'), style: const TextStyle(color: Colors.redAccent)),
-                      onTap: () {
-                        AudioService.playClick();
-                        _confirmDeleteAccount(context);
-                      },
+                    const SizedBox(height: 12),
+                    const Text(
+                      'v1.0.0',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white24, fontSize: 11),
                     ),
                   ],
                 ),
@@ -1693,6 +1660,7 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
   bool _isLoading = false;
   bool _signedInWithGoogle = false;
   final _nameController = TextEditingController();
+  String? _nameError;
 
   @override
   void dispose() {
@@ -1701,10 +1669,16 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
   }
 
   Future<void> _handleGoogleSignIn() async {
+    AudioService.playClick();
     setState(() => _isLoading = true);
     final auth = context.read<AuthService>();
     final status = await auth.signInWithGoogle();
     if (!mounted) return;
+
+    if (status == SignInStatus.cancelled) {
+      setState(() => _isLoading = false);
+      return;
+    }
 
     if (status == SignInStatus.offline || status == SignInStatus.error) {
       setState(() => _isLoading = false);
@@ -1749,6 +1723,7 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
   }
 
   void _handleGuest() {
+    AudioService.playClick();
     setState(() {
       _nameController.clear();
       _signedInWithGoogle = false;
@@ -1758,7 +1733,12 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
 
   void _handleConfirm() {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      AudioService.playClick();
+      setState(() => _nameError = context.translate('enter_name_error', listen: false));
+      return;
+    }
+    setState(() => _nameError = null);
     AudioService.playClick();
     widget.onComplete(name);
     setState(() => _step = 2);
@@ -1814,7 +1794,8 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
             ),
           ],
         ),
-        content: AnimatedSwitcher(
+        content: SingleChildScrollView(
+          child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 280),
           transitionBuilder: (child, animation) => FadeTransition(
             opacity: animation,
@@ -1829,6 +1810,7 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
               : _step == 1 
                   ? _buildStep1(context)
                   : _buildStep2(context),
+        ),
         ),
         actions: _step == 1
             ? [
@@ -1859,61 +1841,39 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
   }
 
   Widget _buildStep0(BuildContext context) {
-    final showBonus = !PrefsService.signupBonusClaimed;
     return SizedBox(
       key: const ValueKey('step0'),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 8),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black87,
-                  minimumSize: const Size(double.infinity, 52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 2,
-                ),
-                onPressed: _isLoading ? null : _handleGoogleSignIn,
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
-                      )
-                    : const Text(
-                        'G',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF4285F4),
-                        ),
-                      ),
-                label: Text(
-                  context.translate('continue_with_google'),
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                ),
-              ),
-              if (showBonus)
-              Positioned(
-                top: -10,
-                right: -6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade700,
-                    borderRadius: BorderRadius.circular(12),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black87,
+              minimumSize: const Size(double.infinity, 52),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 2,
+            ),
+            onPressed: _isLoading ? null : _handleGoogleSignIn,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+                  )
+                : const Text(
+                    'G',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF4285F4),
+                    ),
                   ),
-                  child: const Text(
-                    '+50 XP',
-                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
+            label: Text(
+              context.translate('continue_with_google'),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
           ),
           const SizedBox(height: 14),
           OutlinedButton(
@@ -1961,24 +1921,6 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_signedInWithGoogle) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade700,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  context.translate('xp_bonus_received'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
             UserAvatarWidget(
               profile: auth.profile,
               firebaseUser: auth.firebaseUser,
@@ -1991,14 +1933,23 @@ class _WelcomeDialogState extends State<_WelcomeDialog> {
               style: const TextStyle(color: Colors.white),
               textCapitalization: TextCapitalization.words,
               onSubmitted: (_) => _handleConfirm(),
+              onChanged: (_) { if (_nameError != null) setState(() => _nameError = null); },
               decoration: InputDecoration(
                 hintText: context.translate('name_hint'),
                 hintStyle: const TextStyle(color: Colors.white54),
+                errorText: _nameError,
+                errorStyle: const TextStyle(color: Colors.redAccent),
                 enabledBorder: const UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.orange),
                 ),
                 focusedBorder: const UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.orange),
+                ),
+                errorBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.redAccent),
+                ),
+                focusedErrorBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.redAccent),
                 ),
               ),
             ),

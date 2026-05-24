@@ -98,10 +98,6 @@ class PrefsService {
   static int get playerLevel => _prefs.getInt('player_level') ?? 1;
   static set playerLevel(int value) => _prefs.setInt('player_level', value);
 
-  // 🎁 Sign-up bonus — one-time, reset on account deletion via PrefsService.clear()
-  static bool get signupBonusClaimed => _prefs.getBool('signup_bonus_claimed') ?? false;
-  static set signupBonusClaimed(bool value) => _prefs.setBool('signup_bonus_claimed', value);
-
   // 🚫 Moderación: Lista de bloqueados persistente
   static List<String> get blockedPlayerIds {
     String? json = _prefs.getString('blocked_players');

@@ -17,7 +17,8 @@ class ActionResult {
   final bool moved;
   final int? fromPos;
   final bool sentToStart;
-  ActionResult({required this.moved, this.fromPos, this.sentToStart = false});
+  final bool wasSkipTurn;
+  ActionResult({required this.moved, this.fromPos, this.sentToStart = false, this.wasSkipTurn = false});
 }
 
 class GameEngine {
@@ -245,7 +246,7 @@ class GameEngine {
       case BoardActionType.skipTurn:
         player.addSkip(1);
         _events.add(GameEvent(messageKey: 'loses_turn', args: {'name': player.name}, playerId: player.id, type: 'penalty'));
-        return ActionResult(moved: false);
+        return ActionResult(moved: false, wasSkipTurn: true);
       case BoardActionType.rollAgain:
         player.extraTurns++;
         _events.add(GameEvent(messageKey: 'roll_again', args: {'name': player.name}, playerId: player.id, type: 'bonus'));

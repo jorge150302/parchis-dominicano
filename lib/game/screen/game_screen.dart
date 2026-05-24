@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:confetti/confetti.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -94,6 +95,7 @@ class _GameScreenState extends State<GameScreen> {
 
       // Cold rejoin: socket connected but no game_state yet — ask server.
       if (widget.isRejoin && controller is NetworkGameController) {
+        controller.markReconnecting();
         context.read<SocketService>().send('request_sync');
       }
 
@@ -487,7 +489,7 @@ class _GameScreenState extends State<GameScreen> {
                       children: [
                         Center(
                           child: Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: EdgeInsets.all(MediaQuery.of(context).size.width < 340 ? 6.0 : 12.0),
                             decoration: BoxDecoration(
                               color: Colors.brown.shade700,
                               borderRadius: BorderRadius.circular(18),
@@ -505,6 +507,9 @@ class _GameScreenState extends State<GameScreen> {
                         _buildFloatingEvents(),
                         if (isWaiting) _buildWaitingOverlay(),
                         if (widget.isTutorial && _tutorialStep > 0) _buildTutorialOverlay(),
+                        if (kDebugMode && kTestModeEnabled)
+                          _DebugDicePanel(controller: controller),
+
                         if (_earlyFinishAvailable &&
                             !controller.isOnline &&
                             controller.engine.phase != GamePhase.finished)
@@ -682,7 +687,7 @@ class _GameScreenState extends State<GameScreen> {
               child: sparkleEffect,
             ),
             Positioned(
-              top: -240, 
+              top: -95,
               left: 10,
               child: const Icon(Icons.arrow_downward, color: Colors.orangeAccent, size: 85)
                   .animate(onPlay: (c) => c.repeat())
@@ -1034,13 +1039,20 @@ class _GameScreenState extends State<GameScreen> {
 
   List<Widget> _buildPlayers(GameController controller) {
     const alignments = [Alignment.topLeft, Alignment.topRight, Alignment.bottomLeft, Alignment.bottomRight];
+    final screenWidth = MediaQuery.of(context).size.width;
+    final uiScale = (screenWidth / 400.0).clamp(0.65, 1.0);
     return List.generate(controller.players.length, (i) {
+      final alignment = alignments[i % alignments.length];
       return Align(
-        alignment: alignments[i % alignments.length], 
+        alignment: alignment,
         child: Padding(
           padding: const EdgeInsets.all(8.0),
-          child: _PlayerCornerWidget(player: controller.players[i]),
-        )
+          child: Transform.scale(
+            scale: uiScale,
+            alignment: alignment,
+            child: _PlayerCornerWidget(player: controller.players[i]),
+          ),
+        ),
       );
     });
   }
@@ -1788,8 +1800,22 @@ class _PlayerCornerWidget extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 4), 
-        
+        const SizedBox(height: 3),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: player.tokens.map((t) => Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: t.isFinished ? Colors.greenAccent : Colors.white24,
+              border: Border.all(color: Colors.white38, width: 0.5),
+            ),
+          )).toList(),
+        ),
+        const SizedBox(height: 3),
+
         if (player.isFinished)
           _buildFinishedBadge(context, controller)
         else
@@ -1894,8 +1920,10 @@ class _PlayerCornerWidget extends StatelessWidget {
             ),
           ),
 
-        const SizedBox(height: 8),
-        HomeZoneWidget(player: player),
+        if (!player.isFinished) ...[
+          const SizedBox(height: 8),
+          HomeZoneWidget(player: player),
+        ],
       ],
     );
   }
@@ -1905,6 +1933,75 @@ class ActiveVisualEvent {
   final GameEvent event;
   final Alignment alignment;
   ActiveVisualEvent({required this.event, required this.alignment});
+}
+
+/// Debug overlay — only shown in kDebugMode + kTestModeEnabled.
+/// Shows buttons [1]–[6] to force the next dice value, plus
+/// [?] to clear the override and roll randomly.
+class _DebugDicePanel extends StatelessWidget {
+  final GameController controller;
+  const _DebugDicePanel({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 6,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.redAccent, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🎲', style: TextStyle(fontSize: 13)),
+              const SizedBox(width: 4),
+              ...List.generate(6, (i) {
+                final val = i + 1;
+                final isForced = controller.forcedDice == val;
+                return GestureDetector(
+                  onTap: () => controller.debugForceNextDice(val),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isForced ? Colors.redAccent : Colors.white24,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$val',
+                      style: TextStyle(
+                        color: isForced ? Colors.white : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              GestureDetector(
+                onTap: () => controller.debugForceNextDice(null),
+                child: Container(
+                  margin: const EdgeInsets.only(left: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: controller.forcedDice == null ? Colors.orange : Colors.white24,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _FlyingToken {

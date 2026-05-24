@@ -38,9 +38,6 @@ class SyncQueueService extends ChangeNotifier {
 
   void _onAuthChanged() {
     if (_authService.isSignedIn) {
-      if (_authService.needsSignupBonus) {
-        _enqueueSignupBonus();
-      }
       _attemptSync();
     }
   }
@@ -134,20 +131,6 @@ class SyncQueueService extends ChangeNotifier {
   bool _isSyncing = false;
 
   // ── private helpers ──────────────────────────────────────────────────────
-
-  void _enqueueSignupBonus() {
-    if (PrefsService.signupBonusClaimed) return;
-    const bonusXp = 50;
-    _enqueue(XpReceipt(
-      id: 'signup_${_authService.firebaseUser!.uid}',
-      xp: bonusXp,
-      isOnline: false,
-      timestamp: DateTime.now(),
-    ));
-    _applyLocalXp(bonusXp);
-    PrefsService.signupBonusClaimed = true;
-    debugPrint('[SyncQueue] Signup bonus enqueued (+$bonusXp XP)');
-  }
 
   void _applyLocalXp(int xp) {
     final newTotal = PrefsService.totalXp + xp;

@@ -19,8 +19,14 @@ import '../models/board_action.dart';
 // Set to true to start human tokens 1 step from the finish line for quick testing.
 // Only active in debug builds (kDebugMode).
 const bool kTestModeEnabled = true;
-const bool kOnlineTestModeEnabled = false
-;
+const bool kOnlineTestModeEnabled = false;
+
+// ── Debug testing helpers (kTestModeEnabled only) ──────────────────────────
+// kTestTokenPosition: starting position for human tokens in test mode.
+//   • finalPos-1  → 1 step from finish  (test normal finish)
+//   • 13          → lands on skipTurn tile with dice=6 (19-6=13)
+//   • 95          → can't move with dice=6 (95+6>100), tests extra-turn-on-no-move
+const int kTestTokenPosition = 94; // ← change this per scenario
 
 abstract class GameController extends ChangeNotifier {
   final GameEngine engine;
@@ -44,6 +50,9 @@ abstract class GameController extends ChangeNotifier {
   
   final Random random = Random();
 
+  // Debug: if non-null, the next dice roll is forced to this value (consumed once).
+  int? forcedDice;
+
   List<ChatMessage> chatMessages = [];
   
   final Set<String> blockedPlayerIds = {};
@@ -63,6 +72,7 @@ abstract class GameController extends ChangeNotifier {
 
   bool get isMyTurn {
     if (!isOnline) return true;
+    if (engine.players.isEmpty) return false;
     return currentPlayer.id == PrefsService.playerId;
   }
 
@@ -159,6 +169,12 @@ abstract class GameController extends ChangeNotifier {
     }
   }
 
+  /// Debug only: forces next dice value (1-6), or pass null to clear override.
+  void debugForceNextDice(int? value) {
+    forcedDice = value;
+    notifyListeners();
+  }
+
   void startTurn();
   Future<void> rollDice();
   Future<void> selectToken(int tokenId);
@@ -216,11 +232,10 @@ class LocalGameController extends GameController {
   }
 
   void _applyTestMode() {
-    final finalPos = engine.board.finalPosition;
     for (final player in engine.players) {
       if (!vsAI || player.index == 0) {
         for (final token in player.tokens) {
-          token.position = finalPos - 1;
+          token.position = kTestTokenPosition;
         }
       }
     }
@@ -394,7 +409,12 @@ class LocalGameController extends GameController {
         else if (_tutorialDiceIndex == 3) diceValue = 1;
         else diceValue = random.nextInt(6) + 1;
       } else if (kTestModeEnabled && i == 11) {
-        diceValue = 1;
+        if (forcedDice != null) {
+          diceValue = forcedDice!;
+          forcedDice = null;
+        } else {
+          diceValue = 6;
+        }
       } else {
         diceValue = random.nextInt(6) + 1;
       }
@@ -438,18 +458,14 @@ class LocalGameController extends GameController {
     
     if (movableTokenIds.isEmpty) {
       engine.events.add(GameEvent(
-        messageKey: 'player_cant_move', 
+        messageKey: 'player_cant_move',
         playerId: currentPlayer.id,
         type: 'penalty',
         args: {'name': currentPlayer.name}
       ));
       notifyListeners();
       await Future.delayed(_eventDelay);
-      
-      // Cancel extra turn awarded by registerSix — can't move so turn is forfeit
-      if (diceValue == 6 && currentPlayer.extraTurns > 0) {
-        currentPlayer.extraTurns--;
-      }
+      // Even when no moves are available, a dice-6 still grants the extra turn.
       engine.nextTurn();
       startTurn();
     } else {
@@ -620,6 +636,10 @@ class LocalGameController extends GameController {
     }
 
     final actionRes = engine.applyCellAction(currentPlayer, tokenId);
+    if (actionRes.wasSkipTurn && steps == 6 && currentPlayer.extraTurns > 0) {
+      currentPlayer.consumeSkip();
+      currentPlayer.extraTurns--;
+    }
     if (actionRes.moved) {
        if (actionRes.sentToStart && actionRes.fromPos != null) {
           _capturedTokenController.add(CapturedToken(
@@ -668,6 +688,8 @@ class NetworkGameController extends GameController {
   StreamSubscription? _socketSubscription;
   final Set<String> _animatingTokens = {};
   int _lastServerDiceValue = 1;
+  final Map<String, int> _pendingTokenTargets = {};
+  bool _isReconnecting = false;
 
   // Set by server events — GameScreen reacts to these.
   int? myFinishPosition;       // rank (1-indexed) when you_finished received
@@ -683,6 +705,15 @@ class NetworkGameController extends GameController {
 
   @override
   bool get isOnline => true;
+
+  void markReconnecting() => _isReconnecting = true;
+
+  @override
+  void debugForceNextDice(int? value) {
+    forcedDice = value;
+    notifyListeners();
+    if (value != null) socketService.send('debug_set_dice', {'value': value});
+  }
 
   @override
   void startTurn() => notifyListeners();
@@ -748,6 +779,18 @@ class NetworkGameController extends GameController {
         _lastServerDiceValue = data['diceValue'];
         rollingPlayerId = data['playerId'];
         _animateRemoteDice(_lastServerDiceValue, rollingPlayerId!);
+        break;
+      case 'token_stepped':
+        final String tsPid = data['playerId'] ?? '';
+        final int tsTid = (data['tokenId'] as num?)?.toInt() ?? 0;
+        final int tsPos = (data['position'] as num?)?.toInt() ?? 0;
+        if (tsPid.isNotEmpty) {
+          final tsPlayer = engine.players.firstWhere((pl) => pl.id == tsPid, orElse: () => engine.players[0]);
+          final tsKey = "${tsPid}_$tsTid";
+          if (!_animatingTokens.contains(tsKey)) {
+            unawaited(_animateTokenMovement(tsPlayer, tsTid, tsPos));
+          }
+        }
         break;
       case 'game_event':
         final String msgKey = data['message'] ?? '';
@@ -883,13 +926,23 @@ class NetworkGameController extends GameController {
             bool wasFinished = token.isFinished;
 
             if (token.isFinished) {
-              token.position = -1; 
-              continue; 
+              token.position = -1;
+              continue;
+            }
+
+            if (_isReconnecting) {
+              if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
+                token.position = -1;
+                token.isFinished = true;
+              } else {
+                token.position = serverPos;
+              }
+              continue;
             }
 
             if (serverIsFinished || serverPos >= engine.board.finalPosition || serverPos == -1) {
               if (!wasFinished && token.position != -1 && !_animatingTokens.contains(animKey)) {
-                 _animateTokenMovement(player, tId, engine.board.finalPosition);
+                 unawaited(_animateTokenMovement(player, tId, engine.board.finalPosition));
               } else if (!_animatingTokens.contains(animKey)) {
                 // Animation not running: apply state directly and play fanfare.
                 token.position = -1;
@@ -910,7 +963,9 @@ class NetworkGameController extends GameController {
                 token.isFinished = true;
               }
             } else if (token.position != serverPos && !_animatingTokens.contains(animKey)) {
-              _animateTokenMovement(player, tId, serverPos);
+              unawaited(_animateTokenMovement(player, tId, serverPos));
+            } else if (token.position != serverPos && _animatingTokens.contains(animKey)) {
+              _pendingTokenTargets[animKey] = serverPos;
             } else if (!_animatingTokens.contains(animKey)) {
               token.isFinished = serverIsFinished;
             }
@@ -919,8 +974,9 @@ class NetworkGameController extends GameController {
       }
       player.isAI = playerData['isAI'] ?? player.isAI;
     }
+    _isReconnecting = false;
 
-    final String previousPlayerId = engine.currentPlayer.id;
+    final String previousPlayerId = engine.players.isNotEmpty ? engine.currentPlayer.id : '';
     if (currentPlayerId != null) {
       engine.setCurrentPlayerById(currentPlayerId);
       if (currentPlayerId == PrefsService.playerId && previousPlayerId != currentPlayerId) {
@@ -1037,7 +1093,7 @@ class NetworkGameController extends GameController {
           _vibrate();
           break;
         }
-        await Future.delayed(const Duration(milliseconds: 250));
+        await Future.delayed(const Duration(milliseconds: 200));
       }
     } else if (diff != 0) {
       if (targetPos == 0 && token.isFinished) {
@@ -1084,13 +1140,6 @@ class NetworkGameController extends GameController {
       }
 
       if (targetPos == 0) {
-        engine.events.add(GameEvent(
-          messageKey: 'captured_player',
-          args: {'name': player.name, 'other': '?'},
-          playerId: player.id,
-          type: 'penalty'
-        ));
-
         _capturedTokenController.add(CapturedToken(
           playerIndex: player.index,
           asset: player.tokenAsset,
@@ -1102,6 +1151,10 @@ class NetworkGameController extends GameController {
     }
     
     _animatingTokens.remove(animKey);
+    if (_pendingTokenTargets.containsKey(animKey)) {
+      final pendingPos = _pendingTokenTargets.remove(animKey)!;
+      unawaited(_animateTokenMovement(player, tokenId, pendingPos));
+    }
     notifyListeners();
   }
 
