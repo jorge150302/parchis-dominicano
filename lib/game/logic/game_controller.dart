@@ -99,7 +99,10 @@ abstract class GameController extends ChangeNotifier {
 
   void reportPlayer(String reportedId, String reason) {}
 
-  double get _audioPlaybackRate => PrefsService.gameSpeed == GameSpeed.fast ? 1.6 : 1.0;
+  double get _audioPlaybackRate {
+    if (isOnline) return 1.0;
+    return PrefsService.gameSpeed == GameSpeed.fast ? 1.6 : 1.0;
+  }
 
   Future<void> _playSound(AudioPlayer player, String asset, {bool immediate = false}) async {
     if (PrefsService.soundEnabled) {
@@ -1102,7 +1105,8 @@ class NetworkGameController extends GameController {
       }
 
       int oldPos = token.position;
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Reduced delay for a more fluid feel
+      await Future.delayed(const Duration(milliseconds: 100));
 
       if (targetPos >= engine.board.finalPosition || targetPos == -1) {
         token.position = -1;

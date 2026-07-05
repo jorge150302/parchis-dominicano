@@ -346,6 +346,18 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             },
           )).toList(),
         ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              AudioService.playClick();
+              Navigator.pop(context);
+            },
+            child: Text(
+              context.translate('cancel', listen: false).toUpperCase(),
+              style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
