@@ -727,7 +727,7 @@ class NetworkGameController extends GameController {
     
     if (value && isMyTurn) {
       if (engine.phase == GamePhase.idle) {
-        Future.delayed(const Duration(seconds: 6), () => rollDice());
+        Future.delayed(const Duration(seconds: 3), () => rollDice());
       } else if (engine.phase == GamePhase.choosing_token) {
         _checkAutoMove(forcedByAFK: true);
       }
@@ -997,7 +997,7 @@ class NetworkGameController extends GameController {
         if (movableTokenIds.isEmpty && !rollingDice) {
           _addCantMoveEvent(engine.currentPlayer);
           
-          Future.delayed(const Duration(seconds: 2), () {
+          Future.delayed(const Duration(seconds: 3), () {
             if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
               socketService.send('skip_turn');
             }
@@ -1022,7 +1022,7 @@ class NetworkGameController extends GameController {
     }
 
     if (currentPlayerId != null && currentPlayerId == PrefsService.playerId && engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle) {
-      Future.delayed(const Duration(seconds: 6), () {
+      Future.delayed(const Duration(seconds: 3), () {
         if (engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle && isMyTurn) {
           rollDice();
         }
@@ -1047,7 +1047,7 @@ class NetworkGameController extends GameController {
 
   void _checkAutoMove({bool forcedByAFK = false}) {
     if ((forcedByAFK || (PrefsService.autoMoveEnabled && movableTokenIds.length == 1)) && isMyTurn) {
-      int delayMs = forcedByAFK ? 6000 : PrefsService.autoMoveDelayMs;
+      int delayMs = forcedByAFK ? 3000 : PrefsService.autoMoveDelayMs;
       
       Future.delayed(Duration(milliseconds: delayMs), () {
         if (engine.phase == GamePhase.choosing_token && (forcedByAFK || movableTokenIds.length == 1) && isMyTurn) {
@@ -1194,7 +1194,7 @@ class NetworkGameController extends GameController {
         if (myMovable.isEmpty) {
           _addCantMoveEvent(me);
           if (engine.phase == GamePhase.choosing_token && engine.currentPlayer.id == PrefsService.playerId) {
-            Future.delayed(const Duration(seconds: 6), () {
+            Future.delayed(const Duration(seconds: 3), () {
               if (engine.phase == GamePhase.choosing_token && isMyTurn) {
                 socketService.send('skip_turn');
               }
