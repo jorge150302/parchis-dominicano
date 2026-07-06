@@ -28,6 +28,12 @@ class AudioService {
     } catch (_) {}
   }
 
+  static void stopFinalTiming() async {
+    try {
+      await _timerPlayer.stop();
+    } catch (_) {}
+  }
+
   static void playVictory() async {
     if (!PrefsService.soundEnabled) return;
     try {

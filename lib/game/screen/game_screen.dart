@@ -229,7 +229,9 @@ class _GameScreenState extends State<GameScreen> {
     final controller = context.read<GameController>();
 
     // ✅ Sonido de alerta de tiempo (cuando quedan 5 segundos y es mi turno)
-    if (controller.isOnline && controller.isMyTurn && controller.secondsRemaining == 5 && _lastSeconds != 5) {
+    if (controller.isOnline && controller.isMyTurn && 
+        controller.secondsRemaining == 5 && _lastSeconds != 5 &&
+        controller.engine.phase != GamePhase.finished) {
       AudioService.playFinalTiming();
     }
     _lastSeconds = controller.secondsRemaining;
@@ -316,17 +318,17 @@ class _GameScreenState extends State<GameScreen> {
           }
         }
         if (mounted) {
-          Navigator.of(context).popUntil((r) => r.settings.name == '/menu');
+          Navigator.of(context).popUntil((r) => r.settings.name == '/menu' || r.isFirst);
+          if (ModalRoute.of(context)?.settings.name != '/menu') {
+            Navigator.of(context).pushReplacementNamed('/menu');
+          }
         }
       }
-      final surrenderedName = controller.lastSurrenderedName;
-      if (surrenderedName != null && surrenderedName != _lastShownSurrender) {
-        _lastShownSurrender = surrenderedName;
-        final msg = context.translate('player_left_match', listen: false, args: {'name': surrenderedName});
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
-        );
-      }
+    }
+
+    // ✅ Aseguramos que el cronómetro se detenga si el juego terminó
+    if (controller.engine.phase == GamePhase.finished) {
+       AudioService.stopFinalTiming();
     }
 
     if (controller.engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
@@ -334,6 +336,7 @@ class _GameScreenState extends State<GameScreen> {
       _updatePlayerProgress(controller);
       _confettiController.stop();
       _confettiController.play();
+      AudioService.stopFinalTiming();
       
       // Si subió de nivel, disparamos una segunda ráfaga después de un pequeño delay
       if (_didLevelUp) {
@@ -479,69 +482,113 @@ class _GameScreenState extends State<GameScreen> {
         endDrawer: controller.isOnline ? _ChatDrawer(controller: controller) : null,
         body: Stack(
           children: [
-            Positioned.fill(child: Image.asset('assets/images/menu_background.png', fit: BoxFit.cover)),
+            // Fondo
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/menu_background.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+            
+            // Contenido Principal
             SafeArea(
               child: Column(
                 children: [
                   _buildTopBar(socketSrv, controller),
+                  
+                  // Área de Juego Principal
                   Expanded(
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Container(
-                            padding: EdgeInsets.all(MediaQuery.of(context).size.width < 340 ? 6.0 : 12.0),
-                            decoration: BoxDecoration(
-                              color: Colors.brown.shade700,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: Colors.brown.shade900, width: 4),
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 5))
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Stack(
+                          children: [
+                            // Layout Organizado: Jugadores y Tablero
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Fila Superior de Jugadores
+                                _buildPlayerRow(controller, isTop: true),
+                                
+                                const SizedBox(height: 8),
+                                
+                                // Tablero (Flexible para que se encoja en pantallas pequeñas y no cause overflow)
+                                Flexible(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                    child: AspectRatio(
+                                      aspectRatio: 1.0,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.brown.shade700,
+                                          borderRadius: BorderRadius.circular(18),
+                                          border: Border.all(color: Colors.brown.shade900, width: 4),
+                                          boxShadow: const [
+                                            BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 5))
+                                          ],
+                                        ),
+                                        child: BoardWidget(
+                                          board: controller.engine.board,
+                                          players: controller.players,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 8),
+                                
+                                // Fila Inferior de Jugadores
+                                _buildPlayerRow(controller, isTop: false),
                               ],
                             ),
-                            child: BoardWidget(board: controller.engine.board, players: controller.players),
-                          ),
-                        ),
-                        if (isReconnecting) _buildConnectionOverlay(),
-                        ..._buildPlayers(controller),
-                        ..._buildFlyingTokens(),
-                        _buildFloatingEvents(),
-                        if (isWaiting) _buildWaitingOverlay(),
-                        if (widget.isTutorial && _tutorialStep > 0) _buildTutorialOverlay(),
-                        if (kDebugMode && kTestModeEnabled)
-                          _DebugDicePanel(controller: controller),
-
-                        if (_earlyFinishAvailable &&
-                            !controller.isOnline &&
-                            controller.engine.phase != GamePhase.finished)
-                          Positioned(
-                            bottom: 16,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.flag_rounded, color: Colors.white),
-                                label: const Text(
-                                  'Finish Current Match',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            
+                            // Capas de Animación y Overlays (Sobre el layout principal)
+                            if (isReconnecting) _buildConnectionOverlay(),
+                            ..._buildFlyingTokens(),
+                            _buildFloatingEvents(),
+                            if (isWaiting) _buildWaitingOverlay(),
+                            if (widget.isTutorial && _tutorialStep > 0) _buildTutorialOverlay(),
+                            
+                            // Botón de finalización rápida
+                            if (_earlyFinishAvailable &&
+                                !controller.isOnline &&
+                                controller.engine.phase != GamePhase.finished)
+                              Positioned(
+                                bottom: 100, // Elevado para no tapar jugadores inferiores
+                                left: 0,
+                                right: 0,
+                                child: Center(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.flag_rounded, color: Colors.white),
+                                    label: const Text(
+                                      'Finish Current Match',
+                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green.shade700,
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    ),
+                                    onPressed: () {
+                                      AudioService.playClick();
+                                      controller.forceFinish();
+                                    },
+                                  ),
                                 ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade700,
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                ),
-                                onPressed: () {
-                                  AudioService.playClick();
-                                  controller.forceFinish();
-                                },
                               ),
-                            ),
-                          ),
-                      ],
+
+                            if (kDebugMode && kTestModeEnabled)
+                              _DebugDicePanel(controller: controller),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
             ),
+            
+            // Confetti (Capa superior absoluta)
             Align(
               alignment: Alignment.topCenter,
               child: IgnorePointer(
@@ -557,6 +604,35 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Construye una fila de jugadores (superior o inferior) de forma responsive.
+  Widget _buildPlayerRow(GameController controller, {required bool isTop}) {
+    final players = controller.players;
+    if (players.isEmpty) return const SizedBox.shrink();
+    
+    final rowPlayers = isTop 
+        ? players.take(2).toList() 
+        : (players.length > 2 ? players.sublist(2) : <Player>[]);
+
+    if (rowPlayers.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: isTop ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        children: [
+          if (rowPlayers.isNotEmpty)
+            Flexible(child: _PlayerCornerWidget(player: rowPlayers[0])),
+          
+          if (rowPlayers.length > 1)
+            Flexible(child: _PlayerCornerWidget(player: rowPlayers[1]))
+          else if (isTop || rowPlayers.isNotEmpty)
+            const Spacer(),
+        ],
       ),
     );
   }
@@ -991,7 +1067,16 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildTopBar(SocketService socketSrv, GameController controller) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      color: Colors.black26,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.4),
+            Colors.black.withValues(alpha: 0.0),
+          ],
+        ),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -1037,38 +1122,32 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  List<Widget> _buildPlayers(GameController controller) {
-    const alignments = [Alignment.topLeft, Alignment.topRight, Alignment.bottomLeft, Alignment.bottomRight];
-    final screenWidth = MediaQuery.of(context).size.width;
-    final uiScale = (screenWidth / 400.0).clamp(0.65, 1.0);
-    return List.generate(controller.players.length, (i) {
-      final alignment = alignments[i % alignments.length];
-      return Align(
-        alignment: alignment,
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Transform.scale(
-            scale: uiScale,
-            alignment: alignment,
-            child: _PlayerCornerWidget(player: controller.players[i]),
-          ),
-        ),
-      );
-    });
-  }
-
   void _showVictoryDialog(GameController controller, {required int position}) async {
     final socketSrv = context.read<SocketService>();
     final nav = Navigator.of(context);
+    final finishReason = controller is NetworkGameController ? controller.finishReason : null;
+    final isAbandonment = finishReason == 'abandonment';
+
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
+    
     final ordinals = ['1st', '2nd', '3rd', '4th'];
     final ordinal = position < ordinals.length ? ordinals[position] : '${position + 1}th';
     final emoji = position == 0 ? '🏆' : position == 1 ? '🥈' : position == 2 ? '🥉' : '🎮';
-    final title = position == 0 ? '$emoji You Won!' : '$emoji You Finished $ordinal!';
-    final subtitle = position == 0
-        ? 'Congratulations! You finished in 1st place.'
+    
+    String title = position == 0 
+        ? (context.translate('you_won', listen: false).isEmpty ? '🏆 ¡Has Ganado!' : context.translate('you_won', listen: false))
+        : '$emoji You Finished $ordinal!';
+    
+    String subtitle = position == 0
+        ? (context.translate('congratulations_first', listen: false).isEmpty ? '¡Felicidades! Has terminado en 1° lugar.' : context.translate('congratulations_first', listen: false))
         : 'You secured $ordinal place. Keep watching or leave now.';
+
+    if (isAbandonment) {
+      title = '🏆 ¡Victoria Automática!';
+      subtitle = 'Los demás jugadores abandonaron la partida. ¡Eres el ganador por defecto!';
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1134,6 +1213,7 @@ class _GameScreenState extends State<GameScreen> {
     if (!mounted) return;
 
     final controller = context.read<GameController>();
+    final nav = Navigator.of(context);
     final List<String> finisherIds = List.from(controller.engine.finisherIds);
     for (var p in controller.players) {
       if (!finisherIds.contains(p.id)) finisherIds.add(p.id);
@@ -1330,7 +1410,7 @@ class _GameScreenState extends State<GameScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10)),
               onPressed: () {
                 AudioService.playClick();
-                Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+                nav.pushNamedAndRemoveUntil('/menu', (route) => false);
               },
               child: Text(context.translate('back_to_menu', listen: false), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             ),
@@ -1379,126 +1459,130 @@ class _ChatDrawerState extends State<_ChatDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Drawer(
-      width: MediaQuery.of(context).size.width * 0.7, 
+      width: MediaQuery.of(context).size.width * 0.8, // Slightly wider for better readability
       backgroundColor: Colors.orange.shade50, 
       child: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.brown.shade800, 
-                border: const Border(bottom: BorderSide(color: Colors.white24)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.chat_bubble_outline, color: Colors.orangeAccent),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      context.translate('multiplayer_online'), 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70, size: 24),
-                    onPressed: () {
-                      AudioService.playClick();
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(12),
-                itemCount: widget.controller.chatMessages.length,
-                itemBuilder: (context, index) {
-                  final msg = widget.controller.chatMessages[index];
-                  final bool isMe = msg.senderId == PrefsService.playerId;
-                  
-                  return Align(
-                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Column(
-                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      children: [
-                        if (!isMe) 
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8, bottom: 4),
-                            child: Text(msg.sender, style: TextStyle(color: Colors.brown.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isMe ? Colors.orange.shade700 : Colors.white, 
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 4),
-                              bottomRight: Radius.circular(isMe ? 4 : 16),
-                            ),
-                            border: isMe ? null : Border.all(color: Colors.orange.shade100, width: 1.5),
-                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
-                          ),
-                          child: Text(
-                            msg.message, 
-                            style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 13)
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.brown.shade50, 
-                border: Border(top: BorderSide(color: Colors.orange.shade200, width: 2.0)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.orange.shade300, width: 2.0),
-                      ),
-                      child: TextField(
-                        controller: _textController,
-                        style: const TextStyle(color: Colors.black87, fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: context.translate('chat_input_hint'),
-                          hintStyle: const TextStyle(color: Colors.black38),
-                          border: InputBorder.none,
-                        ),
-                        onSubmitted: (_) => _sendMessage(),
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.brown.shade800, 
+                  border: const Border(bottom: BorderSide(color: Colors.white24)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.chat_bubble_outline, color: Colors.orangeAccent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        context.translate('multiplayer_online'), 
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: Colors.orange.shade700,
-                    radius: 18,
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white, size: 16),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70, size: 24),
                       onPressed: () {
                         AudioService.playClick();
-                        _sendMessage();
+                        Navigator.pop(context);
                       },
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(12),
+                  itemCount: widget.controller.chatMessages.length,
+                  itemBuilder: (context, index) {
+                    final msg = widget.controller.chatMessages[index];
+                    final bool isMe = msg.senderId == PrefsService.playerId;
+                    
+                    return Align(
+                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Column(
+                        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        children: [
+                          if (!isMe) 
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8, bottom: 4),
+                              child: Text(msg.sender, style: TextStyle(color: Colors.brown.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isMe ? Colors.orange.shade700 : Colors.white, 
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(isMe ? 16 : 4),
+                                bottomRight: Radius.circular(isMe ? 4 : 16),
+                              ),
+                              border: isMe ? null : Border.all(color: Colors.orange.shade100, width: 1.5),
+                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                            ),
+                            child: Text(
+                              msg.message, 
+                              style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 13)
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.brown.shade50, 
+                  border: Border(top: BorderSide(color: Colors.orange.shade200, width: 2.0)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.orange.shade300, width: 2.0),
+                        ),
+                        child: TextField(
+                          controller: _textController,
+                          style: const TextStyle(color: Colors.black87, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: context.translate('chat_input_hint'),
+                            hintStyle: const TextStyle(color: Colors.black38),
+                            border: InputBorder.none,
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    CircleAvatar(
+                      backgroundColor: Colors.orange.shade700,
+                      radius: 18,
+                      child: IconButton(
+                        icon: const Icon(Icons.send, color: Colors.white, size: 16),
+                        onPressed: () {
+                          AudioService.playClick();
+                          _sendMessage();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1717,9 +1801,14 @@ class _PlayerCornerWidget extends StatelessWidget {
     final bool isBlocked = controller.blockedPlayerIds.contains(player.id);
     final String? activeMessage = controller.playerQuickMessages[player.id];
 
-    // ✅ Modificado de 5 a 6 para que empiece a ser rojo a partir del segundo 5 (inclusive)
     final bool isCriticalTime = isTurn && controller.isOnline && controller.secondsRemaining < 6;
     final Color timerColor = isCriticalTime ? Colors.red : Colors.orangeAccent;
+
+    // Adaptación a pantallas pequeñas (altura)
+    final bool isSmallHeight = MediaQuery.of(context).size.height < 650;
+    final double avatarSize = isSmallHeight ? 12 : 14;
+    final double diceContainerSize = isSmallHeight ? 44 : 50;
+    final double diceSize = isSmallHeight ? 36 : 42;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1729,36 +1818,52 @@ class _PlayerCornerWidget extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             GestureDetector(
-              onLongPress: controller.isOnline ? () => _showPlayerOptions(context, controller) : null,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 140), 
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              onTap: (isMe && controller.isOnline) ? () => _showQuickChat(context, controller) : null,
+              onLongPress: (controller.isOnline && !isMe) ? () => _showPlayerOptions(context, controller) : null,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                constraints: const BoxConstraints(maxWidth: 130), 
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
-                  color: isTurn ? (isCriticalTime ? Colors.red : Colors.orange) : Colors.black45, 
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isBlocked ? Colors.red : Colors.white24),
+                  color: isTurn 
+                      ? (isCriticalTime ? Colors.red : Colors.orange) 
+                      : Colors.brown.shade900.withValues(alpha: 0.9), 
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isBlocked ? Colors.red : (isTurn ? Colors.white : Colors.white24),
+                    width: isTurn ? 2 : 1,
+                  ),
+                  boxShadow: [
+                    if (isTurn)
+                      BoxShadow(
+                        color: (isCriticalTime ? Colors.red : Colors.orange).withValues(alpha: 0.5),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildPlayerAvatar(player, 14),
+                    _buildPlayerAvatar(player, avatarSize),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
                         player.name,
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.white, 
+                          fontWeight: FontWeight.bold, 
+                          fontSize: isSmallHeight ? 10 : 11
+                        ),
                       ),
                     ),
-                    if (isBlocked) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.block, size: 14, color: Colors.red),
-                    ],
-                    if (controller.isOnline && !player.isConnected) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.flash_off, size: 14, color: Colors.redAccent).animate(onPlay: (c) => c.repeat()).shake(),
-                    ]
                   ],
                 ),
               ),
@@ -1766,20 +1871,20 @@ class _PlayerCornerWidget extends StatelessWidget {
             
             if (activeMessage != null)
               Positioned(
-                top: -40,
+                top: -35,
                 left: 0,
                 right: 0,
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(12),
                       boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                     ),
                     child: Text(
                       context.translate(activeMessage, listen: false),
-                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11),
                     ),
                   ).animate().scale(duration: 200.ms, curve: Curves.easeOutBack).shake(delay: 200.ms),
                 ),
@@ -1787,26 +1892,26 @@ class _PlayerCornerWidget extends StatelessWidget {
 
             if (isMe && controller.isOnline)
               Positioned(
-                top: -12,
-                right: -12,
+                top: -10, // Original size
+                right: -10,
                 child: GestureDetector(
                   onTap: () => _showQuickChat(context, controller),
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(4), // Original padding
                     decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
-                    child: const Icon(Icons.insert_emoticon, size: 18, color: Colors.white),
+                    child: const Icon(Icons.insert_emoticon, size: 16, color: Colors.white), // Original size
                   ),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: player.tokens.map((t) => Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            width: 8,
-            height: 8,
+            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: t.isFinished ? Colors.greenAccent : Colors.white24,
@@ -1814,7 +1919,7 @@ class _PlayerCornerWidget extends StatelessWidget {
             ),
           )).toList(),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
 
         if (player.isFinished)
           _buildFinishedBadge(context, controller)
@@ -1822,7 +1927,6 @@ class _PlayerCornerWidget extends StatelessWidget {
           GestureDetector(
             onTap: () {
                if (canTap) {
-                 // ✅ Eliminado AudioService.playClick() para evitar duplicación con sounds/dice.mp3
                  if (controller.isOnline && !socketSrv.isConnected) {
                    ScaffoldMessenger.of(context).showSnackBar(
                      const SnackBar(content: Text("Sin conexión"), duration: Duration(seconds: 1))
@@ -1833,27 +1937,17 @@ class _PlayerCornerWidget extends StatelessWidget {
                }
             },
             child: Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (controller.isOnline && !player.isConnected)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(8)),
-                        child: const Text("OFFLINE", style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-
                   if (isMe && (isTurn || player.isAutoPlaying))
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.only(bottom: 2),
                       child: player.isAutoPlaying
                         ? GestureDetector(
                             onTap: () {
@@ -1863,23 +1957,30 @@ class _PlayerCornerWidget extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.redAccent.withValues(alpha: 0.9),
+                                color: Colors.redAccent,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.white, width: 1),
+                                border: Border.all(color: Colors.white, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withValues(alpha: 0.5),
+                                    blurRadius: 4,
+                                    spreadRadius: 1,
+                                  )
+                                ],
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text("AUTO", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  Text("AUTO", style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                                   SizedBox(width: 4),
-                                  Icon(Icons.check_box, color: Colors.white, size: 14),
+                                  Icon(Icons.close, color: Colors.white, size: 10),
                                 ],
                               ),
                             ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
                           )
                         : Text(
                             context.translate('your_turn'),
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                           ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms).then().fadeOut(duration: 600.ms),
                     ),
 
@@ -1887,8 +1988,8 @@ class _PlayerCornerWidget extends StatelessWidget {
                     alignment: Alignment.center,
                     children: [
                       Container(
-                        width: 58,
-                        height: 58,
+                        width: diceContainerSize,
+                        height: diceContainerSize,
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.4), 
                           shape: BoxShape.circle,
@@ -1896,11 +1997,11 @@ class _PlayerCornerWidget extends StatelessWidget {
                       ),
                       if (isTurn && controller.isOnline)
                         SizedBox(
-                          width: 58,
-                          height: 58,
+                          width: diceContainerSize,
+                          height: diceContainerSize,
                           child: CircularProgressIndicator(
                             value: controller.turnProgress,
-                            strokeWidth: 4,
+                            strokeWidth: 3,
                             color: timerColor,
                             backgroundColor: Colors.white10,
                           ),
@@ -1911,7 +2012,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                       DiceWidget(
                         value: player.lastDiceValue,
                         rolling: isRolling,
-                        style: const DiceStyle(sides: 6, size: 50, assetPath: 'assets/dice/classic'),
+                        style: DiceStyle(sides: 6, size: diceSize, assetPath: 'assets/dice/classic'),
                       ),
                     ],
                   ),
@@ -1921,7 +2022,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           ),
 
         if (!player.isFinished) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           HomeZoneWidget(player: player),
         ],
       ],

@@ -696,6 +696,8 @@ class NetworkGameController extends GameController {
 
   // Set by server events — GameScreen reacts to these.
   int? myFinishPosition;       // rank (1-indexed) when you_finished received
+  String? finishReason;        // e.g. 'abandonment'
+  bool _isSilentFinish = false;
   GameExitReason? exitReason;  // non-null signals GameScreen to leave
   String? lastSurrenderedName; // name of player who just surrendered
 
@@ -826,6 +828,17 @@ class NetworkGameController extends GameController {
       // Server confirmed this player finished — position is 1-indexed rank.
       case 'you_finished':
         myFinishPosition = data['position'] as int? ?? 1;
+        finishReason = data['reason'] as String?;
+        _isSilentFinish = data['silent'] ?? false;
+        if (_isSilentFinish) {
+          // Clear any pending finish events to avoid spamming "token finished" messages
+          engine.clearEvents();
+          // Ensure win sound plays exactly once for the abandonment victory
+          if (myFinishPosition == 1) {
+            playFanfare();
+            _vibrate();
+          }
+        }
         notifyListeners();
         break;
       // This player surrendered or match is gone — signal GameScreen to exit.
@@ -951,14 +964,17 @@ class NetworkGameController extends GameController {
                 token.position = -1;
                 token.isFinished = true;
                 if (!wasFinished) {
-                  playFanfare();
-                  _vibrate();
-                  engine.events.add(GameEvent(
-                    messageKey: 'token_finished_bonus',
-                    args: {'name': player.name},
-                    playerId: player.id,
-                    type: 'bonus'
-                  ));
+                  // Suppress fanfare and individual finish events if this is a silent finish
+                  if (!_isSilentFinish) {
+                    playFanfare();
+                    _vibrate();
+                    engine.events.add(GameEvent(
+                      messageKey: 'token_finished_bonus',
+                      args: {'name': player.name},
+                      playerId: player.id,
+                      type: 'bonus'
+                    ));
+                  }
                 }
               } else {
                 // Animation already running — it will handle fanfare when it reaches the end.
@@ -1022,6 +1038,9 @@ class NetworkGameController extends GameController {
     } else if (phaseStr == 'finished') {
       engine.phase = GamePhase.finished;
       PrefsService.lastRoomCode = null;
+      // If we are finished, force silent finish true to prevent any further individual events
+      _isSilentFinish = true;
+      engine.clearEvents();
     }
 
     if (currentPlayerId != null && currentPlayerId == PrefsService.playerId && engine.currentPlayer.isAutoPlaying && engine.phase == GamePhase.idle) {
@@ -1085,15 +1104,17 @@ class NetworkGameController extends GameController {
           token.isFinished = true;
           notifyListeners();
 
-          engine.events.add(GameEvent(
-            messageKey: 'token_finished_bonus',
-            args: {'name': player.name},
-            playerId: player.id,
-            type: 'bonus'
-          ));
+          if (!_isSilentFinish) {
+            engine.events.add(GameEvent(
+              messageKey: 'token_finished_bonus',
+              args: {'name': player.name},
+              playerId: player.id,
+              type: 'bonus'
+            ));
 
-          await playFanfare();
-          _vibrate();
+            await playFanfare();
+            _vibrate();
+          }
           break;
         }
         await Future.delayed(const Duration(milliseconds: 200));
@@ -1112,15 +1133,17 @@ class NetworkGameController extends GameController {
         token.position = -1;
         token.isFinished = true;
         
-        engine.events.add(GameEvent(
-          messageKey: 'token_finished_bonus',
-          args: {'name': player.name},
-          playerId: player.id,
-          type: 'bonus'
-        ));
+        if (!_isSilentFinish) {
+          engine.events.add(GameEvent(
+            messageKey: 'token_finished_bonus',
+            args: {'name': player.name},
+            playerId: player.id,
+            type: 'bonus'
+          ));
 
-        await playFanfare(); // ✅ Bloquea hasta el fin del audio
-        _vibrate();
+          await playFanfare(); // ✅ Bloquea hasta el fin del audio
+          _vibrate();
+        }
       } else {
         token.position = targetPos;
         

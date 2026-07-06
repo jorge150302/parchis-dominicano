@@ -24,33 +24,35 @@ class HomeZoneWidget extends StatelessWidget {
     final tokensAtHome = player.tokens.where((t) => t.position == 0 && !t.isFinished).toList();
     final baseColor = _getPlayerColor(player.index);
 
+    final bool isSmallHeight = MediaQuery.of(context).size.height < 650;
+    final double tokenSize = isSmallHeight ? 16 : 20;
+
     Widget content = AnimatedContainer(
       duration: const Duration(milliseconds: 500),
-      padding: const EdgeInsets.all(6),
+      padding: EdgeInsets.all(isSmallHeight ? 4 : 6),
       decoration: BoxDecoration(
         color: isTurnOfThisZone 
             ? baseColor.withValues(alpha: 0.15)
             : Colors.black.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isTurnOfThisZone ? baseColor : Colors.transparent,
-          width: 2,
+          width: isSmallHeight ? 1.5 : 2,
         ),
         boxShadow: isTurnOfThisZone ? [
           BoxShadow(
             color: baseColor.withValues(alpha: 0.3),
-            blurRadius: 12,
-            spreadRadius: 2,
+            blurRadius: isSmallHeight ? 8 : 12,
+            spreadRadius: 1,
           )
         ] : [],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ❌ El título "TU TURNO" se ha movido a _PlayerCornerWidget para integrar el modo Auto
           Wrap(
-            spacing: 4,
-            runSpacing: 4,
+            spacing: isSmallHeight ? 2 : 4,
+            runSpacing: isSmallHeight ? 2 : 4,
             alignment: WrapAlignment.center,
             children: [
               ...tokensAtHome.map((token) {
@@ -62,7 +64,7 @@ class HomeZoneWidget extends StatelessWidget {
                 return TokenWidget(
                   asset: player.tokenAsset,
                   isSelectable: isSelectable,
-                  size: 20,
+                  size: tokenSize,
                   onTap: isSelectable ? () => controller.selectToken(token.id) : null,
                 );
               }),
