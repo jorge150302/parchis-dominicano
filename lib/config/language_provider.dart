@@ -198,6 +198,8 @@ class LanguageProvider extends ChangeNotifier {
       'pending_game_message': 'Tienes una partida pendiente. ¿Qué deseas hacer?',
       'start_new_game': 'Nueva Partida',
       'delete_game': 'Borrar Juego',
+      'victory_automatic_title': '🏆 ¡Victoria Automática!',
+      'victory_automatic_subtitle': 'Los demás jugadores abandonaron la partida. ¡Eres el ganador por defecto!',
       'delete_game_confirm': '¿Estás seguro de que quieres borrar la partida guardada? Esta acción no se puede deshacer.',
       // Lobby transitions
       'match_found_title': '¡PARTIDA ENCONTRADA!',
@@ -467,6 +469,8 @@ class LanguageProvider extends ChangeNotifier {
       'pending_game_message': 'You have a pending game. What do you want to do?',
       'start_new_game': 'New Game',
       'delete_game': 'Delete Game',
+      'victory_automatic_title': '🏆 Automatic Victory!',
+      'victory_automatic_subtitle': 'Other players left the match. You are the winner by default!',
       'delete_game_confirm': 'Are you sure you want to delete the saved game? This action cannot be undone.',
       // Lobby transitions
       'match_found_title': 'MATCH FOUND!',

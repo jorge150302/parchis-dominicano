@@ -40,14 +40,15 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _onAuthStateChanged(User? user) async {
     if (user != null) {
-      if (!_wasSignedIn) {
+      bool isTransition = !_wasSignedIn;
+      if (isTransition) {
         // Actual sign-in transition — discard any guest XP receipts so they
         // are not synced to the cloud as if they were earned while authenticated.
         PrefsService.pendingSyncReceipts = [];
         debugPrint('[AuthService] Guest receipts cleared on sign-in');
       }
       _wasSignedIn = true;
-      await _loadOrCreateProfile(user);
+      await _loadOrCreateProfile(user, checkMigration: isTransition);
     } else {
       _wasSignedIn = false;
       _profile = null;
@@ -167,7 +168,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadOrCreateProfile(User user) async {
+  Future<void> _loadOrCreateProfile(User user, {bool checkMigration = false}) async {
     if (_profileLoading) {
       await _profileLoadCompleter?.future;
       return;
@@ -213,8 +214,10 @@ class AuthService extends ChangeNotifier {
         _profile = UserProfile.fromFirestore(doc);
         debugPrint('[AuthService] Existing account — cloud XP: ${_profile!.xp}, local XP: $localXp');
 
-        // Offline progress exceeds cloud — offer migration every time this happens.
-        if (localXp > _profile!.xp && localXp > 0) {
+        // Only offer migration if explicitly requested (transition) or if there's a significant 
+        // discrepancy while NO sync receipts are pending.
+        bool hasPendingSync = PrefsService.pendingSyncReceipts.isNotEmpty;
+        if (checkMigration || (!hasPendingSync && localXp > _profile!.xp + 50 && localXp > 0)) {
           _guestXpBeforeMigration = localXp;
           _needsMigrationDialog = true;
           debugPrint('[AuthService] Migration dialog needed — guest XP: $localXp, cloud XP: ${_profile!.xp}');

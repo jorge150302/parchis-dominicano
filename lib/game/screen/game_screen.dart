@@ -294,8 +294,13 @@ class _GameScreenState extends State<GameScreen> {
       if (myPos != -1) {
         _myVictoryDialogShown = true;
         _updatePlayerProgress(controller);
-        if (myPos == 0) _confettiController.play();
-        _showVictoryDialog(controller, position: myPos);
+        if (myPos == 0) {
+          _confettiController.play();
+          controller.playFanfare();
+        }
+        
+        // No mostramos NINGÚN diálogo intermedio (victory/abandonment).
+        // El resultado se verá directamente en el podio final con su correspondiente label.
       }
     }
 
@@ -1144,8 +1149,17 @@ class _GameScreenState extends State<GameScreen> {
         : 'You secured $ordinal place. Keep watching or leave now.';
 
     if (isAbandonment) {
-      title = '🏆 ¡Victoria Automática!';
-      subtitle = 'Los demás jugadores abandonaron la partida. ¡Eres el ganador por defecto!';
+      title = context.translate('victory_automatic_title', listen: false).isEmpty 
+          ? '🏆 ¡Victoria Automática!' 
+          : context.translate('victory_automatic_title', listen: false);
+      subtitle = context.translate('victory_automatic_subtitle', listen: false).isEmpty
+          ? 'Los demás jugadores abandonaron la partida. ¡Eres el ganador por defecto!'
+          : context.translate('victory_automatic_subtitle', listen: false);
+    }
+
+    // Play fanfare if winner and it's an abandonment (as backup for the controller call)
+    if (position == 0 && isAbandonment) {
+      controller.playFanfare();
     }
 
     showDialog(
@@ -1209,10 +1223,14 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showGameFinishedDialog() async {
+    final controller = context.read<GameController>();
+    final finishReason = controller is NetworkGameController ? controller.finishReason : null;
+    final isAbandonment = finishReason == 'abandonment';
+
+    // Delay unificado para ir directo al podio.
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
 
-    final controller = context.read<GameController>();
     final nav = Navigator.of(context);
     final List<String> finisherIds = List.from(controller.engine.finisherIds);
     for (var p in controller.players) {
@@ -1235,6 +1253,15 @@ class _GameScreenState extends State<GameScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isAbandonment)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  context.translate('victory_automatic_subtitle', listen: false),
+                  style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             // Daily cap notification — shown after the game, difficulty-specific
             if (!widget.isTutorial && _dailyCapReached)
               Builder(builder: (ctx) {

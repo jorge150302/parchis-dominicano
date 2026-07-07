@@ -134,6 +134,7 @@ abstract class GameController extends ChangeNotifier {
   /// ✅ Reproduce el sonido de victoria y ESPERA a que termine totalmente
   /// para evitar que el siguiente turno lo corte.
   Future<void> playFanfare() async {
+    if (_fanfarePlaying) return;
     if (PrefsService.soundEnabled) {
       _fanfarePlaying = true;
       notifyListeners();
@@ -830,14 +831,14 @@ class NetworkGameController extends GameController {
         myFinishPosition = data['position'] as int? ?? 1;
         finishReason = data['reason'] as String?;
         _isSilentFinish = data['silent'] ?? false;
-        if (_isSilentFinish) {
-          // Clear any pending finish events to avoid spamming "token finished" messages
-          engine.clearEvents();
-          // Ensure win sound plays exactly once for the abandonment victory
-          if (myFinishPosition == 1) {
-            playFanfare();
-            _vibrate();
+        
+        // Ensure win sound plays for the winner, especially in abandonment/force-finish cases
+        if (myFinishPosition == 1) {
+          if (_isSilentFinish) {
+            engine.clearEvents();
           }
+          playFanfare();
+          _vibrate();
         }
         notifyListeners();
         break;

@@ -28,6 +28,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   StreamSubscription? _socketSub;
   late final AuthService _authService;
   bool _rejoinDispatched = false;
+  bool _isMigrationDialogShowing = false;
 
   @override
   void initState() {
@@ -68,9 +69,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   void _onAuthChanged() {
     if (!mounted) return;
-    if (_authService.needsMigrationDialog) {
+    
+    // Solo mostramos el diálogo de migración si estamos en el menú principal y es la pantalla activa.
+    // Esto evita que el diálogo aparezca encima de una partida en curso.
+    final bool isCurrent = ModalRoute.of(context)?.isCurrent ?? false;
+    
+    if (_authService.needsMigrationDialog && isCurrent && !_isMigrationDialogShowing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _authService.needsMigrationDialog) _showMigrationDialog();
+        if (mounted && _authService.needsMigrationDialog && !_isMigrationDialogShowing) {
+          _showMigrationDialog();
+        }
       });
       return;
     }
@@ -433,6 +441,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   void _showMigrationDialog() {
+    if (_isMigrationDialogShowing) return;
+    _isMigrationDialogShowing = true;
     final auth = context.read<AuthService>();
     final syncQueue = context.read<SyncQueueService>();
     final guestXp = auth.guestXpBeforeMigration;
@@ -467,6 +477,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               AudioService.playClick();
               Navigator.pop(ctx);
               auth.clearMigrationDialog();
+              setState(() => _isMigrationDialogShowing = false);
             },
             child: Text(ctx.translate('migration_fresh', args: {'cloudLevel': cloudLevel}), style: const TextStyle(color: Colors.white54)),
           ),
@@ -477,6 +488,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               Navigator.pop(ctx);
               syncQueue.enqueueGuestMigration(offlineDelta);
               auth.clearMigrationDialog();
+              setState(() => _isMigrationDialogShowing = false);
             },
             child: Text(
               ctx.translate('migration_keep', args: {'guestLevel': guestLevel}),
@@ -485,7 +497,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           ),
         ],
       ),
-    );
+    ).then((_) {
+      if (mounted) setState(() => _isMigrationDialogShowing = false);
+    });
   }
 
   void _showDailyMasteryDialog({required VoidCallback onPlayAnyway}) {
@@ -1143,9 +1157,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   @override
   Widget build(BuildContext context) {
     // Watch AuthService so the header re-reads PrefsService values after sign-in / XP updates.
-    context.watch<AuthService>();
+    final auth = context.watch<AuthService>();
     final int playerLevel = PrefsService.playerLevel;
     final String rankName = LevelManager.getRankName(playerLevel);
+
+    // Si volvemos al menú y hay un diálogo de migración pendiente, lo mostramos.
+    if (auth.needsMigrationDialog && !_isMigrationDialogShowing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && auth.needsMigrationDialog && !_isMigrationDialogShowing) {
+          final bool isCurrent = ModalRoute.of(context)?.isCurrent ?? false;
+          if (isCurrent) _showMigrationDialog();
+        }
+      });
+    }
 
     return Scaffold(
       body: SizedBox.expand(
