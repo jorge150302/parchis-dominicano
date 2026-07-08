@@ -76,7 +76,7 @@ class _DiceWidgetState extends State<DiceWidget>
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         setState(() {
-          displayedValue = widget.value;
+          displayedValue = widget.value > 0 ? widget.value : 1;
         });
       }
     });
@@ -95,14 +95,14 @@ class _DiceWidgetState extends State<DiceWidget>
     if (!widget.rolling && oldWidget.rolling) {
       _controller.stop();
       setState(() {
-        displayedValue = widget.value;
+        displayedValue = widget.value > 0 ? widget.value : 1;
       });
     }
 
     // ✅ Sincronizar el valor si cambia externamente mientras NO está rodando
     if (!widget.rolling && widget.value != oldWidget.value) {
       setState(() {
-        displayedValue = widget.value;
+        displayedValue = widget.value > 0 ? widget.value : 1;
       });
     }
   }

@@ -149,6 +149,7 @@ class _StaticCell extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(1),
       decoration: BoxDecoration(
         gradient: hasAction
             ? const LinearGradient(colors: [Color(0xffffd180), Color(0xffffb74d)])
@@ -160,7 +161,16 @@ class _StaticCell extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.bold, color: Colors.black45),
+          maxLines: 2,
+          overflow: TextOverflow.visible,
+          softWrap: true,
+          style: const TextStyle(
+            fontSize: 6.5, 
+            fontWeight: FontWeight.bold, 
+            color: Colors.black45,
+            height: 1.0,
+            letterSpacing: -0.2,
+          ),
         ),
       ),
     );

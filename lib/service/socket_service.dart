@@ -144,7 +144,7 @@ class SocketService with ChangeNotifier {
       'avatarType': PrefsService.avatarType,
       if (PrefsService.avatarIconId != null) 'avatarIconId': PrefsService.avatarIconId,
       if (_cachedIdToken != null && _authEvents.contains(event)) 'idToken': _cachedIdToken,
-      'data': ?data,
+      'data': data,
     };
     
     _channel!.sink.add(jsonEncode(payload));

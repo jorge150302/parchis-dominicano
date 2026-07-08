@@ -19,7 +19,7 @@ import '../models/board_action.dart';
 // Set to true to start human tokens 1 step from the finish line for quick testing.
 // Only active in debug builds (kDebugMode).
 const bool kTestModeEnabled = true;
-const bool kOnlineTestModeEnabled = false;
+const bool kOnlineTestModeEnabled = true;
 
 // ── Debug testing helpers (kTestModeEnabled only) ──────────────────────────
 // kTestTokenPosition: starting position for human tokens in test mode.
@@ -640,9 +640,13 @@ class LocalGameController extends GameController {
     }
 
     final actionRes = engine.applyCellAction(currentPlayer, tokenId);
-    if (actionRes.wasSkipTurn && steps == 6 && currentPlayer.extraTurns > 0) {
-      currentPlayer.consumeSkip();
-      currentPlayer.extraTurns--;
+    
+    // Si cayó en casilla de saltar turno, compensamos con los turnos extra acumulados
+    if (actionRes.wasSkipTurn) {
+      if (currentPlayer.extraTurns > 0) {
+        currentPlayer.consumeSkip();
+        currentPlayer.extraTurns--;
+      }
     }
     if (actionRes.moved) {
        if (actionRes.sentToStart && actionRes.fromPos != null) {

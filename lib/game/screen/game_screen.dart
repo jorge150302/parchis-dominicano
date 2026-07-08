@@ -481,6 +481,7 @@ class _GameScreenState extends State<GameScreen> {
       },
       child: Scaffold(
         key: _scaffoldKey,
+        resizeToAvoidBottomInset: false,
         onEndDrawerChanged: (isOpen) {
           if (isOpen) setState(() => _unreadMessages = 0);
         },
@@ -582,7 +583,7 @@ class _GameScreenState extends State<GameScreen> {
                                 ),
                               ),
 
-                            if (kDebugMode && kTestModeEnabled)
+                            if (kDebugMode && (kTestModeEnabled || kOnlineTestModeEnabled))
                               _DebugDicePanel(controller: controller),
                           ],
                         );

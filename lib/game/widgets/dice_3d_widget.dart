@@ -87,7 +87,7 @@ class _Dice3DWidgetState extends State<Dice3DWidget>
             ),
 
             child: Image.asset(
-              _asset(widget.value),
+              _asset(widget.value > 0 ? widget.value : 1),
               fit: BoxFit.contain,
             ),
           ),
