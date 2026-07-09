@@ -664,56 +664,16 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildTutorialOverlay() {
     final controller = context.read<GameController>();
     String textKey = '';
-    Widget? extra;
     bool isActionStep = false;
-
-    // Se define el color del destello: naranja para el paso final (13), marrón para el resto.
-    final Color sparkleColor = _tutorialStep == 13 ? Colors.orange : Colors.brown.shade600;
-
-    final sparkleEffect = Stack(
-      alignment: Alignment.center,
-      children: [
-        Container(
-          width: 20,
-          height: 20,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white70,
-          ),
-        ).animate(onPlay: (c) => c.repeat()).scale(duration: 800.ms, curve: Curves.easeInOut).then().scale(duration: 800.ms),
-        Container(
-          width: 45,
-          height: 45,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: sparkleColor.withValues(alpha: 0.8),
-                blurRadius: 20,
-                spreadRadius: 8,
-              ),
-            ],
-          ),
-        ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 800.ms).then().fadeOut(duration: 800.ms),
-      ],
-    );
-
-    final arrowIndicator = const Icon(Icons.north_west, color: Colors.orangeAccent, size: 80)
-        .animate(onPlay: (c) => c.repeat())
-        .move(begin: const Offset(20, 20), end: const Offset(0, 0), duration: 600.ms, curve: Curves.easeInOut)
-        .then()
-        .move(begin: const Offset(0, 0), end: const Offset(20, 20), duration: 600.ms);
 
     switch (_tutorialStep) {
       case 1:
         textKey = 'tutorial_step_dice_1';
         isActionStep = true;
-        extra = Positioned(top: 80, left: 80, child: arrowIndicator);
         break;
       case 2:
         textKey = 'tutorial_step_move_1';
         isActionStep = true;
-        extra = Positioned(top: 150, left: 100, child: arrowIndicator);
         break;
       case 3:
         textKey = 'tutorial_step_transition_blue';
@@ -742,43 +702,21 @@ class _GameScreenState extends State<GameScreen> {
       case 9:
         textKey = 'tutorial_step_action_start';
         isActionStep = false;
-        extra = Align(alignment: _getCellAlignment(13), child: sparkleEffect);
         break;
       case 10:
         textKey = 'tutorial_step_action_skip';
         isActionStep = false;
-        extra = Align(alignment: _getCellAlignment(19), child: sparkleEffect);
         break;
       case 11:
         textKey = 'tutorial_step_action_extra';
         isActionStep = false;
-        extra = Align(alignment: _getCellAlignment(15), child: sparkleEffect);
         break;
       case 12:
         textKey = 'tutorial_step_action_move';
         isActionStep = false;
-        extra = Align(alignment: _getCellAlignment(24), child: sparkleEffect);
         break;
       case 13:
         textKey = 'tutorial_finish';
-        extra = Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Align(
-              alignment: _getCellAlignment(-1),
-              child: sparkleEffect,
-            ),
-            Positioned(
-              top: -95,
-              left: 10,
-              child: const Icon(Icons.arrow_downward, color: Colors.orangeAccent, size: 85)
-                  .animate(onPlay: (c) => c.repeat())
-                  .moveY(begin: -30, end: 30, duration: 600.ms)
-                  .then()
-                  .moveY(begin: 30, end: -30, duration: 600.ms),
-            ),
-          ],
-        );
         break;
     }
 
@@ -797,16 +735,6 @@ class _GameScreenState extends State<GameScreen> {
       ignoring: isActionStep,
       child: Stack(
         children: [
-          if (extra != null && _tutorialStep >= 9)
-             Center(
-               child: AspectRatio(
-                 aspectRatio: 1,
-                 child: extra,
-               ),
-             )
-          else
-            extra ?? const SizedBox.shrink(),
-
           Align(
             alignment: Alignment.center,
             child: GestureDetector(
