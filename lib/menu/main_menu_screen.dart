@@ -634,6 +634,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
+          scrollable: true,
           backgroundColor: Colors.brown.shade900,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25),
@@ -644,82 +645,81 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
-          content: Text(
-            context.translate('pending_game_message'),
-            style: const TextStyle(color: Colors.white, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-          actionsAlignment: MainAxisAlignment.spaceEvenly,
-          actions: [
-            Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orangeAccent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onPressed: () {
-                      AudioService.playClick();
-                      Navigator.pop(context);
-                      _resumeGame();
-                    },
-                    child: Text(
-                      context.translate('continue_game'),
-                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                    ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.translate('pending_game_message'),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onPressed: () {
-                      AudioService.playClick();
-                      _showDeleteGameConfirm();
-                    },
-                    child: Text(
-                      context.translate('delete_game'),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () {
-                      AudioService.playClick();
-                      Navigator.pop(context);
-                      Navigator.pushNamed(context, '/players');
-                    },
-                    child: Text(
-                      context.translate('start_new_game'),
-                      style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                const Divider(color: Colors.white24),
-                TextButton(
                   onPressed: () {
                     AudioService.playClick();
                     Navigator.pop(context);
+                    _resumeGame();
                   },
                   child: Text(
-                    context.translate('back'),
-                    style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                    context.translate('continue_game'),
+                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
                   ),
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () {
+                    AudioService.playClick();
+                    _showDeleteGameConfirm();
+                  },
+                  child: Text(
+                    context.translate('delete_game'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    AudioService.playClick();
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/players');
+                  },
+                  child: Text(
+                    context.translate('start_new_game'),
+                    style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const Divider(color: Colors.white24),
+              TextButton(
+                onPressed: () {
+                  AudioService.playClick();
+                  Navigator.pop(context);
+                },
+                child: Text(
+                  context.translate('back'),
+                  style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     } else {

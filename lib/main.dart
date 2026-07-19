@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'package:frontend_parchis/menu/online_lobby_screen.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
@@ -25,6 +26,13 @@ import 'game/models/board_action.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PrefsService.init();
+  
+  // Bloquear orientación en modo vertical (Portrait)
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   // Requires google-services.json in android/app/
   // Run `flutterfire configure` or download it from your Firebase Console.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -84,7 +92,7 @@ class MyApp extends StatelessWidget {
                 case GameDifficulty.easy:
                   actionPositions = easyActionPositions;
                   actions = easyActions;
-                  totalCells = 50;
+                  totalCells = 49;
                 case GameDifficulty.hard:
                   actionPositions = hardActionPositions;
                   actions = hardActions;

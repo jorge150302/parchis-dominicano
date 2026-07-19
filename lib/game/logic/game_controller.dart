@@ -18,8 +18,8 @@ import '../models/board_action.dart';
 
 // Set to true to start human tokens 1 step from the finish line for quick testing.
 // Only active in debug builds (kDebugMode).
-const bool kTestModeEnabled = true;
-const bool kOnlineTestModeEnabled = true;
+const bool kTestModeEnabled = false;
+const bool kOnlineTestModeEnabled = false;
 
 // ── Debug testing helpers (kTestModeEnabled only) ──────────────────────────
 // kTestTokenPosition: starting position for human tokens in test mode.

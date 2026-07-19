@@ -67,6 +67,7 @@ class _GameScreenState extends State<GameScreen> {
   // Variables para el sistema de niveles
   int _lastGainedXp = 0;
   bool _didLevelUp = false;
+  bool _didRankUp = false;
   bool _dailyCapReached = false;
 
   // Early-finish / instant-victory state
@@ -207,6 +208,7 @@ class _GameScreenState extends State<GameScreen> {
       );
 
       final int oldLevel = PrefsService.playerLevel;
+      final String oldRank = LevelManager.getRankName(oldLevel);
 
       _lastGainedXp = syncQueue.awardMatchXp(
         rawXp: rawXp,
@@ -216,6 +218,9 @@ class _GameScreenState extends State<GameScreen> {
 
       if (PrefsService.playerLevel > oldLevel) {
         _didLevelUp = true;
+        if (LevelManager.getRankName(PrefsService.playerLevel) != oldRank) {
+          _didRankUp = true;
+        }
       }
 
       if (!controller.isOnline && rawXp > 0 && _lastGainedXp == 0) {
@@ -509,43 +514,44 @@ class _GameScreenState extends State<GameScreen> {
                         return Stack(
                           children: [
                             // Layout Organizado: Jugadores y Tablero
-                            Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // Fila Superior de Jugadores
-                                _buildPlayerRow(controller, isTop: true),
-                                
-                                const SizedBox(height: 8),
-                                
-                                // Tablero (Flexible para que se encoja en pantallas pequeñas y no cause overflow)
-                                Flexible(
-                                  child: Padding(
+                            SingleChildScrollView(
+                              child: Column(
+                                mainAxisAlignment: controller.players.length <= 2 
+                                    ? MainAxisAlignment.start 
+                                    : MainAxisAlignment.center,
+                                children: [
+                                  if (controller.players.length <= 2) const SizedBox(height: 20),
+                                  // Fila Superior de Jugadores
+                                  _buildPlayerRow(controller, isTop: true),
+                                  
+                                  const SizedBox(height: 8),
+                                  
+                                  // Tablero
+                                  Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                    child: AspectRatio(
-                                      aspectRatio: 1.0,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.brown.shade700,
-                                          borderRadius: BorderRadius.circular(18),
-                                          border: Border.all(color: Colors.brown.shade900, width: 4),
-                                          boxShadow: const [
-                                            BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 5))
-                                          ],
-                                        ),
-                                        child: BoardWidget(
-                                          board: controller.engine.board,
-                                          players: controller.players,
-                                        ),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.brown.shade700,
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(color: Colors.brown.shade900, width: 4),
+                                        boxShadow: const [
+                                          BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 5))
+                                        ],
+                                      ),
+                                      child: BoardWidget(
+                                        board: controller.engine.board,
+                                        players: controller.players,
                                       ),
                                     ),
                                   ),
-                                ),
-                                
-                                const SizedBox(height: 8),
-                                
-                                // Fila Inferior de Jugadores
-                                _buildPlayerRow(controller, isTop: false),
-                              ],
+                                  
+                                  const SizedBox(height: 8),
+                                  
+                                  // Fila Inferior de Jugadores
+                                  _buildPlayerRow(controller, isTop: false),
+                                  const SizedBox(height: 20),
+                                ],
+                              ),
                             ),
                             
                             // Capas de Animación y Overlays (Sobre el layout principal)
@@ -1173,6 +1179,7 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
+        scrollable: true,
         backgroundColor: Colors.brown.shade900,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20), 
@@ -1257,6 +1264,8 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Row(
                       children: [
@@ -1324,16 +1333,20 @@ class _GameScreenState extends State<GameScreen> {
                       Text(
                         "Faltan ${LevelManager.xpRequiredForLevel(PrefsService.playerLevel) - (PrefsService.totalXp % LevelManager.xpRequiredForLevel(PrefsService.playerLevel))} XP para el nivel ${PrefsService.playerLevel + 1}",
                         style: const TextStyle(color: Colors.white38, fontSize: 10, fontStyle: FontStyle.italic),
+                        textAlign: TextAlign.center,
                       ),
                     
-                    if (_didLevelUp)
+                    if (_didRankUp)
                       Padding(
                         padding: const EdgeInsets.only(top: 10.0),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            const Text(
-                              "¡NUEVO RANGO ALCANZADO!",
-                              style: TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.w900, fontSize: 18),
+                            Text(
+                              context.translate('new_rank_reached', listen: false),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.w900, fontSize: 18),
                             ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 1.5.seconds).scale(begin: const Offset(1,1), end: const Offset(1.1, 1.1)),
                             const Icon(Icons.stars, color: Colors.yellowAccent, size: 30),
                           ],

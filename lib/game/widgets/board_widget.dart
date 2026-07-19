@@ -25,7 +25,7 @@ class BoardWidget extends StatefulWidget {
 }
 
 class _BoardWidgetState extends State<BoardWidget> {
-  static const int columns = 10;
+  late int columns;
   final Map<int, GlobalKey> _cellKeys = {};
 
   int get _rows => (widget.board.cells.length / columns).ceil();
@@ -33,6 +33,12 @@ class _BoardWidgetState extends State<BoardWidget> {
   @override
   void initState() {
     super.initState();
+    // Ajustamos las columnas para que el tablero sea más cuadrado según la cantidad de celdas
+    if (widget.board.cells.length <= 49) {
+      columns = 7;
+    } else {
+      columns = 10;
+    }
     for (int i = 0; i <= widget.board.finalPosition; i++) {
       _cellKeys[i] = GlobalKey();
     }
@@ -45,31 +51,39 @@ class _BoardWidgetState extends State<BoardWidget> {
 
     return AspectRatio(
       aspectRatio: columns / _rows,
-      child: Stack(
-        children: [
-          GridView.builder(
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: cells.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-            ),
-            itemBuilder: (_, visualIndex) {
-              final row = visualIndex ~/ columns;
-              final col = visualIndex % columns;
-              final zigzagCol = row.isOdd ? (columns - 1 - col) : col;
-              final realIndex = row * columns + zigzagCol;
-              final cell = cells[realIndex];
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        child: Stack(
+          children: [
+            GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: columns * _rows,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+              ),
+              itemBuilder: (_, visualIndex) {
+                final row = visualIndex ~/ columns;
+                final col = visualIndex % columns;
+                final zigzagCol = row.isOdd ? (columns - 1 - col) : col;
+                final realIndex = row * columns + zigzagCol;
+                
+                if (realIndex >= cells.length) {
+                  return const SizedBox.shrink();
+                }
+                
+                final cell = cells[realIndex];
 
-              return _StaticCell(
-                key: _cellKeys[cell.number],
-                cell: cell,
-                finalPosition: widget.board.finalPosition,
-                controller: controller,
-              );
-            },
-          ),
-          ..._buildAnimatedTokens(controller),
-        ],
+                return _StaticCell(
+                  key: _cellKeys[cell.number],
+                  cell: cell,
+                  finalPosition: widget.board.finalPosition,
+                  controller: controller,
+                );
+              },
+            ),
+            ..._buildAnimatedTokens(controller),
+          ],
+        ),
       ),
     );
   }

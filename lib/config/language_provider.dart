@@ -266,6 +266,7 @@ class LanguageProvider extends ChangeNotifier {
       'daily_mastery_go_online': '¡Ir en línea!',
       // Level tooltip
       'level_max': '¡Nivel Máximo alcanzado!',
+      'new_rank_reached': '¡NUEVO RANGO ALCANZADO!',
       'level_xp_progress': '{current} / {required} XP para Nivel {next}',
       'level_rank_missing': '\nTe faltan {missing} XP para ser {rank}',
       // Privacy Policy Content
@@ -537,6 +538,7 @@ class LanguageProvider extends ChangeNotifier {
       'daily_mastery_go_online': 'Go Online!',
       // Level tooltip
       'level_max': 'Maximum Level reached!',
+      'new_rank_reached': 'NEW RANK REACHED!',
       'level_xp_progress': '{current} / {required} XP for Level {next}',
       'level_rank_missing': '\n{missing} XP left to become {rank}',
       // Privacy Policy Content

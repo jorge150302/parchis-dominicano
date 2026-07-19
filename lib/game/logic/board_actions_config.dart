@@ -1,17 +1,17 @@
 // lib/game/logic/board_actions_config.dart
 import '../models/board_action.dart';
 
-// ── EASY: 50 cells, no negative actions ──────────────────────────────────────
+// ── EASY: 49 cells, no negative actions ──────────────────────────────────────
 // Beginner-friendly: only rollAgain and forward jumps.
-final easyActionPositions = [5, 10, 20, 30, 40, 45];
+final easyActionPositions = [5, 10, 20, 28, 35, 42];
 
 final easyActions = [
   BoardAction.rollAgain(),   // Pos  5
   BoardAction.moveTo(15),    // Pos 10: jump forward
   BoardAction.rollAgain(),   // Pos 20
-  BoardAction.moveTo(35),    // Pos 30: jump forward
-  BoardAction.rollAgain(),   // Pos 40
-  BoardAction.moveTo(48),    // Pos 45: jump near finish
+  BoardAction.moveTo(32),    // Pos 28: jump forward
+  BoardAction.rollAgain(),   // Pos 35
+  BoardAction.moveTo(47),    // Pos 42: jump near finish
 ];
 
 // ── MEDIUM: 100 cells, classic layout (baseline) ─────────────────────────────
