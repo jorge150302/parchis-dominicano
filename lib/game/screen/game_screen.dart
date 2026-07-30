@@ -1026,7 +1026,6 @@ class _GameScreenState extends State<GameScreen> {
                 IconButton(
                   icon: const Icon(Icons.chat, color: Colors.white70, size: 22), 
                   onPressed: () {
-                    AudioService.playClick();
                     setState(() => _unreadMessages = 0);
                     _scaffoldKey.currentState?.openEndDrawer();
                   }
@@ -1456,7 +1455,6 @@ class _ChatDrawerState extends State<_ChatDrawer> {
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.white70, size: 24),
                       onPressed: () {
-                        AudioService.playClick();
                         Navigator.pop(context);
                       },
                     ),
@@ -1644,7 +1642,6 @@ class _PlayerCornerWidget extends StatelessWidget {
   }
 
   void _showQuickChat(BuildContext context, GameController controller) {
-    AudioService.playClick();
     final options = [
       "quick_msg_good_game", 
       "quick_msg_oops", 
@@ -1670,7 +1667,6 @@ class _PlayerCornerWidget extends StatelessWidget {
           itemCount: options.length,
           itemBuilder: (context, idx) => InkWell(
             onTap: () {
-              AudioService.playClick();
               controller.sendQuickChat(options[idx]);
               Navigator.pop(context);
             },

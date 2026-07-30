@@ -682,14 +682,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           const SizedBox(height: 15),
           Text(context.translate('waiting_room_subtitle'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic)),
           const SizedBox(height: 10),
-          TextButton.icon(
-            onPressed: () {
-              AudioService.playClick(); // ✅ Sonido
-              socketService.send('request_sync');
-            },
-            icon: const Icon(Icons.sync, color: Colors.white54, size: 16),
-            label: const Text('SINCRONIZAR', style: TextStyle(color: Colors.white54, fontSize: 12)),
-          ),
         ],
       ),
     ).animate().fadeIn().scale();
@@ -731,6 +723,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   @override
   void dispose() {
+    if (!_isNavigating) {
+      socketService.disconnect();
+    }
     _roomCodeController.dispose();
     _socketSubscription.cancel();
     super.dispose();
