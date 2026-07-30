@@ -931,12 +931,9 @@ class _GameScreenState extends State<GameScreen> {
         if (ae.event.type == 'penalty') {
           color = Colors.redAccent;
           icon = Icons.warning_amber_rounded;
-        } else if (ae.event.type == 'bonus') {
+        } else if (ae.event.type == 'bonus' || ae.event.type == 'move') {
           color = Colors.greenAccent;
-          icon = Icons.stars;
-        } else if (ae.event.type == 'move') {
-          color = Colors.lightBlueAccent;
-          icon = Icons.flight_takeoff;
+          icon = ae.event.type == 'bonus' ? Icons.stars : Icons.flight_takeoff;
         }
 
         double offsetX = ae.alignment.x < 0 ? 20 : -20; 
@@ -1657,34 +1654,30 @@ class _PlayerCornerWidget extends StatelessWidget {
       backgroundColor: Colors.brown.shade900,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: GridView.builder(
-          shrinkWrap: true,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisExtent: 60,
-          ),
-          itemCount: options.length,
-          itemBuilder: (context, idx) => InkWell(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 10,
+          runSpacing: 10,
+          children: options.map((option) => InkWell(
             onTap: () {
-              controller.sendQuickChat(options[idx]);
+              controller.sendQuickChat(option);
               Navigator.pop(context);
             },
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
-                ),
-                child: Text(
-                  context.translate(options[idx], listen: false),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+              ),
+              child: Text(
+                context.translate(option, listen: false),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
-          ),
+          )).toList(),
         ),
       ),
     );
@@ -1849,6 +1842,7 @@ class _PlayerCornerWidget extends StatelessWidget {
                     ),
                     child: Text(
                       context.translate(activeMessage, listen: false),
+                      textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11),
                     ),
                   ).animate().scale(duration: 200.ms, curve: Curves.easeOutBack).shake(delay: 200.ms),

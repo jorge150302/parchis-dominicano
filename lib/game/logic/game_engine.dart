@@ -156,12 +156,24 @@ class GameEngine {
       }
     } else if (currentPlayer.extraTurns > 0) {
       currentPlayer.extraTurns--;
-      _events.add(GameEvent(
-        messageKey: 'extra_turn', 
-        args: {'name': currentPlayer.name},
-        playerId: currentPlayer.id,
-        type: 'bonus'
-      ));
+      
+      // Solo añadimos el mensaje genérico de "Turno extra" si no hay ya un mensaje de bonus
+      // específico (captura, meta o casilla) para el jugador actual en esta jugada.
+      bool hasSpecificBonus = _events.any((e) => 
+        e.playerId == currentPlayer.id && 
+        (e.messageKey == 'captured_player' || 
+         e.messageKey == 'token_finished_bonus' || 
+         e.messageKey == 'roll_again')
+      );
+
+      if (!hasSpecificBonus) {
+        _events.add(GameEvent(
+          messageKey: 'extra_turn', 
+          args: {'name': currentPlayer.name},
+          playerId: currentPlayer.id,
+          type: 'bonus'
+        ));
+      }
       phase = GamePhase.idle;
       return;
     }

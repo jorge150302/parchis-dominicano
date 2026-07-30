@@ -1160,15 +1160,6 @@ class NetworkGameController extends GameController {
              AudioService.playClick();
            }
         }
-
-        if (targetPos > 0) {
-           engine.events.add(GameEvent(
-            messageKey: 'flying_to_cell', 
-            args: {'name': player.name, 'cell': targetPos.toString()},
-            playerId: player.id,
-            type: 'move'
-          ));
-        }
       }
 
       if (targetPos == 0) {
