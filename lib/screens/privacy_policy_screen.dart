@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config/env.dart';
 import '../config/language_provider.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
@@ -8,7 +9,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   Future<void> _openWebPolicy(String langCode) async {
     final Uri url = Uri.parse(
-      'https://baylee-nondissolving-fredrick.ngrok-free.dev/privacy?lang=$langCode',
+      '${Env.httpBaseUrl}/privacy?lang=$langCode',
     );
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       // silently ignore

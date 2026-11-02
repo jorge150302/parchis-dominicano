@@ -1,21 +1,20 @@
+/// Server endpoints, chosen at build time:
+///
+///   flutter run --dart-define=PARCHIS_WS_URL=ws://127.0.0.1:8080/ws
+///   flutter build appbundle --dart-define=PARCHIS_WS_URL=wss://api.example.com/ws
+///
+/// Without a define, builds keep pointing at the current tunnel so existing
+/// workflows don't break; replace [_defaultWsUrl] once real hosting exists.
 class Env {
-  // 🛠️ Cambia esto a 'true' para que todos usen la URL de ngrok
-  static const bool isProduction = true;
+  static const String _defaultWsUrl =
+      'wss://baylee-nondissolving-fredrick.ngrok-free.dev/ws';
 
-  // 🏠 URL de desarrollo (USB / Local)
-  static const String devUrl = 'ws://127.0.0.1:8080/ws';
-
-  // 🌍 URL de ngrok generada para la prueba real
-  static const String prodUrl = 'wss://baylee-nondissolving-fredrick.ngrok-free.dev/ws';
-
-  static String get serverUrl => isProduction ? prodUrl : devUrl;
+  static const String serverUrl =
+      String.fromEnvironment('PARCHIS_WS_URL', defaultValue: _defaultWsUrl);
 
   /// HTTP base URL derived from the WebSocket URL (strips /ws, swaps scheme).
-  static String get httpBaseUrl {
-    final ws = isProduction ? prodUrl : devUrl;
-    return ws
-        .replaceFirst('wss://', 'https://')
-        .replaceFirst('ws://', 'http://')
-        .replaceFirst('/ws', '');
-  }
+  static String get httpBaseUrl => serverUrl
+      .replaceFirst('wss://', 'https://')
+      .replaceFirst('ws://', 'http://')
+      .replaceFirst(RegExp(r'/ws$'), '');
 }
