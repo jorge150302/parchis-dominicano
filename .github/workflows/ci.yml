@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [Jorge, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Warnings and errors fail the build; style infos are reported only.
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
