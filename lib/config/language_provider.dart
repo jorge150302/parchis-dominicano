@@ -50,6 +50,7 @@ class LanguageProvider extends ChangeNotifier {
     Language.es: {
       'waiting_players': 'Esperando Jugadores...',
       'room_code': 'Código',
+      'code_copied': '¡Código copiado!',
       'online': '● EN LÍNEA',
       'offline': '○ DESCONECTADO',
       'reconnecting': '⏳ RECONECTANDO...',
@@ -322,6 +323,7 @@ class LanguageProvider extends ChangeNotifier {
     Language.en: {
       'waiting_players': 'Waiting for Players...',
       'room_code': 'Code',
+      'code_copied': 'Code copied!',
       'online': '● ONLINE',
       'offline': '○ OFFLINE',
       'reconnecting': '⏳ RECONNECTING...',

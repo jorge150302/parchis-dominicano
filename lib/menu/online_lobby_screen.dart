@@ -245,7 +245,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
 
   Future<void> _handleQuickMatch() async {
     final int? selected = await _showPlayerCountDialog(context.translate('search_quick_match', listen: false));
-    if (selected != null) {
+    if (selected != null && mounted) {
       _lastRequestedPlayers = selected;
       setState(() {
         _isLoading = true;
@@ -256,6 +256,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         await socketService.connect(_serverUrl);
         socketService.send('find_match', {'name': PrefsService.playerName, 'maxPlayers': selected});
       } catch (e) {
+        if (!mounted) return;
         setState(() => _isLoading = false);
         _showError('No se pudo conectar: $e');
       }
@@ -321,6 +322,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         if (kOnlineTestModeEnabled) 'testMode': true,
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       _showError('No se pudo conectar: $e');
     }
@@ -381,6 +383,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
         'name': PrefsService.playerName
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       _showError('Error de conexión: $e');
     }

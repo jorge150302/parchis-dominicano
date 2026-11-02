@@ -183,6 +183,7 @@ class SyncQueueService extends ChangeNotifier {
     _isSyncing = true;
     notifyListeners();
     PrefsService.pendingSyncReceipts = leftover;
+    var syncMore = false;
 
     try {
       final idToken = await _authService.firebaseUser?.getIdToken();
@@ -206,8 +207,13 @@ class SyncQueueService extends ChangeNotifier {
         debugPrint('[SyncQueue] ✅ XP synced: ${response.body}');
         await _authService.reloadProfile();
         notifyListeners();
-        // Send remaining receipts if any.
-        if (PrefsService.pendingSyncReceipts.isNotEmpty) _attemptSync();
+        // Send remaining receipts once this run has released _isSyncing.
+        syncMore = PrefsService.pendingSyncReceipts.isNotEmpty;
+      } else if (response.statusCode == 400) {
+        // The server rejected the batch itself; retrying it would block the
+        // queue forever, so drop it.
+        debugPrint('[SyncQueue] ❌ Batch rejected, dropping: ${response.body}');
+        syncMore = PrefsService.pendingSyncReceipts.isNotEmpty;
       } else {
         debugPrint('[SyncQueue] ⚠️ Server error ${response.statusCode}: ${response.body}');
         final newer = PrefsService.pendingSyncReceipts;
@@ -221,5 +227,6 @@ class SyncQueueService extends ChangeNotifier {
       _isSyncing = false;
       notifyListeners();
     }
+    if (syncMore) await _attemptSync();
   }
 }

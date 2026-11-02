@@ -648,24 +648,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Alignment _getCellAlignment(int position) {
-    if (position == -1) return const Alignment(-0.9, -0.98); // Casilla Fin subida al máximo
-    final int index = 100 - position;
-    final int row = index ~/ 10;
-    final int zigzagCol = index % 10;
-    int col;
-    if (row % 2 == 0) {
-      col = zigzagCol;
-    } else {
-      col = 9 - zigzagCol;
-    }
-
-    return Alignment(
-      (col * 0.2) - 0.9,
-      (row * 0.2) - 0.88,
-    );
-  }
-
   Widget _buildTutorialOverlay() {
     final controller = context.read<GameController>();
     String textKey = '';
@@ -1052,101 +1034,6 @@ class _GameScreenState extends State<GameScreen> {
               }
             }
           ),
-        ],
-      ),
-    );
-  }
-
-  void _showVictoryDialog(GameController controller, {required int position}) async {
-    final socketSrv = context.read<SocketService>();
-    final nav = Navigator.of(context);
-    final finishReason = controller is NetworkGameController ? controller.finishReason : null;
-    final isAbandonment = finishReason == 'abandonment';
-
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-    
-    final ordinals = ['1st', '2nd', '3rd', '4th'];
-    final ordinal = position < ordinals.length ? ordinals[position] : '${position + 1}th';
-    final emoji = position == 0 ? '🏆' : position == 1 ? '🥈' : position == 2 ? '🥉' : '🎮';
-    
-    String title = position == 0 
-        ? (context.translate('you_won', listen: false).isEmpty ? '🏆 ¡Has Ganado!' : context.translate('you_won', listen: false))
-        : '$emoji You Finished $ordinal!';
-    
-    String subtitle = position == 0
-        ? (context.translate('congratulations_first', listen: false).isEmpty ? '¡Felicidades! Has terminado en 1° lugar.' : context.translate('congratulations_first', listen: false))
-        : 'You secured $ordinal place. Keep watching or leave now.';
-
-    if (isAbandonment) {
-      title = context.translate('victory_automatic_title', listen: false).isEmpty 
-          ? '🏆 ¡Victoria Automática!' 
-          : context.translate('victory_automatic_title', listen: false);
-      subtitle = context.translate('victory_automatic_subtitle', listen: false).isEmpty
-          ? 'Los demás jugadores abandonaron la partida. ¡Eres el ganador por defecto!'
-          : context.translate('victory_automatic_subtitle', listen: false);
-    }
-
-    // Play fanfare if winner and it's an abandonment (as backup for the controller call)
-    if (position == 0 && isAbandonment) {
-      controller.playFanfare();
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.brown.shade900,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Colors.orange, width: 3),
-        ),
-        title: Center(
-          child: Text(
-            title,
-            style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 22),
-          ),
-        ),
-        content: Text(
-          '$subtitle\nWhat would you like to do?',
-          style: const TextStyle(color: Colors.white),
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              TextButton(
-                onPressed: () {
-                  AudioService.playClick();
-                  Navigator.of(ctx).pop();
-                },
-                child: const Text(
-                  '👀 Stay & Watch',
-                  style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
-                ),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () {
-                  AudioService.playClick();
-                  socketSrv.send('leave_match');
-                  Navigator.of(ctx).pop();
-                  nav.pushNamedAndRemoveUntil('/menu', (r) => false);
-                },
-                child: const Text(
-                  '🚪 Leave Match',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
         ],
       ),
     );

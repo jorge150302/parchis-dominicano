@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -36,6 +37,8 @@ void main() async {
   // Requires google-services.json in android/app/
   // Run `flutterfire configure` or download it from your Firebase Console.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // getIdToken() returns a cached token and silently refreshes it once expired.
+  socketService.idTokenProvider = () async => FirebaseAuth.instance.currentUser?.getIdToken();
   runApp(const MyApp());
 }
 

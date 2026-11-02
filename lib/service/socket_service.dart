@@ -17,10 +17,32 @@ class SocketService with ChangeNotifier {
   String? _lastUrl;
   Timer? _reconnectTimer;
   String? _cachedIdToken;
+  Timer? _tokenRefreshTimer;
 
-  static const _authEvents = {'create_game', 'join_game', 'find_match', 'register_session'};
+  /// Messages sent while a connection is being (re)established; flushed in
+  /// order once it opens so a `find_match` or `roll_dice` is not silently lost.
+  final List<String> _pending = [];
+  static const _maxPending = 50;
+
+  // request_sync carries the token so the server can verify the reconnecting
+  // device owns the seat.
+  static const _authEvents = {'create_game', 'join_game', 'find_match', 'register_session', 'request_sync'};
+
+  /// Supplies a fresh Firebase ID token (they expire after ~1 h). Set once at
+  /// startup; used on every connect and refreshed periodically.
+  Future<String?> Function()? idTokenProvider;
 
   void cacheIdToken(String? token) => _cachedIdToken = token;
+
+  Future<void> _refreshIdToken() async {
+    final provider = idTokenProvider;
+    if (provider == null) return;
+    try {
+      _cachedIdToken = await provider();
+    } catch (e) {
+      debugPrint('⚠️ No se pudo refrescar el idToken: $e');
+    }
+  }
   
   // Ping/Latency
   Timer? _pingTimer;
@@ -45,18 +67,30 @@ class SocketService with ChangeNotifier {
     debugPrint('🔌 Conectando a WebSocket: $url');
     
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
-      await _channel!.ready;
-      
+      await _refreshIdToken();
+      final channel = WebSocketChannel.connect(Uri.parse(url));
+      _channel = channel;
+      await channel.ready;
+      // disconnect() (or a newer connect) ran while we were waiting.
+      if (_channel != channel) {
+        channel.sink.close();
+        return;
+      }
+
       _isConnected = true;
       _isConnecting = false;
       _reconnectTimer?.cancel();
       _startPingTimer(); // Iniciar ping al conectar
+      _tokenRefreshTimer?.cancel();
+      _tokenRefreshTimer = Timer.periodic(const Duration(minutes: 30), (_) => _refreshIdToken());
       notifyListeners();
       debugPrint('✅ ¡Conectado con éxito!');
 
-      _channel!.stream.listen(
+      // Bound to this channel: a late onDone from a previous connection must
+      // not tear down the current one.
+      channel.stream.listen(
         (message) {
+          if (_channel != channel) return;
           try {
             final data = jsonDecode(message);
             if (data is Map<String, dynamic>) {
@@ -75,9 +109,18 @@ class SocketService with ChangeNotifier {
             debugPrint('⚠️ Error JSON: $e');
           }
         },
-        onDone: () => _handleDisconnect('Servidor cerró conexión'),
-        onError: (e) => _handleDisconnect('Error en stream: $e'),
+        onDone: () {
+          if (_channel == channel) _handleDisconnect('Servidor cerró conexión');
+        },
+        onError: (e) {
+          if (_channel == channel) _handleDisconnect('Error en stream: $e');
+        },
       );
+
+      for (final message in _pending) {
+        channel.sink.add(message);
+      }
+      _pending.clear();
     } catch (e) {
       _isConnecting = false;
       _handleDisconnect('Error de red: $e');
@@ -135,8 +178,10 @@ class SocketService with ChangeNotifier {
   }
 
   void send(String event, [Map<String, dynamic>? data]) {
-    if (_channel == null || !_isConnected) return;
-    
+    final waiting = !_isConnected && (_isConnecting || _lastUrl != null);
+    if (!_isConnected && !waiting) return;
+    if (waiting && event == 'ping') return;
+
     final payload = {
       'event': event,
       'clientId': PrefsService.playerId,
@@ -147,13 +192,20 @@ class SocketService with ChangeNotifier {
       'data': data,
     };
     
-    _channel!.sink.add(jsonEncode(payload));
+    final message = jsonEncode(payload);
+    if (_isConnected && _channel != null) {
+      _channel!.sink.add(message);
+    } else if (_pending.length < _maxPending) {
+      _pending.add(message);
+    }
   }
 
   void disconnect() {
     _lastUrl = null;
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
+    _tokenRefreshTimer?.cancel();
+    _pending.clear();
     _channel?.sink.close();
     _isConnected = false;
     _isConnecting = false;

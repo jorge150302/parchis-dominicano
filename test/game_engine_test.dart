@@ -73,4 +73,21 @@ void main() {
       expect(players[1].tokens[0].position, 0); // Reset to start
     });
   });
+
+  group('GameEngine skip penalties', () {
+    test('both players skipping does not end the game', () {
+      players[0].skippedTurns = 1;
+      players[1].skippedTurns = 1;
+      engine.nextTurn();
+      expect(engine.phase, isNot(GamePhase.finished));
+      expect(players.every((p) => p.skippedTurns == 0), isTrue);
+    });
+
+    test('a skipping opponent hands the turn back', () {
+      players[1].skippedTurns = 1;
+      engine.nextTurn();
+      expect(engine.currentPlayer.id, '1');
+      expect(players[1].skippedTurns, 0);
+    });
+  });
 }

@@ -180,11 +180,11 @@ class GameEngine {
 
     int nextIndex = _currentPlayerIndex;
     int playersCount = players.length;
-    int checked = 0;
 
-    do {
+    // Each skipped seat consumes one pending skip, so this terminates even
+    // when every player owes a skip (the turn simply comes round again).
+    while (true) {
       nextIndex = (nextIndex + 1) % playersCount;
-      checked++;
       final nextPlayer = players[nextIndex];
       
       int activePlayersCount = players.where((p) => !p.isFinished).length;
@@ -211,9 +211,7 @@ class GameEngine {
       _currentPlayerIndex = nextIndex;
       phase = GamePhase.idle;
       return;
-    } while (checked < playersCount);
-
-    phase = GamePhase.finished;
+    }
   }
 
   void stepForward(Player player, int tokenId) {

@@ -198,8 +198,19 @@ abstract class GameController extends ChangeNotifier {
     });
   }
 
+  /// Many turn steps run after a `Future.delayed`; once the screen is gone
+  /// those callbacks must neither notify nor talk to the server.
+  bool isDisposed = false;
+
+  @override
+  void notifyListeners() {
+    if (isDisposed) return;
+    super.notifyListeners();
+  }
+
   @override
   void dispose() {
+    isDisposed = true;
     diceAudio.dispose();
     fanfareAudio.dispose();
     sendToHomeAudio.dispose();
@@ -364,7 +375,7 @@ class LocalGameController extends GameController {
 
   @override
   Future<void> selectToken(int tokenId) async {
-    if (engine.phase != GamePhase.choosing_token || inputLocked) return;
+    if (isDisposed || engine.phase != GamePhase.choosing_token || inputLocked) return;
     
     if (!movableTokenIds.contains(tokenId)) {
       engine.events.add(GameEvent(
@@ -394,7 +405,7 @@ class LocalGameController extends GameController {
 
   @override
   Future<void> rollDice() async {
-    if (rollingDice || engine.phase != GamePhase.idle || inputLocked || isFanfarePlaying) return;
+    if (isDisposed || rollingDice || engine.phase != GamePhase.idle || inputLocked || isFanfarePlaying) return;
 
     inputLocked = true;
     rollingDice = true;
@@ -745,7 +756,7 @@ class NetworkGameController extends GameController {
 
   @override
   Future<void> selectToken(int tokenId) async {
-    if (!isMyTurn || engine.phase != GamePhase.choosing_token) return;
+    if (isDisposed || !isMyTurn || engine.phase != GamePhase.choosing_token) return;
     
     if (!movableTokenIds.contains(tokenId)) {
       _addCantMoveEvent();
@@ -760,7 +771,7 @@ class NetworkGameController extends GameController {
 
   @override
   Future<void> rollDice() async {
-    if (!isMyTurn || engine.phase != GamePhase.idle || rollingDice || isFanfarePlaying) return;
+    if (isDisposed || !isMyTurn || engine.phase != GamePhase.idle || rollingDice || isFanfarePlaying) return;
     
     rollingDice = true;
     rollingPlayerId = PrefsService.playerId;
@@ -807,7 +818,7 @@ class NetworkGameController extends GameController {
           messageKey: msgKey,
           playerId: data['playerId'] ?? engine.currentPlayer.id,
           type: data['type'] ?? (msgKey == 'player_cant_move' ? 'penalty' : null),
-          args: data['args'] != null ? Map<String, String>.from(data['args']) : (msgKey == 'player_cant_move' ? {'name': engine.currentPlayer.name} : null),
+          args: data['args'] is Map ? (data['args'] as Map).map((k, v) => MapEntry('$k', '$v')) : (msgKey == 'player_cant_move' ? {'name': engine.currentPlayer.name} : null),
         ));
         notifyListeners();
         break;
@@ -1021,7 +1032,7 @@ class NetworkGameController extends GameController {
           _addCantMoveEvent(engine.currentPlayer);
           
           Future.delayed(const Duration(seconds: 3), () {
-            if (engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
+            if (!isDisposed && engine.phase == GamePhase.choosing_token && movableTokenIds.isEmpty && isMyTurn) {
               socketService.send('skip_turn');
             }
           });
@@ -1217,7 +1228,7 @@ class NetworkGameController extends GameController {
           _addCantMoveEvent(me);
           if (engine.phase == GamePhase.choosing_token && engine.currentPlayer.id == PrefsService.playerId) {
             Future.delayed(const Duration(seconds: 3), () {
-              if (engine.phase == GamePhase.choosing_token && isMyTurn) {
+              if (!isDisposed && engine.phase == GamePhase.choosing_token && isMyTurn) {
                 socketService.send('skip_turn');
               }
             });
@@ -1256,11 +1267,8 @@ class NetworkGameController extends GameController {
 
   @override
   void dispose() {
-    diceAudio.dispose();
-    fanfareAudio.dispose();
-    sendToHomeAudio.dispose();
     _socketSubscription?.cancel();
-    super.dispose();
+    super.dispose(); // also disposes the audio players
   }
 }
 
