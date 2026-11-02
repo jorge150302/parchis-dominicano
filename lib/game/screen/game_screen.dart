@@ -77,7 +77,6 @@ class _GameScreenState extends State<GameScreen> {
 
   // Online-exit / surrender state
   bool _exitHandled = false;
-  String? _lastShownSurrender;
 
   @override
   void initState() {

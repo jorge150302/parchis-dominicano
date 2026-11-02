@@ -263,7 +263,6 @@ class GameEngine {
         player.extraTurns++;
         _events.add(GameEvent(messageKey: 'roll_again', args: {'name': player.name}, playerId: player.id, type: 'bonus'));
         return ActionResult(moved: false);
-      default: return ActionResult(moved: false);
     }
   }
 
