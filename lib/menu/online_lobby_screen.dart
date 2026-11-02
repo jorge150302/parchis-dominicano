@@ -668,7 +668,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             color: Colors.green.shade700,
             onTap: () {
               AudioService.playClick(); // ✅ Sonido
-              Share.share("¡Únete a mi partida de Parchís! 🎲\nCódigo de sala: $roomCode");
+              SharePlus.instance.share(ShareParams(text: "¡Únete a mi partida de Parchís! 🎲\nCódigo de sala: $roomCode"));
             },
           ),
           const SizedBox(height: 25),

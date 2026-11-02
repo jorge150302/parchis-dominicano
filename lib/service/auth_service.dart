@@ -17,7 +17,8 @@ enum DeleteAccountStatus { success, offline, error, cancelled }
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  Future<void>? _googleSignInInit;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   UserProfile? _profile;
@@ -56,6 +57,21 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Runs the native Google account picker and returns a Firebase credential,
+  /// or `null` if the user cancelled. google_sign_in 7 must be initialized
+  /// once before use; on Android the web client ID comes from
+  /// google-services.json.
+  Future<AuthCredential?> _googleCredential() async {
+    await (_googleSignInInit ??= _googleSignIn.initialize());
+    try {
+      final account = await _googleSignIn.authenticate();
+      return GoogleAuthProvider.credential(idToken: account.authentication.idToken);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      rethrow;
+    }
+  }
+
   Future<SignInStatus> signInWithGoogle() async {
     final connected = await NetworkChecker.hasConnection();
     if (!connected) return SignInStatus.offline;
@@ -66,13 +82,8 @@ class AuthService extends ChangeNotifier {
         final result = await _auth.signInWithPopup(GoogleAuthProvider());
         user = result.user;
       } else {
-        final googleUser = await _googleSignIn.signIn();
-        if (googleUser == null) return SignInStatus.cancelled;
-        final googleAuth = await googleUser.authentication;
-        final credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
+        final credential = await _googleCredential();
+        if (credential == null) return SignInStatus.cancelled;
         user = (await _auth.signInWithCredential(credential)).user;
       }
       if (user == null) return SignInStatus.error;
@@ -117,15 +128,9 @@ class AuthService extends ChangeNotifier {
             .reauthenticateWithPopup(GoogleAuthProvider())
             .timeout(const Duration(seconds: 30));
       } else {
-        final googleUser = await _googleSignIn
-            .signIn()
-            .timeout(const Duration(seconds: 30));
-        if (googleUser == null) return DeleteAccountStatus.cancelled;
-        final googleAuth = await googleUser.authentication;
-        final credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
+        final credential =
+            await _googleCredential().timeout(const Duration(seconds: 30));
+        if (credential == null) return DeleteAccountStatus.cancelled;
         await user.reauthenticateWithCredential(credential);
       }
 

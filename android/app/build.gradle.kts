@@ -25,9 +25,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
 
     signingConfigs {
         if (keyPropertiesFile.exists()) {
@@ -43,21 +40,30 @@ android {
     defaultConfig {
         applicationId = "com.example.frontend_parchis"
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            signingConfig = if (keyPropertiesFile.exists())
+            signingConfig = if (keyPropertiesFile.exists()) {
                 signingConfigs.getByName("release")
-            else
+            } else {
+                // Debug-signed builds are rejected by Google Play.
+                logger.warn("WARNING: android/key.properties not found - release build is DEBUG-signed and cannot be uploaded to Play.")
                 signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
