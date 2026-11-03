@@ -10,6 +10,7 @@ import 'package:frontend_parchis/service/auth_service.dart';
 import 'package:frontend_parchis/service/sync_queue_service.dart';
 import 'package:provider/provider.dart';
 
+import 'config/app_info.dart';
 import 'config/language_provider.dart';
 import 'screens/splash_screen.dart';
 import 'menu/main_menu_screen.dart';
@@ -27,6 +28,7 @@ import 'game/models/board_action.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PrefsService.init();
+  await AppInfo.load();
   
   // Bloquear orientación en modo vertical (Portrait)
   await SystemChrome.setPreferredOrientations([

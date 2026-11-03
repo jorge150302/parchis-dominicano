@@ -140,6 +140,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           }
         } else if (code == 'SESSION_CONFLICT') {
           _showSessionConflictDialog();
+        } else if (code == 'UPDATE_REQUIRED') {
+          // MainMenuScreen, below this route, shows the update dialog.
         } else if (code == 'LOBBY_TIMEOUT') {
           PrefsService.lastRoomCode = null;
           setState(() {

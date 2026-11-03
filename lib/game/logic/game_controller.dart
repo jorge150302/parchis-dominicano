@@ -701,7 +701,7 @@ class LocalGameController extends GameController {
   }
 }
 
-enum GameExitReason { surrendered, matchNotFound, matchClosed }
+enum GameExitReason { surrendered, matchNotFound, matchClosed, updateRequired }
 
 class NetworkGameController extends GameController {
   final SocketService socketService;
@@ -867,6 +867,9 @@ class NetworkGameController extends GameController {
       case 'error':
         if (data['code'] == 'MATCH_NOT_FOUND' || data['code'] == 'CANNOT_REJOIN') {
           exitReason = GameExitReason.matchNotFound;
+          notifyListeners();
+        } else if (data['code'] == 'UPDATE_REQUIRED') {
+          exitReason = GameExitReason.updateRequired;
           notifyListeners();
         } else if (data['code'] == 'MATCH_TIMEOUT' || data['code'] == 'LOBBY_TIMEOUT') {
           // The server closed the room; nothing more will arrive for it.

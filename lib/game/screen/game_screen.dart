@@ -317,6 +317,7 @@ class _GameScreenState extends State<GameScreen> {
             context.read<AuthService>().recordLocalMatchStats(captures: 0);
           }
         }
+        // updateRequired: just leave; MainMenuScreen shows the update dialog.
         if (reason == GameExitReason.matchClosed) {
           PrefsService.lastRoomCode = null;
           context.read<AuthService>().clearActiveMatchId();

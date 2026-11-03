@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../config/app_info.dart';
 import 'prefs_service.dart';
 
 final socketService = SocketService.instance;
@@ -187,6 +188,7 @@ class SocketService with ChangeNotifier {
       'clientId': PrefsService.playerId,
       'level': PrefsService.playerLevel,
       'avatarType': PrefsService.avatarType,
+      'build': AppInfo.build,
       if (PrefsService.avatarIconId != null) 'avatarIconId': PrefsService.avatarIconId,
       if (_cachedIdToken != null && _authEvents.contains(event)) 'idToken': _cachedIdToken,
       'data': data,

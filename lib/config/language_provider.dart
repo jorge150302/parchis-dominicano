@@ -216,6 +216,10 @@ class LanguageProvider extends ChangeNotifier {
       // Google Auth
       'sign_in_required': 'Inicia sesión para jugar en línea',
       'lobby_timeout': 'La sala expiró sin completarse. Crea o busca otra partida.',
+      'update_required_title': 'Actualización necesaria',
+      'update_required_body': 'Esta versión ya no puede jugar en línea. Actualiza la app para seguir jugando.',
+      'update_required_action': 'Actualizar',
+      'update_required_later': 'Más tarde',
       'match_closed': 'La partida se cerró por superar el tiempo máximo.',
       'player_surrendered_msg': '{name} se rindió; la IA toma su lugar',
       'sign_in_required_content': 'Necesitas una cuenta de Google para el modo en línea.',
@@ -492,6 +496,10 @@ class LanguageProvider extends ChangeNotifier {
       // Google Auth
       'sign_in_required': 'Sign in to play online',
       'lobby_timeout': 'The room expired before filling up. Create or find another match.',
+      'update_required_title': 'Update required',
+      'update_required_body': 'This version can no longer play online. Update the app to keep playing.',
+      'update_required_action': 'Update',
+      'update_required_later': 'Later',
       'match_closed': 'The match was closed for exceeding the maximum duration.',
       'player_surrendered_msg': '{name} surrendered; the AI takes their seat',
       'sign_in_required_content': 'You need a Google account to access online mode.',

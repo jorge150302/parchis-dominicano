@@ -1,3 +1,4 @@
+import '../widgets/update_required_dialog.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -42,6 +43,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       if (event['event'] == 'error' &&
           (event['data']?['code']) == 'SESSION_CONFLICT') {
         _handleSessionConflict();
+      } else if (event['event'] == 'error' &&
+          (event['data']?['code']) == 'UPDATE_REQUIRED' &&
+          mounted) {
+        showUpdateRequiredDialog(context);
       }
     });
 
