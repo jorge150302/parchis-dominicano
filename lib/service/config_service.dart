@@ -36,7 +36,7 @@ class ConfigService {
       updateUrl = remoteConfig.getString('update_url');
       */
     } catch (e) {
-      debugPrint('Error al cargar Remote Config: \$e');
+      debugPrint('Error al cargar Remote Config: $e');
     }
   }
 
@@ -52,7 +52,7 @@ class ConfigService {
         if (current[i] > required[i]) return false;
       }
     } catch (e) {
-      debugPrint('Error al comparar versiones: \$e');
+      debugPrint('Error al comparar versiones: $e');
     }
     return false;
   }

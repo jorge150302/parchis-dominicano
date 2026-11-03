@@ -27,6 +27,7 @@ class AuthService extends ChangeNotifier {
   bool _profileLoading = false;
   Completer<void>? _profileLoadCompleter;
   bool _wasSignedIn = false;
+  StreamSubscription<User?>? _authSub;
 
   UserProfile? get profile => _profile;
   bool get needsMigrationDialog => _needsMigrationDialog;
@@ -34,9 +35,15 @@ class AuthService extends ChangeNotifier {
   bool get isSignedIn => _auth.currentUser != null;
   User? get firebaseUser => _auth.currentUser;
 
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
   AuthService() {
     _wasSignedIn = _auth.currentUser != null;
-    _auth.authStateChanges().listen(_onAuthStateChanged);
+    _authSub = _auth.authStateChanges().listen(_onAuthStateChanged);
   }
 
   Future<void> _onAuthStateChanged(User? user) async {
@@ -238,7 +245,9 @@ class AuthService extends ChangeNotifier {
         // Only offer migration if explicitly requested (transition) or if there's a significant 
         // discrepancy while NO sync receipts are pending.
         bool hasPendingSync = PrefsService.pendingSyncReceipts.isNotEmpty;
-        if (checkMigration || (!hasPendingSync && localXp > _profile!.xp + 50 && localXp > 0)) {
+        // Nothing to migrate without guest XP, even on a fresh sign-in.
+        if (localXp > 0 &&
+            (checkMigration || (!hasPendingSync && localXp > _profile!.xp + 50))) {
           _guestXpBeforeMigration = localXp;
           _needsMigrationDialog = true;
           debugPrint('[AuthService] Migration dialog needed — guest XP: $localXp, cloud XP: ${_profile!.xp}');
