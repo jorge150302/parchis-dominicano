@@ -1,3 +1,4 @@
+import 'package:uuid/uuid.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -56,44 +57,48 @@ class SyncQueueService extends ChangeNotifier {
   bool isDailyCapped(GameDifficulty difficulty) =>
       todayXpForDifficulty(difficulty) >= dailyCapForDifficulty(difficulty);
 
-  /// Awards XP after a match. Returns the actual XP added to the local total.
-  /// [rawXp] is the full unmodified XP value for an online win.
-  int awardMatchXp({
+  /// Shows XP the server already credited for an online match (sent in
+  /// `you_finished`), then refreshes the profile once the server's write
+  /// has landed.
+  void applyServerAwardedXp(int xp) {
+    if (xp > 0) _applyLocalXp(xp);
+    if (_authService.isSignedIn) {
+      Future.delayed(const Duration(seconds: 3), _authService.reloadProfile);
+    }
+  }
+
+  /// Records an offline match: queues a receipt with its XP (after the
+  /// offline ratio and daily caps; pass `rawXp: 0` for games that award no
+  /// XP) and stats, which the server bounds and applies. Returns the XP
+  /// added to the local total.
+  int recordOfflineMatch({
     required int rawXp,
-    required bool isOnline,
+    required int captures,
+    required bool isWin,
     GameDifficulty difficulty = GameDifficulty.medium,
   }) {
     _resetDailyCounterIfNeeded();
 
-    if (isOnline) {
-      _applyLocalXp(rawXp);
-      _enqueue(XpReceipt(
-        id: _receiptId(),
-        xp: rawXp,
-        isOnline: true,
-        timestamp: DateTime.now(),
-      ));
-      _attemptSync();
-      return rawXp;
-    }
-
-    final cap = dailyCapForDifficulty(difficulty);
+    var awarded = 0;
     final offlineXp = (rawXp * offlineXpRatio).floor();
-    if (offlineXp == 0 || isDailyCapped(difficulty)) return 0;
-
-    final todayEarned = todayXpForDifficulty(difficulty);
-    final remaining = cap - todayEarned;
-    final awarded = offlineXp.clamp(0, remaining);
-    if (awarded <= 0) return 0;
+    if (offlineXp > 0 && !isDailyCapped(difficulty)) {
+      final remaining = dailyCapForDifficulty(difficulty) - todayXpForDifficulty(difficulty);
+      awarded = offlineXp.clamp(0, remaining);
+    }
 
     _enqueue(XpReceipt(
       id: _receiptId(),
       xp: awarded,
       isOnline: false,
       timestamp: DateTime.now(),
+      isMatch: true,
+      isWin: isWin,
+      captures: captures,
     ));
-    _applyLocalXp(awarded);
-    _incrementDailyXp(difficulty, awarded);
+    if (awarded > 0) {
+      _applyLocalXp(awarded);
+      _incrementDailyXp(difficulty, awarded);
+    }
 
     if (_authService.isSignedIn) _attemptSync();
 
@@ -167,7 +172,8 @@ class SyncQueueService extends ChangeNotifier {
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  String _receiptId() => DateTime.now().microsecondsSinceEpoch.toString();
+  // Unique across devices: the server stores processed ids per account.
+  String _receiptId() => const Uuid().v4();
 
   static const _maxReceiptsPerBatch = 20;
 

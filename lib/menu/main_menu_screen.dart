@@ -37,9 +37,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     _authService.addListener(_onAuthChanged);
 
     _socketSub = context.read<SocketService>().events.listen((event) {
-      if (event['event'] == 'user_data_deleted') {
-        _handleAccountDeleted();
-      } else if (event['event'] == 'error' &&
+      // Account deletion is confirmed by deleteAccount() itself, not by the
+      // server, so only session conflicts arrive here.
+      if (event['event'] == 'error' &&
           (event['data']?['code']) == 'SESSION_CONFLICT') {
         _handleSessionConflict();
       }

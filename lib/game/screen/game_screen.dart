@@ -186,44 +186,38 @@ class _GameScreenState extends State<GameScreen> {
         ? controller.humanCaptureCount
         : 0;
 
-    // Record match stats (local + Firestore if signed in)
-    auth.updateMatchStats(
-      captures: captures,
-      isWin: isWin,
-      isOnline: controller.isOnline,
-    );
+    // Local mirror only; the Firestore profile is written by the server.
+    auth.recordLocalMatchStats(captures: captures, isWin: isWin);
 
-    // Online first-place win also increments Firestore wins via incrementWins
-    if (controller.isOnline && isWin) {
-      auth.incrementWins();
+    final int oldLevel = PrefsService.playerLevel;
+    final String oldRank = LevelManager.getRankName(oldLevel);
+
+    if (controller is NetworkGameController) {
+      // The server already decided and stored this match's XP.
+      _lastGainedXp = controller.myXpAwarded;
+      syncQueue.applyServerAwardedXp(_lastGainedXp);
+    } else {
+      // XP only for vs-AI offline games; local multiplayer records stats only.
+      final rawXp = (myPosition != -1 && vsAI)
+          ? LevelManager.calculateMatchXP(
+              position: myPosition,
+              totalPlayers: controller.players.length,
+              difficulty: widget.difficulty,
+            )
+          : 0;
+      _lastGainedXp = syncQueue.recordOfflineMatch(
+        rawXp: rawXp,
+        captures: captures,
+        isWin: isWin,
+        difficulty: widget.difficulty,
+      );
+      if (rawXp > 0 && _lastGainedXp == 0) _dailyCapReached = true;
     }
 
-    // XP only awarded for online matches or vs-AI offline — not local multiplayer
-    if (myPosition != -1 && (controller.isOnline || vsAI)) {
-      final rawXp = LevelManager.calculateMatchXP(
-        position: myPosition,
-        totalPlayers: controller.players.length,
-        difficulty: widget.difficulty,
-      );
-
-      final int oldLevel = PrefsService.playerLevel;
-      final String oldRank = LevelManager.getRankName(oldLevel);
-
-      _lastGainedXp = syncQueue.awardMatchXp(
-        rawXp: rawXp,
-        isOnline: controller.isOnline,
-        difficulty: widget.difficulty,
-      );
-
-      if (PrefsService.playerLevel > oldLevel) {
-        _didLevelUp = true;
-        if (LevelManager.getRankName(PrefsService.playerLevel) != oldRank) {
-          _didRankUp = true;
-        }
-      }
-
-      if (!controller.isOnline && rawXp > 0 && _lastGainedXp == 0) {
-        _dailyCapReached = true;
+    if (PrefsService.playerLevel > oldLevel) {
+      _didLevelUp = true;
+      if (LevelManager.getRankName(PrefsService.playerLevel) != oldRank) {
+        _didRankUp = true;
       }
     }
   }
@@ -319,11 +313,8 @@ class _GameScreenState extends State<GameScreen> {
           // Count as abandoned only when they had actually been playing (players loaded).
           if (!_progressUpdated && controller.players.isNotEmpty) {
             _progressUpdated = true;
-            context.read<AuthService>().updateMatchStats(
-              captures: 0,
-              isWin: false,
-              isOnline: true,
-            );
+            // The server counts the abandoned match; mirror it locally.
+            context.read<AuthService>().recordLocalMatchStats(captures: 0);
           }
         }
         if (mounted) {
@@ -391,11 +382,8 @@ class _GameScreenState extends State<GameScreen> {
       // Record loss + match count if progress not already saved (player surrendered mid-game).
       if (!_progressUpdated) {
         _progressUpdated = true;
-        context.read<AuthService>().updateMatchStats(
-          captures: 0,
-          isWin: false,
-          isOnline: true,
-        );
+        // The server records the surrender; mirror it locally.
+        context.read<AuthService>().recordLocalMatchStats(captures: 0);
       }
     }
     Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);

@@ -711,6 +711,7 @@ class NetworkGameController extends GameController {
 
   // Set by server events — GameScreen reacts to these.
   int? myFinishPosition;       // rank (1-indexed) when you_finished received
+  int myXpAwarded = 0;         // XP the server credited for this match
   String? finishReason;        // e.g. 'abandonment'
   bool _isSilentFinish = false;
   GameExitReason? exitReason;  // non-null signals GameScreen to leave
@@ -843,6 +844,7 @@ class NetworkGameController extends GameController {
       // Server confirmed this player finished — position is 1-indexed rank.
       case 'you_finished':
         myFinishPosition = data['position'] as int? ?? 1;
+        myXpAwarded = data['xpAwarded'] as int? ?? 0;
         finishReason = data['reason'] as String?;
         _isSilentFinish = data['silent'] ?? false;
         

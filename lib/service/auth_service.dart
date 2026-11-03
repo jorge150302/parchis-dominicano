@@ -99,6 +99,23 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Server-written subcollections of a profile (see firestore.rules).
+  static const _historyCollections = ['match_results', 'xp_receipts'];
+
+  Future<void> _deleteUserHistory(DocumentReference<Map<String, dynamic>> userRef) async {
+    for (final name in _historyCollections) {
+      while (true) {
+        final page = await userRef.collection(name).limit(400).get();
+        if (page.docs.isEmpty) break;
+        final batch = _db.batch();
+        for (final doc in page.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+    }
+  }
+
   Future<SignOutStatus> signOut() async {
     final connected = await NetworkChecker.hasConnection();
     if (!connected) return SignOutStatus.offline;
@@ -134,12 +151,11 @@ class AuthService extends ChangeNotifier {
         await user.reauthenticateWithCredential(credential);
       }
 
-      // Step 2 — Delete Firestore document
-      await _db
-          .collection('users')
-          .doc(user.uid)
-          .delete()
-          .timeout(const Duration(seconds: 15));
+      // Step 2 — Delete Firestore data. Deleting a document does not delete
+      // its subcollections, so the server-written history goes first.
+      final userRef = _db.collection('users').doc(user.uid);
+      await _deleteUserHistory(userRef).timeout(const Duration(seconds: 30));
+      await userRef.delete().timeout(const Duration(seconds: 15));
 
       // Step 3 — Delete Firebase Auth user
       await user.delete().timeout(const Duration(seconds: 15));
@@ -314,54 +330,21 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<void> incrementWins() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-    PrefsService.wins = PrefsService.wins + 1;
-    try {
-      await _db.collection('users').doc(user.uid).update({
-        'wins': FieldValue.increment(1),
-        'updated_at': FieldValue.serverTimestamp(),
-      });
-      await _loadOrCreateProfile(user);
-    } catch (e) {
-      debugPrint('incrementWins error: $e');
-    }
-  }
-
-  /// Records match completion: increments local stats always, syncs to
-  /// Firestore if signed in. [isWin] triggers a win increment for offline
-  /// games (online wins are already handled by [incrementWins]).
-  Future<void> updateMatchStats({
-    required int captures,
-    bool isWin = false,
-    bool isOnline = false,
-  }) async {
+  /// Mirrors a finished match in the local stats shown in the UI. The
+  /// Firestore profile is written only by the server: online results when
+  /// the match ends, offline ones from the receipts sent to /xp_sync.
+  void recordLocalMatchStats({required int captures, bool isWin = false}) {
     PrefsService.matchesPlayed = PrefsService.matchesPlayed + 1;
     PrefsService.tokensCapture = PrefsService.tokensCapture + captures;
-    if (isWin && !isOnline) PrefsService.wins = PrefsService.wins + 1;
+    if (isWin) PrefsService.wins = PrefsService.wins + 1;
 
     if (_profile != null) {
       _profile = _profile!.copyWith(
         matchesPlayed: _profile!.matchesPlayed + 1,
         tokensCapture: _profile!.tokensCapture + captures,
-        wins: (isWin && !isOnline) ? _profile!.wins + 1 : _profile!.wins,
+        wins: isWin ? _profile!.wins + 1 : _profile!.wins,
       );
-      notifyListeners();
     }
-
-    final user = _auth.currentUser;
-    if (user == null) return;
-    try {
-      final updates = <String, dynamic>{
-        'matches_played': FieldValue.increment(1),
-        'tokens_capture': FieldValue.increment(captures),
-        'updated_at': FieldValue.serverTimestamp(),
-      };
-      if (isWin && !isOnline) updates['wins'] = FieldValue.increment(1);
-      await _db.collection('users').doc(user.uid).update(updates);
-    } catch (e) {
-      debugPrint('updateMatchStats error: $e');
-    }
+    notifyListeners();
   }
 }
