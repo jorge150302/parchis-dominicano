@@ -699,7 +699,7 @@ class LocalGameController extends GameController {
   }
 }
 
-enum GameExitReason { surrendered, matchNotFound }
+enum GameExitReason { surrendered, matchNotFound, matchClosed }
 
 class NetworkGameController extends GameController {
   final SocketService socketService;
@@ -715,7 +715,6 @@ class NetworkGameController extends GameController {
   String? finishReason;        // e.g. 'abandonment'
   bool _isSilentFinish = false;
   GameExitReason? exitReason;  // non-null signals GameScreen to leave
-  String? lastSurrenderedName; // name of player who just surrendered
 
   NetworkGameController({required super.engine, required this.socketService}) {
     _socketSubscription = socketService.events.listen(_handleServerEvent);
@@ -863,14 +862,13 @@ class NetworkGameController extends GameController {
         exitReason = GameExitReason.surrendered;
         notifyListeners();
         break;
-      // Another player surrendered — show info.
-      case 'player_surrendered':
-        lastSurrenderedName = data['playerName'] as String? ?? '';
-        notifyListeners();
-        break;
       case 'error':
         if (data['code'] == 'MATCH_NOT_FOUND' || data['code'] == 'CANNOT_REJOIN') {
           exitReason = GameExitReason.matchNotFound;
+          notifyListeners();
+        } else if (data['code'] == 'MATCH_TIMEOUT' || data['code'] == 'LOBBY_TIMEOUT') {
+          // The server closed the room; nothing more will arrive for it.
+          exitReason = GameExitReason.matchClosed;
           notifyListeners();
         }
         break;

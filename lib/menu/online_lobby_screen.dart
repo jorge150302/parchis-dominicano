@@ -140,6 +140,13 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           }
         } else if (code == 'SESSION_CONFLICT') {
           _showSessionConflictDialog();
+        } else if (code == 'LOBBY_TIMEOUT') {
+          PrefsService.lastRoomCode = null;
+          setState(() {
+            _currentRoomCode = null;
+            _currentPlayersInRoom = 0;
+          });
+          _showError(context.translate('lobby_timeout', listen: false));
         } else {
           _showError(data['message'] ?? 'Error desconocido');
         }

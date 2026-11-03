@@ -46,6 +46,9 @@ class LanguageProvider extends ChangeNotifier {
     return translation;
   }
 
+  @visibleForTesting
+  static Map<Language, Map<String, String>> get translations => _translations;
+
   static const Map<Language, Map<String, String>> _translations = {
     Language.es: {
       'waiting_players': 'Esperando Jugadores...',
@@ -212,6 +215,9 @@ class LanguageProvider extends ChangeNotifier {
       'quick_msg_play_fast': '¡Juega rápido!',
       // Google Auth
       'sign_in_required': 'Inicia sesión para jugar en línea',
+      'lobby_timeout': 'La sala expiró sin completarse. Crea o busca otra partida.',
+      'match_closed': 'La partida se cerró por superar el tiempo máximo.',
+      'player_surrendered_msg': '{name} se rindió; la IA toma su lugar',
       'sign_in_required_content': 'Necesitas una cuenta de Google para el modo en línea.',
       'session_conflict_title': 'Sesión activa en otro dispositivo',
       'session_conflict_content': 'Tu cuenta ya está conectada desde otro dispositivo. Cierra esa sesión antes de continuar aquí.',
@@ -485,6 +491,9 @@ class LanguageProvider extends ChangeNotifier {
       'quick_msg_play_fast': 'Play fast!',
       // Google Auth
       'sign_in_required': 'Sign in to play online',
+      'lobby_timeout': 'The room expired before filling up. Create or find another match.',
+      'match_closed': 'The match was closed for exceeding the maximum duration.',
+      'player_surrendered_msg': '{name} surrendered; the AI takes their seat',
       'sign_in_required_content': 'You need a Google account to access online mode.',
       'session_conflict_title': 'Active session on another device',
       'session_conflict_content': 'Your account is already connected from another device. Close that session before continuing here.',

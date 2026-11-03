@@ -317,6 +317,13 @@ class _GameScreenState extends State<GameScreen> {
             context.read<AuthService>().recordLocalMatchStats(captures: 0);
           }
         }
+        if (reason == GameExitReason.matchClosed) {
+          PrefsService.lastRoomCode = null;
+          context.read<AuthService>().clearActiveMatchId();
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(context.translate('match_closed', listen: false)),
+          ));
+        }
         if (mounted) {
           Navigator.of(context).popUntil((r) => r.settings.name == '/menu' || r.isFirst);
           if (ModalRoute.of(context)?.settings.name != '/menu') {
