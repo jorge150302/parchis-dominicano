@@ -61,7 +61,7 @@ class _Dice3DWidgetState extends State<Dice3DWidget>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _rotation,
-      builder: (_, __) {
+      builder: (_, _) {
         return Transform(
           alignment: Alignment.center,
 

@@ -113,7 +113,7 @@ class _DiceWidgetState extends State<DiceWidget>
 
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, __) {
+      builder: (_, _) {
         return Transform.translate(
           offset: Offset(0, _bounce.value),
           child: Transform.rotate(

@@ -366,7 +366,9 @@ class LocalGameController extends GameController {
       final bTotal = b.tokens.fold<int>(0, (s, t) => s + (t.isFinished ? engine.board.finalPosition : (t.position > 0 ? t.position : 0)));
       return bTotal.compareTo(aTotal);
     });
-    for (final p in unfinished) engine.finisherIds.add(p.id);
+    for (final p in unfinished) {
+      engine.finisherIds.add(p.id);
+    }
     engine.phase = GamePhase.finished;
     inputLocked = true;
     PrefsService.savedLocalGame = null;

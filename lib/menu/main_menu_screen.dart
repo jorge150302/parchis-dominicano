@@ -588,13 +588,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 await _checkSessionConflict();
                 if (!mounted) return;
                 if (!auth.isSignedIn) return;
-                Navigator.pushNamed(this.context, '/online_lobby');
+                Navigator.pushNamed(context, '/online_lobby');
               } else if (status == SignInStatus.offline || status == SignInStatus.error) {
                 final key = status == SignInStatus.offline
                     ? 'auth_no_internet_signin'
                     : 'auth_signin_failed';
                 showDialog(
-                  context: this.context,
+                  context: context,
                   builder: (ctx) => AlertDialog(
                     backgroundColor: Colors.brown.shade900,
                     content: Text(ctx.translate(key), style: const TextStyle(color: Colors.white)),
@@ -1066,7 +1066,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     if (!mounted) return;
 
     showDialog(
-      context: this.context,
+      context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.brown,
@@ -1081,14 +1081,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       ),
     );
 
-    final auth = this.context.read<AuthService>();
-    final socket = this.context.read<SocketService>();
+    final auth = context.read<AuthService>();
+    final socket = context.read<SocketService>();
     final playerId = PrefsService.playerId;
 
     final status = await auth.deleteAccount();
 
     if (!mounted) return;
-    Navigator.of(this.context).pop();
+    Navigator.of(context).pop();
 
     switch (status) {
       case DeleteAccountStatus.success:
@@ -1105,7 +1105,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   void _showDeleteError(String messageKey) {
     showDialog(
-      context: this.context,
+      context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.brown.shade900,
         title: Text(ctx.translate('auth_delete_title'), style: const TextStyle(color: Colors.red)),
