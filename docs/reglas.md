@@ -153,8 +153,8 @@ El tablero **rápido** (`quick`) ya está en el catálogo para la Fase 4.3. No s
 | D3 Puentes | |
 | D4 Salto hacia un puente | |
 | D5 Contador de seises | |
-| P1 Fin de partida | |
-| P2 Fichas por jugador | |
-| P3 Tablero online | |
-| P4 Duración objetivo | |
-| P5 Salida y meta | |
+| P1 Fin de partida | **A**: hasta que queda un solo jugador |
+| P2 Fichas por jugador | 2, como hoy (sin cambios) |
+| P3 Tablero online | **A**: siempre el medio |
+| P4 Duración objetivo | **30 a 60 minutos** para 4 jugadores online. Hoy dura ~50 minutos; lo vigila `packages/parchis_core/test/match_length_test.dart` |
+| P5 Salida y meta | Salir de casa con **cualquier número** (R2). Falta confirmar el tiro exacto para entrar a la meta (R4) |
