@@ -1,5 +1,8 @@
 
-class Token {
+import 'package:parchis_core/parchis_core.dart';
+
+class Token implements RulesToken {
+  @override
   final int id;
   int _position;
   bool _isFinished;
@@ -14,15 +17,19 @@ class Token {
         _isFinished = isFinished;
 
   // ✅ Getters
+  @override
   int get position => _position;
+  @override
   bool get isFinished => _isFinished;
 
   // ✅ Setters con candado
+  @override
   set position(int val) {
     if (_isFinished && val != -1) return; // Si terminó, solo aceptamos -1
     _position = val;
   }
 
+  @override
   set isFinished(bool val) {
     if (_isFinished && !val) return; // Una vez true, no puede volver a false (excepto reset total)
     _isFinished = val;
@@ -55,14 +62,19 @@ class Token {
   );
 }
 
-class Player {
+class Player implements RulesPlayer {
+  @override
   final String id;
   final String name;
   final String tokenAsset;
   final int index;
+  @override
   final List<Token> tokens;
+  @override
   int skippedTurns;
+  @override
   int consecutiveSixes;
+  @override
   int extraTurns;
   bool isAI;
   bool isAutoPlaying;
@@ -76,7 +88,7 @@ class Player {
     required this.name,
     required this.tokenAsset,
     required this.index,
-    required int tokenCount,
+    int? tokenCount,
     this.skippedTurns = 0,
     this.consecutiveSixes = 0,
     this.extraTurns = 0,
@@ -86,8 +98,9 @@ class Player {
     this.lastDiceValue = 1,
     this.avatarType = 'google',
     this.avatarIconId,
-  }) : tokens = List.generate(tokenCount, (i) => Token(id: i));
+  }) : tokens = List.generate(tokenCount ?? RulesConfig.official.tokensPerPlayer, (i) => Token(id: i));
 
+  @override
   bool get isFinished => tokens.every((t) => t.isFinished);
 
   Map<String, dynamic> toJson() => {

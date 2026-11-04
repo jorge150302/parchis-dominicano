@@ -11,8 +11,6 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend_parchis/game/logic/board_actions_config.dart';
-import 'package:frontend_parchis/game/logic/board_generator.dart';
 import 'package:frontend_parchis/game/logic/game_controller.dart';
 import 'package:frontend_parchis/game/logic/game_engine.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
@@ -87,7 +85,7 @@ void main() {
     expect(roomCode, isNotEmpty);
 
     final engine = GameEngine(
-      board: generateBoard(mediumActionPositions, mediumActions, totalCells: 100),
+      board: mediumBoard.build(),
       players: [],
     );
     final controller = NetworkGameController(engine: engine, socketService: socket);
