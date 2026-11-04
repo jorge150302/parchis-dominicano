@@ -1,13 +1,18 @@
 // Contenido actualizado para parchis_server/lib/models/player.dart
 
-class Token {
+import 'package:parchis_core/parchis_core.dart';
+
+class Token implements RulesToken {
   Token({
     required this.id,
     this.position = 0,
     this.isFinished = false,
   });
+  @override
   final int id;
+  @override
   int position;
+  @override
   bool isFinished;
 
   void reset() {
@@ -22,11 +27,11 @@ class Token {
       };
 }
 
-class Player {
+class Player implements RulesPlayer {
   Player({
     required this.id,
     required this.name,
-    int numTokens = 2,
+    int? numTokens,
     this.skippedTurns = 0,
     this.consecutiveSixes = 0,
     this.extraTurns = 0,
@@ -37,13 +42,21 @@ class Player {
     this.level = 1,
     this.avatarType = 'google',
     this.avatarIconId,
-  }) : tokens = List.generate(numTokens, (i) => Token(id: i));
+  }) : tokens = List.generate(
+          numTokens ?? RulesConfig.official.tokensPerPlayer,
+          (i) => Token(id: i),
+        );
+  @override
   final String id;
   final String name;
 
+  @override
   List<Token> tokens;
+  @override
   int skippedTurns;
+  @override
   int consecutiveSixes;
+  @override
   int extraTurns;
   bool isAI;
   bool isAutoPlaying;
@@ -68,6 +81,7 @@ class Player {
     lastDiceValue = 1;
   }
 
+  @override
   bool get isFinished => tokens.every((t) => t.isFinished);
 
   void addSkip(int turns) {

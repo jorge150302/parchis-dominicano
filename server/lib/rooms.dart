@@ -9,10 +9,7 @@ import 'package:parchis_server/firebase_admin.dart' as admin
 import 'package:parchis_server/firebase_admin.dart';
 import 'package:parchis_server/entitlements.dart';
 import 'package:parchis_server/game_engine.dart';
-import 'package:parchis_server/logic/board_generator.dart';
-import 'package:parchis_server/logic/board_presets.dart';
 import 'package:parchis_server/match_results.dart';
-import 'package:parchis_server/models/board_action.dart';
 import 'package:parchis_server/models/player.dart';
 import 'package:parchis_server/server_stats.dart';
 
@@ -840,6 +837,7 @@ Future<void> handleClientMessage(
         avatarIconId,
         idToken,
         testMode: testMode,
+        boardId: data['boardId'],
       );
       unawaited(_applyDiceSkin(channel, clientId, idToken, data['diceSkin']));
     }
@@ -1124,11 +1122,14 @@ void _createAndJoinRoom(
   String? avatarIconId,
   String? idToken, {
   bool testMode = false,
+  Object? boardId,
 }) {
   final roomCode = _newRoomCode();
-  final board =
-      generateBoard(classicActionPositions, classicActions, totalCells: 100);
-  final engine = GameEngine(board: board, players: []);
+  // Unknown or missing ids fall back to the default board.
+  final board = boardById(boardId is String ? boardId : null) ??
+      boardById(defaultBoardId)!;
+  final engine =
+      GameEngine(board: board.build(), boardId: board.id, players: []);
   final room = GameRoom(roomCode, engine, maxPlayers,
       isPublic: isPublic, testMode: testMode);
   _rooms[roomCode] = room;
@@ -1299,19 +1300,25 @@ void _handleRollDice(ClientConnection? channel,
 
     _broadcastDiceResult(rCode, diceValue, pId);
 
-    room.engine.registerSix(room.engine.currentPlayer, diceValue);
-    if (room.engine.currentPlayer.consecutiveSixes >= 3) {
-      room.engine.penaltyThreeSixes(room.engine.currentPlayer);
-      _broadcastGameEvent(
-          rCode, '${room.engine.currentPlayer.name} sacó tres 6.');
+    final player = room.engine.currentPlayer;
+    final outcome = room.engine.roll(diceValue);
+    if (outcome.threeSixes) {
+      room.broadcast({
+        'event': 'game_event',
+        'data': {
+          'message': 'penalty_three_sixes',
+          'playerId': player.id,
+          'type': 'penalty',
+          'args': {'name': player.name},
+        },
+      });
       _moveToNextTurnWithSkips(rCode);
-    } else if (room.engine
-        .canMoveAnyToken(room.engine.currentPlayer, diceValue)) {
+    } else if (outcome.canMove) {
       room.engine.phase = GamePhase.choosingToken;
       _broadcastGameState(rCode);
       room.startTimer(() => _handleTimeout(rCode));
     } else {
-      if (diceValue == 6) {
+      if (outcome.playAgain) {
         room.broadcast({
           'event': 'game_event',
           'data': {
@@ -1351,7 +1358,8 @@ Future<void> _handleMoveToken(
   if (tokens.isEmpty) return;
   final token = tokens.first;
   room.stopTimer();
-  if (!room.engine.canMove(token, room.engine.lastDiceValue)) {
+  if (!room.engine.canMove(
+      room.engine.currentPlayer, token, room.engine.lastDiceValue)) {
     room.startTimer(() => _handleTimeout(rCode));
     return;
   }
@@ -1361,9 +1369,10 @@ Future<void> _handleMoveToken(
   // The room may have been closed while we waited.
   if (_rooms[rCode] != room) return;
 
+  final player = room.engine.currentPlayer;
   final diceValue = room.engine.lastDiceValue;
   for (var i = 0; i < diceValue; i++) {
-    room.engine.stepForward(token);
+    if (room.engine.step(token)) break;
   }
 
   // Broadcast intermediate position so clients can animate step-by-step.
@@ -1371,7 +1380,7 @@ Future<void> _handleMoveToken(
     room.broadcast({
       'event': 'token_stepped',
       'data': {
-        'playerId': room.engine.currentPlayer.id,
+        'playerId': player.id,
         'tokenId': tokenId,
         'position': token.position,
       },
@@ -1382,71 +1391,49 @@ Future<void> _handleMoveToken(
   await Future<void>.delayed(Duration(milliseconds: diceValue * 200 + 300));
   if (_rooms[rCode] != room) return;
 
-  // Capture cell action before applying (position changes after apply).
-  BoardAction? cellAction;
-  if (!token.isFinished && token.position > 0) {
-    cellAction = room.engine.board.getCell(token.position).action;
+  final landing = room.engine.land(player, token, diceValue);
+
+  final cellAction = landing.cellAction;
+  if (cellAction != null &&
+      !landing.skipCancelledBySix &&
+      !landing.jumpBlocked) {
+    _broadcastCellActionEvent(rCode, player, token, cellAction);
   }
 
-  var bonusSent = false;
+  // The clients announce finished tokens themselves; a specific bonus
+  // message replaces the generic 'extra_turn'.
+  var bonusSent = cellAction?.type == BoardActionType.rollAgain ||
+      landing.captures.isNotEmpty ||
+      landing.finishBonus;
 
-  // skipTurn + dice-6 exception: cancel both effects instead of applying either.
-  final skipTurnDice6 =
-      cellAction?.type == BoardActionType.skipTurn && diceValue == 6;
-  if (!skipTurnDice6) {
-    room.engine.applyCellAction(room.engine.currentPlayer, token);
-    if (cellAction != null) {
-      _broadcastCellActionEvent(
-          rCode, room.engine.currentPlayer, token, cellAction);
-      if (cellAction.type == BoardActionType.rollAgain) {
-        bonusSent = true;
-      }
-    }
-  }
-
-  final capturedPlayers = room.engine.resolveCollisions(token);
-  if (capturedPlayers.isNotEmpty) bonusSent = true;
-  for (final capturedPlayer in capturedPlayers) {
-    room.captures[room.engine.currentPlayer.id] =
-        (room.captures[room.engine.currentPlayer.id] ?? 0) + 1;
-    // room.engine.currentPlayer.extraTurns++ ya se hace en resolveCollisions del motor
+  for (final capture in landing.captures) {
+    room.captures[player.id] = (room.captures[player.id] ?? 0) + 1;
     room.broadcast({
       'event': 'game_event',
       'data': {
         'message': 'captured_player',
-        'playerId': room.engine.currentPlayer.id,
+        'playerId': player.id,
         'type': 'bonus',
-        'args': {
-          'name': room.engine.currentPlayer.name,
-          'other': capturedPlayer.name,
-        },
+        'args': {'name': player.name, 'other': capture.owner.name},
       },
     });
   }
 
-  // Si sacó un 6 y no cayó en casilla de saltar turno, gana un turno extra natural
-  if (diceValue == 6 && !skipTurnDice6) {
-    room.engine.currentPlayer.extraTurns++;
-  }
-
-  if (room.engine.currentPlayer.isFinished) {
+  if (landing.playerFinished) {
     bonusSent = true;
-    _notifyAndClearPlayerFinish(rCode, room.engine.currentPlayer);
-    room.engine.currentPlayer.extraTurns = 0;
+    _notifyAndClearPlayerFinish(rCode, player);
     _moveToNextTurnWithSkips(rCode);
-  } else if (room.engine.currentPlayer.extraTurns > 0) {
-    room.engine.currentPlayer.extraTurns--;
-
-    // Solo enviamos 'extra_turn' si no hemos enviado ya un mensaje de bonus específico
-    // o si aún quedan más turnos extra acumulados (ej: sacó un 6 Y capturó).
-    if (!bonusSent || room.engine.currentPlayer.extraTurns > 0) {
+  } else if (landing.playAgain) {
+    // Only announce 'extra_turn' when no specific bonus did, or when more
+    // extra turns are still pending (e.g. a 6 and a capture).
+    if (!bonusSent || player.extraTurns > 0) {
       room.broadcast({
         'event': 'game_event',
         'data': {
           'message': 'extra_turn',
-          'playerId': room.engine.currentPlayer.id,
+          'playerId': player.id,
           'type': 'bonus',
-          'args': {'name': room.engine.currentPlayer.name},
+          'args': {'name': player.name},
         },
       });
     }
@@ -1476,7 +1463,8 @@ void _handleTimeout(String roomCode) {
     Token? best;
     var max = -1;
     for (final t in room.engine.currentPlayer.tokens) {
-      if (room.engine.canMove(t, room.engine.lastDiceValue) &&
+      if (room.engine.canMove(
+              room.engine.currentPlayer, t, room.engine.lastDiceValue) &&
           t.position > max) {
         max = t.position;
         best = t;
@@ -1504,39 +1492,20 @@ void _moveToNextTurnWithSkips(String roomCode) {
   if (room == null) return;
   room.stopTimer();
 
-  // --- Compensación Silenciosa de Penalizaciones ---
-  // Si TODOS los jugadores activos tienen al menos un salto de turno pendiente,
-  // les restamos uno a todos silenciosamente para evitar ráfagas de mensajes
-  // y permitir que el juego fluya si todos están en la misma situación.
-  final activePlayers =
-      room.engine.players.where((p) => !p.isFinished).toList();
-  if (activePlayers.isNotEmpty && activePlayers.every((p) => p.mustSkipTurn)) {
-    for (final p in activePlayers) {
-      p.consumeSkip();
-    }
+  final advance = room.engine.nextTurn();
+  for (final skipped in advance.skipped) {
+    room.broadcast({
+      'event': 'game_event',
+      'data': {
+        'message': 'skip_turn_msg',
+        'playerId': skipped.id,
+        'type': 'penalty',
+        'args': {'name': skipped.name},
+      },
+    });
   }
-
-  bool skip;
-  do {
-    room.engine.nextTurn();
-    if (room.engine.phase == GamePhase.finished) break;
-    if (room.engine.currentPlayer.mustSkipTurn) {
-      final skipped = room.engine.currentPlayer;
-      skipped.consumeSkip();
-      room.broadcast({
-        'event': 'game_event',
-        'data': {
-          'message': 'skip_turn_msg',
-          'playerId': skipped.id,
-          'type': 'penalty',
-          'args': {'name': skipped.name},
-        },
-      });
-      skip = true;
-    } else {
-      skip = false;
-    }
-  } while (skip);
+  room.engine.phase =
+      advance.gameOver ? GamePhase.finished : GamePhase.rolling;
 
   _broadcastGameState(roomCode);
 
@@ -1556,11 +1525,6 @@ void _moveToNextTurnWithSkips(String roomCode) {
 }
 
 // --- Helpers de broadcast ---
-
-void _broadcastGameEvent(String r, String m) => _rooms[r]?.broadcast({
-      'event': 'game_event',
-      'data': {'message': m}
-    });
 
 void _broadcastCellActionEvent(
     String roomCode, Player player, Token token, BoardAction action) {
@@ -1630,6 +1594,7 @@ void _broadcastGameState(String roomCode) {
       'roomCode': room.code,
       'timer': room.remainingSeconds,
       'phase': phaseStr,
+      'boardId': room.engine.boardId,
       'boardSize': room.engine.board.finalPosition,
       'maxPlayers': room.maxPlayers,
       'winners': room.engine.finishedPlayers.map((p) => p.id).toList(),

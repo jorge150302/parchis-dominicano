@@ -1,0 +1,17 @@
+# Used by `docker build -f server/Dockerfile .` (context: repository root).
+# Only the server and the shared packages go in.
+*
+!server/
+!packages/
+
+# Secrets must never enter the image; pass them at runtime.
+**/service_account.json
+**/*.json.key
+**/.env
+
+# Local build output and tooling
+**/build/
+**/.dart_tool/
+**/.dart_frog/
+**/node_modules/
+**/*.log

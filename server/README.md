@@ -43,8 +43,9 @@ PARCHIS_DEV_AUTH_BYPASS=true dart_frog dev --hostname 0.0.0.0
 ### Producción (Docker)
 
 ```bash
-docker build -t parchis-server .
-docker run -p 8080:8080 -e FIREBASE_SERVICE_ACCOUNT_JSON="$(cat service_account.json)" parchis-server
+# desde la raíz del repo (el servidor usa packages/parchis_core)
+docker build -f server/Dockerfile -t parchis-server .
+docker run -p 8080:8080 -e FIREBASE_SERVICE_ACCOUNT_JSON="$(cat server/service_account.json)" parchis-server
 ```
 
 La imagen nunca incluye `service_account.json` (ver `.dockerignore`); la credencial se pasa al arrancar.
