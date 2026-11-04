@@ -1,16 +1,39 @@
-# frontend_parchis
+# Parchís Dominicano
 
-Proyecto de frontend de parchis
+Monorepo del juego:
 
-## Getting Started
+| Carpeta | Qué es |
+|---|---|
+| [`app/`](app/) | App Flutter (Android). Antes repo `parchis-dominicano` |
+| [`server/`](server/) | Servidor de partidas online (Dart Frog, WebSocket). Antes repo `parchis_server` |
 
-This project is a starting point for a Flutter application.
+Cada carpeta conserva su historial de git, su `pubspec.yaml` y su README con los detalles de ejecución.
 
-A few resources to get you started if this is your first Flutter project:
+## Desarrollo local
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+# Servidor sin credenciales de Firebase, con salas de prueba
+cd server
+PARCHIS_DEV_AUTH_BYPASS=true PARCHIS_ALLOW_TEST_MODE=true dart_frog dev --hostname 0.0.0.0
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# App (otra terminal) apuntando al servidor local
+cd app
+flutter run --dart-define=PARCHIS_WS_URL=ws://<ip-del-pc>:8080/ws   # emulador: ws://10.0.2.2:8080/ws
+```
+
+En Android Studio abre la carpeta `app/`.
+
+## CI
+
+`.github/workflows/ci.yml` corre en cada pull request y en cada push a `main` o `Jorge`. Todos los jobs corren siempre: app y servidor comparten el protocolo.
+
+| Job | Qué verifica |
+|---|---|
+| `server` | `dart analyze` y tests unitarios del servidor |
+| `app` | `flutter analyze` y tests de la app |
+| `firestore` | Reglas de seguridad y transacciones contra el emulador de Firestore |
+| `docker` | La imagen del servidor compila, responde `/health` y no contiene credenciales |
+| `stress-e2e` | Servidor real: prueba de estrés rápida (salas concurrentes, clientes hostiles, fugas) y la app jugando una partida online contra él |
+| `android` | El proyecto Android compila (`flutter build apk --debug`, sin firmar ni publicar) |
+
+Para que un fallo bloquee el merge: *Settings → Branches* → regla para la rama principal → *Require status checks to pass* → marca estos jobs.
