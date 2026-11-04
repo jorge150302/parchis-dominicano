@@ -1,6 +1,6 @@
 # Reglas del Parchís Dominicano
 
-Borrador para decidir. Hoy las reglas están escritas dos veces: una en la app, usada en partidas offline, y otra en el servidor, usada en partidas online. Las dos versiones no son iguales, así que una misma jugada puede dar un resultado distinto según el modo.
+Reglas decididas (noviembre 2026). Antes las reglas estaban escritas dos veces: una en la app, usada en partidas offline, y otra en el servidor, usada en partidas online. Las dos versiones no eran iguales, así que una misma jugada podía dar un resultado distinto según el modo.
 
 Cuando estén decididas, este documento será la referencia, y el motor compartido `parchis_core` (Fase 3) implementará solo estas reglas, con un test por regla.
 
@@ -148,13 +148,13 @@ El tablero **rápido** (`quick`) ya está en el catálogo para la Fase 4.3. No s
 
 | Decisión | Elección |
 |---|---|
-| D1 Tres seises | |
-| D2 Ficha en la meta (y caso del salto) | |
-| D3 Puentes | |
-| D4 Salto hacia un puente | |
-| D5 Contador de seises | |
+| D1 Tres seises | **A**: una ficha a casa |
+| D2 Ficha en la meta (y caso del salto) | **A**: turno extra, también si llegas por un salto |
+| D3 Puentes | **A**: bloquean a todos en todo el camino |
+| D4 Salto hacia un puente | **A**: no saltas |
+| D5 Contador de seises | **A**: solo dentro del mismo turno |
 | P1 Fin de partida | **A**: hasta que queda un solo jugador |
 | P2 Fichas por jugador | 2, como hoy (sin cambios) |
 | P3 Tablero online | **A**: siempre el medio |
 | P4 Duración objetivo | **30 a 60 minutos** para 4 jugadores online. Hoy dura ~50 minutos; lo vigila `packages/parchis_core/test/match_length_test.dart` |
-| P5 Salida y meta | Salir de casa con **cualquier número** (R2). Falta confirmar el tiro exacto para entrar a la meta (R4) |
+| P5 Salida y meta | Salir de casa con **cualquier número** (R2). Tiro **exacto** para entrar a la meta (R4) |
