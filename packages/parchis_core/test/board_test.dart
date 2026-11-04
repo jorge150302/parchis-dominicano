@@ -6,6 +6,7 @@ void main() {
     expect(easyBoard.build().finalPosition, 49);
     expect(mediumBoard.build().finalPosition, 100);
     expect(hardBoard.build().finalPosition, 100);
+    expect(quickBoard.build().finalPosition, 60);
     expect(boardById(defaultBoardId), mediumBoard);
     expect(boardById('nope'), isNull);
   });

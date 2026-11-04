@@ -71,10 +71,29 @@ final hardBoard = BoardDefinition(
   },
 );
 
+/// Short matches (Phase 4.3): 60 cells, mild setbacks. About 15 minutes
+/// for four players (tool/match_length.dart), against about 50 on medium.
+final quickBoard = BoardDefinition(
+  id: 'quick',
+  cellCount: 60,
+  actions: const {
+    8: BoardAction.rollAgain(),
+    12: BoardAction.moveTo(20),
+    17: BoardAction.skipTurn(),
+    25: BoardAction.rollAgain(),
+    30: BoardAction.moveTo(38),
+    35: BoardAction.goToStart(),
+    42: BoardAction.rollAgain(),
+    46: BoardAction.moveTo(53),
+    50: BoardAction.moveTo(44),
+    56: BoardAction.moveTo(51),
+  },
+);
+
 final defaultBoardId = mediumBoard.id;
 
 final bundledBoards = {
-  for (final b in [easyBoard, mediumBoard, hardBoard]) b.id: b,
+  for (final b in [easyBoard, mediumBoard, hardBoard, quickBoard]) b.id: b,
 };
 
 /// The bundled board with [id], or null.
