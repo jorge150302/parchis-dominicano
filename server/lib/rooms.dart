@@ -96,6 +96,9 @@ class GameRoom {
   /// Tokens each player (by clientId) captured in this match.
   final Map<String, int> captures = {};
 
+  /// Players already sent their `you_finished`.
+  final Set<String> notifiedFinish = {};
+
   Timer? turnTimer;
   Timer? maxDurationTimer;
   Timer? zombieCleanupTimer;
@@ -307,13 +310,14 @@ Future<void> _applyDiceSkin(
   _broadcastGameState(room.code);
 }
 
-/// Sends `you_finished` to the player's channel and clears their active_match_id.
-/// Safe to call multiple times — removes the UID on first call so subsequent
-/// calls are no-ops.
+/// Sends `you_finished` to the player's channel and records the result (and
+/// clears active_match_id) for players with an account. Once per player:
+/// later calls are no-ops.
 void _notifyAndClearPlayerFinish(String roomCode, Player player,
     {bool silent = false, String? reason}) {
   final room = _rooms[roomCode];
   if (room == null) return;
+  if (!room.notifiedFinish.add(player.id)) return;
   final rank = room.engine.finishedPlayers.indexOf(player) + 1;
   final totalPlayers = room.engine.players.length;
   final channel = room.clients[player.id];
@@ -516,6 +520,7 @@ void handleClientDisconnect(ClientConnection channel) {
           player.isConnected = false;
           if (!player.isAutoPlaying) room.autoPlayFromDisconnect.add(player.id);
           player.isAutoPlaying = true;
+          _hurryTurnIfCurrent(room, player);
           _broadcastGameState(roomCode);
         }
 
@@ -991,6 +996,7 @@ Future<void> handleClientMessage(
       // Convert to AI so the game continues.
       player.isAI = true;
       player.isConnected = false;
+      _hurryTurnIfCurrent(room, player);
       room.clients.remove(clientId);
       _channelToPlayer.remove(channel);
       _channelToRoom.remove(channel);
@@ -1446,6 +1452,16 @@ Future<void> _handleMoveToken(
   }
 }
 
+/// [player] is no longer played by a person (surrender, disconnect). If it
+/// is their turn, swap the running 20 s human timer for the short AI one so
+/// the room does not stall.
+void _hurryTurnIfCurrent(GameRoom room, Player player) {
+  final phase = room.engine.phase;
+  if (room.engine.currentPlayer.id != player.id) return;
+  if (phase != GamePhase.rolling && phase != GamePhase.choosingToken) return;
+  room.startTimer(() => _handleTimeout(room.code));
+}
+
 void _handleTimeout(String roomCode) {
   final room = _rooms[roomCode];
   if (room == null) return;
@@ -1513,9 +1529,7 @@ void _moveToNextTurnWithSkips(String roomCode) {
     // Notify any remaining players who haven't received you_finished yet
     // (e.g. the last player who was force-finished by nextTurn).
     for (final p in room.engine.finishedPlayers) {
-      if (room.playerUids.containsKey(p.id)) {
-        _notifyAndClearPlayerFinish(roomCode, p);
-      }
+      _notifyAndClearPlayerFinish(roomCode, p);
     }
     // Keep room alive for 60 s so spectators can see the final board.
     Timer(const Duration(seconds: 60), () => _closeRoom(room));

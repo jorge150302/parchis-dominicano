@@ -8,6 +8,8 @@
 //
 // --quick (for CI): only private test-mode rooms, whose tokens start next to
 // the goal, so games end in seconds. Needs PARCHIS_ALLOW_TEST_MODE=true.
+//
+// Private rooms cycle through every bundled board.
 // ignore_for_file: avoid_print
 
 import 'dart:async';
@@ -15,7 +17,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:parchis_core/parchis_core.dart';
+
 final _rng = Random(7);
+final _boardIds = bundledBoards.keys.toList();
 final _violations = <String>[];
 void _violation(String msg) {
   _violations.add(msg);
@@ -73,11 +78,13 @@ class Bot {
 
   void sendRaw(String raw) => _add(raw);
 
-  Future<String> createGame(int maxPlayers, {bool testMode = false}) {
+  Future<String> createGame(int maxPlayers,
+      {bool testMode = false, String? boardId}) {
     send('create_game', {
       'name': clientId,
       'maxPlayers': maxPlayers,
       if (testMode) 'testMode': true,
+      if (boardId != null) 'boardId': boardId,
     });
     return _created.future;
   }
@@ -330,7 +337,11 @@ Future<void> main(List<String> args) async {
   final codes = await Future.wait(
     [
       for (var i = 0; i < roomSizes.length; i++)
-        privateRooms[i][0].createGame(roomSizes[i], testMode: quick)
+        privateRooms[i][0].createGame(
+          roomSizes[i],
+          testMode: quick,
+          boardId: _boardIds[i % _boardIds.length],
+        ),
     ],
   );
   if (codes.toSet().length != codes.length) {
@@ -381,6 +392,11 @@ Future<void> main(List<String> args) async {
       _violation(
           'room ${e.key} has ${e.value.length} bots but maxPlayers $size');
     }
+  }
+  for (var i = 0; i < privateRooms.length; i++) {
+    final want = _boardIds[i % _boardIds.length];
+    final got = privateRooms[i][0].lastState?['boardId'];
+    if (got != want) _violation('room ${codes[i]} plays $got, asked for $want');
   }
   print('✅ matchmaking seated ${mm.length} bots into '
       '${rooms.length - privateRooms.length} public rooms');
