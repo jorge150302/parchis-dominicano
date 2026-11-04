@@ -10,10 +10,7 @@ import 'package:frontend_parchis/service/audio_service.dart';
 import '../models/game_event.dart';
 import '../models/player.dart';
 import 'game_engine.dart';
-import 'board_generator.dart';
-import 'board_actions_config.dart';
 import 'level_manager.dart';
-import '../models/board_action.dart';
 
 // Set to true to start human tokens 1 step from the finish line for quick testing.
 // Only active in debug builds (kDebugMode).
@@ -47,7 +44,7 @@ abstract class GameController extends ChangeNotifier {
   bool _fanfarePlaying = false;
   bool get isFanfarePlaying => _fanfarePlaying;
   
-  final Random random = Random();
+  final Random random;
 
   // Debug: if non-null, the next dice roll is forced to this value (consumed once).
   int? forcedDice;
@@ -62,7 +59,7 @@ abstract class GameController extends ChangeNotifier {
   final StreamController<CapturedToken> _capturedTokenController = StreamController<CapturedToken>.broadcast();
   Stream<CapturedToken> get onTokenCaptured => _capturedTokenController.stream;
 
-  GameController({required this.engine});
+  GameController({required this.engine, Random? random}) : random = random ?? Random();
 
   List<Player> get players => engine.players;
   Player get currentPlayer => engine.currentPlayer;
@@ -230,6 +227,7 @@ class LocalGameController extends GameController {
 
   LocalGameController({
     required super.engine,
+    super.random,
     this.vsAI = false,
     bool isTutorial = false,
     this.difficulty = GameDifficulty.medium,
@@ -369,6 +367,7 @@ class LocalGameController extends GameController {
     for (final p in unfinished) {
       engine.finisherIds.add(p.id);
     }
+    engine.isOver = true;
     engine.phase = GamePhase.finished;
     inputLocked = true;
     PrefsService.savedLocalGame = null;
@@ -392,17 +391,11 @@ class LocalGameController extends GameController {
 
     inputLocked = true;
     movableTokenIds.clear();
-    await _moveStepByStep(tokenId, diceValue);
-    
-    if (engine.phase == GamePhase.idle) {
-      startTurn();
-    } else if (engine.phase != GamePhase.finished) {
-      engine.nextTurn();
-      startTurn();
-    } else {
-      _saveGame();
-      notifyListeners();
-    }
+    final landing = await _moveStepByStep(tokenId, diceValue);
+    if (isDisposed) return;
+
+    engine.endAction(playAgain: landing.playAgain);
+    startTurn();
   }
 
   @override
@@ -458,19 +451,25 @@ class LocalGameController extends GameController {
 
     if (diceValue == 6 && _isHumanTurn) _vibrate();
 
-    engine.registerSix(currentPlayer, diceValue);
-    
-    if (engine.reachedThreeSixes(currentPlayer)) {
-      final cap = engine.penaltyThreeSixes(currentPlayer);
-      if (cap != null) _capturedTokenController.add(cap);
+    final player = currentPlayer;
+    final roll = engine.rollDice(diceValue);
+
+    if (roll.threeSixes) {
+      for (final sent in roll.sentHome) {
+        _capturedTokenController.add(CapturedToken(
+          playerIndex: player.index,
+          asset: player.tokenAsset,
+          fromPosition: sent.fromPosition,
+        ));
+      }
       await playSendToHomeSound();
       if (_isHumanTurn) _heavyVibrate();
-      engine.nextTurn();
+      engine.endAction(playAgain: false);
       startTurn();
       return;
     }
 
-    movableTokenIds = engine.getMovableTokenIds(diceValue);
+    movableTokenIds = [for (final t in roll.movable) t.id];
     
     if (movableTokenIds.isEmpty) {
       engine.events.add(GameEvent(
@@ -481,8 +480,9 @@ class LocalGameController extends GameController {
       ));
       notifyListeners();
       await Future.delayed(_eventDelay);
-      // Even when no moves are available, a dice-6 still grants the extra turn.
-      engine.nextTurn();
+      if (isDisposed) return;
+      // A 6 (or a pending extra turn) still rolls again.
+      engine.endAction(playAgain: roll.playAgain);
       startTurn();
     } else {
       engine.phase = GamePhase.choosing_token;
@@ -621,16 +621,17 @@ class LocalGameController extends GameController {
     return false;
   }
 
-  Future<void> _moveStepByStep(int tokenId, int steps) async {
+  Future<LandingOutcome<Player>> _moveStepByStep(int tokenId, int steps) async {
     engine.phase = GamePhase.moving;
+    final player = currentPlayer;
     for (int i = 0; i < steps; i++) {
-      if (engine.phase == GamePhase.finished) return;
+      if (engine.phase == GamePhase.finished) break; // forceFinish()
       playMoveSound();
-      engine.stepForward(currentPlayer, tokenId);
+      final finished = engine.stepToken(player, tokenId);
       notifyListeners();
 
-      if (currentPlayer.tokens[tokenId].isFinished) {
-         await diceAudio.stop();
+      if (finished) {
+         if (PrefsService.soundEnabled) await diceAudio.stop();
          await playFanfare();
          if (_isHumanTurn) _vibrate();
          break;
@@ -639,57 +640,49 @@ class LocalGameController extends GameController {
       await Future.delayed(_stepDelay);
     }
 
-    if (engine.phase == GamePhase.finished) return;
-
     // ✅ Verificamos si cayó en una casilla de acción para sonar el CLIC de botón
     // Se excluye 'goToStart' porque tiene su propio sonido de "send to home"
-    final currentPos = currentPlayer.tokens[tokenId].position;
-    if (currentPos > 0) {
-      final cell = engine.board.getCell(currentPos);
-      if (cell.action != null && cell.action!.type != BoardActionType.goToStart) {
-        AudioService.playClick();
-      }
+    final landedOn = player.tokens[tokenId].position;
+    final landedAction = engine.board.getCellSafe(landedOn)?.action;
+    if (landedAction != null && landedAction.type != BoardActionType.goToStart) {
+      AudioService.playClick();
     }
 
-    final actionRes = engine.applyCellAction(currentPlayer, tokenId);
-    
-    // Si cayó en casilla de saltar turno, compensamos con los turnos extra acumulados
-    if (actionRes.wasSkipTurn) {
-      if (currentPlayer.extraTurns > 0) {
-        currentPlayer.consumeSkip();
-        currentPlayer.extraTurns--;
-      }
+    final landing = engine.landToken(player, tokenId, steps);
+
+    final jumped = landing.cellAction?.type == BoardActionType.moveTo && !landing.jumpBlocked;
+    if (landing.sentHomeByCell) {
+      _capturedTokenController.add(CapturedToken(
+        playerIndex: player.index,
+        asset: player.tokenAsset,
+        fromPosition: landing.landedOn,
+      ));
     }
-    if (actionRes.moved) {
-       if (actionRes.sentToStart && actionRes.fromPos != null) {
-          _capturedTokenController.add(CapturedToken(
-            playerIndex: currentPlayer.index,
-            asset: currentPlayer.tokenAsset,
-            fromPosition: actionRes.fromPos!
-          ));
-       }
-       notifyListeners();
-       await Future.delayed(const Duration(milliseconds: 500));
+    if (landing.sentHomeByCell || jumped) {
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 500));
     }
 
-    final captured = engine.resolveCollisions(currentPlayer, tokenId);
-    if (captured.isNotEmpty) {
-      if (_isHumanTurn) humanCaptureCount += captured.length;
-      for (var cap in captured) {
-        _capturedTokenController.add(cap);
+    if (landing.captures.isNotEmpty) {
+      if (_isHumanTurn) humanCaptureCount += landing.captures.length;
+      for (final cap in landing.captures) {
+        _capturedTokenController.add(CapturedToken(
+          playerIndex: cap.owner.index,
+          asset: cap.owner.tokenAsset,
+          fromPosition: cap.fromPosition,
+        ));
       }
       await playSendToHomeSound();
       if (_isHumanTurn) _heavyVibrate();
       await Future.delayed(Duration(milliseconds: (600 / _audioPlaybackRate).round()));
-    } else if (actionRes.moved) {
-       if (actionRes.sentToStart) {
-         await playSendToHomeSound();
-         if (_isHumanTurn) _heavyVibrate();
-       }
+    } else if (landing.sentHomeByCell) {
+      await playSendToHomeSound();
+      if (_isHumanTurn) _heavyVibrate();
     }
-    
+
     _saveGame();
     notifyListeners();
+    return landing;
   }
 
   @override
@@ -710,6 +703,7 @@ class NetworkGameController extends GameController {
   int _lastServerDiceValue = 1;
   final Map<String, int> _pendingTokenTargets = {};
   bool _isReconnecting = false;
+  String? _boardId; // catalog id of the board the server plays on
 
   // Set by server events — GameScreen reacts to these.
   int? myFinishPosition;       // rank (1-indexed) when you_finished received
@@ -885,17 +879,12 @@ class NetworkGameController extends GameController {
     final String? currentPlayerId = data['currentPlayerId'];
     final String? phaseStr = data['phase'];
     final List? winnersIds = data['winners']; 
-    final int? serverBoardSize = data['boardSize']; 
-    
-    if (serverBoardSize != null && serverBoardSize != engine.board.cells.length) {
-      final preset = serverBoardSize == 50
-          ? (positions: easyActionPositions, actions: easyActions)
-          : serverBoardSize == 100
-              ? (positions: mediumActionPositions, actions: mediumActions)
-              : (positions: mediumActionPositions, actions: mediumActions);
-      final newBoard = generateBoard(preset.positions, preset.actions, totalCells: serverBoardSize);
-      engine.board.cells.clear();
-      engine.board.cells.addAll(newBoard.cells);
+    final serverBoard = boardById(data['boardId'] as String?);
+    if (serverBoard != null && _boardId != serverBoard.id) {
+      _boardId = serverBoard.id;
+      engine.board.cells
+        ..clear()
+        ..addAll(serverBoard.build().cells);
     }
 
     if (data['maxPlayers'] != null) {
@@ -933,7 +922,6 @@ class NetworkGameController extends GameController {
             name: playerData['name'],
             index: slotIndex,
             tokenAsset: tokensAssets[slotIndex % tokensAssets.length],
-            tokenCount: 2,
             avatarType: playerData['avatarType'] as String? ?? 'google',
             avatarIconId: playerData['avatarIconId'] as String?,
           );

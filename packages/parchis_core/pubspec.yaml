@@ -1,0 +1,11 @@
+name: parchis_core
+description: Rules, boards and turn engine shared by the Parchís app and server.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.6.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.5

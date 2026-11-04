@@ -4,7 +4,7 @@ version: 1.0.0+1
 publish_to: none
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.6.0 <4.0.0"
 
 dependencies:
   dart_frog: ^1.1.0
@@ -13,6 +13,8 @@ dependencies:
   google_cloud_firestore: 0.5.5
   http: ^1.2.0
   meta: ^1.19.0
+  parchis_core:
+    path: ../packages/parchis_core
 
   web_socket_channel: any
 dev_dependencies:

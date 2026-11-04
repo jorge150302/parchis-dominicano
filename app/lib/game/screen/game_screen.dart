@@ -121,7 +121,6 @@ class _GameScreenState extends State<GameScreen> {
               name: name,
               index: i,
               tokenAsset: tokens[i % tokens.length],
-              tokenCount: 2,
               isAI: vsAI ? i != 0 : false,
             );
           },

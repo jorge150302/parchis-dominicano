@@ -20,10 +20,7 @@ import 'screens/privacy_policy_screen.dart';
 import 'game/screen/game_screen.dart';
 import 'game/logic/game_controller.dart';
 import 'game/logic/game_engine.dart';
-import 'game/logic/board_generator.dart';
-import 'game/logic/board_actions_config.dart';
 import 'game/logic/level_manager.dart';
-import 'game/models/board_action.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -89,26 +86,12 @@ class MyApp extends StatelessWidget {
                   ? GameDifficulty.values[savedDifficultyIndex]
                   : (args?['difficulty'] as GameDifficulty?) ?? GameDifficulty.medium;
 
-              final List<int> actionPositions;
-              final List<BoardAction> actions;
-              final int totalCells;
-
-              switch (difficulty) {
-                case GameDifficulty.easy:
-                  actionPositions = easyActionPositions;
-                  actions = easyActions;
-                  totalCells = 49;
-                case GameDifficulty.hard:
-                  actionPositions = hardActionPositions;
-                  actions = hardActions;
-                  totalCells = 100;
-                case GameDifficulty.medium:
-                  actionPositions = mediumActionPositions;
-                  actions = mediumActions;
-                  totalCells = 100;
-              }
-
-              final board = generateBoard(actionPositions, actions, totalCells: totalCells);
+              // Online rooms switch to the server's board on the first game_state.
+              final board = switch (difficulty) {
+                GameDifficulty.easy => easyBoard,
+                GameDifficulty.hard => hardBoard,
+                GameDifficulty.medium => mediumBoard,
+              }.build();
               late final GameEngine engine;
 
               if (isResume && savedState != null) {

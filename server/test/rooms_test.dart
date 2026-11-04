@@ -256,6 +256,59 @@ void main() {
     });
   });
 
+  test('surrendering on your own turn hands it to the AI right away', () {
+    run(() {
+      final room = startRoom(['a', 'b', 'c']);
+      say(room[0], 'surrender');
+      // The AI's short timer, not the 20 s human one.
+      clock.elapse(const Duration(seconds: 5));
+      expect(room[1].events('dice_result').map((e) => e['data']['playerId']),
+          contains('a'));
+    });
+  });
+
+  test('disconnecting on your own turn hands it to auto-play right away', () {
+    run(() {
+      final room = startRoom(['a', 'b']);
+      handleClientDisconnect(room[0]);
+      clock
+        ..flushMicrotasks()
+        ..elapse(const Duration(seconds: 5));
+      expect(room[1].events('dice_result').map((e) => e['data']['playerId']),
+          contains('a'));
+    });
+  });
+
+  test('every player is told their final position once, with or without an '
+      'account', () {
+    run(() {
+      final room = startRoom(['a', 'b'], testMode: true);
+      // Test rooms start one cell from home; a 1 finishes a token.
+      for (var i = 0; i < 40 && room[0].state!['phase'] != 'finished'; i++) {
+        final current = room[0].state!['currentPlayerId'];
+        final conn = room.firstWhere((c) => c.clientId == current);
+        if (room[0].state!['phase'] == 'rolling') {
+          say(conn, 'debug_set_dice', data: {'value': 1});
+          say(conn, 'roll_dice');
+        } else if (room[0].state!['phase'] == 'choosing_token') {
+          final me = conn.seat(conn.clientId);
+          final token = (me['tokens'] as List)
+              .firstWhere((t) => t['isFinished'] != true);
+          say(conn, 'move_token', data: {'tokenId': token['id']});
+        }
+        clock.elapse(const Duration(seconds: 2));
+      }
+      expect(room[0].state!['phase'], 'finished');
+      for (final c in room) {
+        expect(c.events('you_finished'), hasLength(1), reason: c.clientId);
+      }
+      expect(
+        {for (final c in room) c.last('you_finished')!['position']},
+        {1, 2},
+      );
+    });
+  });
+
   test('a lobby that never fills expires and is released', () {
     run(() {
       final host = FakeConnection('h');
