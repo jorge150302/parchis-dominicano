@@ -22,24 +22,14 @@ class BoardWidget extends StatefulWidget {
 }
 
 class _BoardWidgetState extends State<BoardWidget> {
-  late int columns;
   final Map<int, GlobalKey> _cellKeys = {};
 
+  // From the current board, not the first one: online the server can swap
+  // the board after this widget is built.
+  // Ajustamos las columnas para que el tablero sea más cuadrado según la cantidad de celdas
+  int get columns => widget.board.cells.length <= 49 ? 7 : 10;
   int get _rows => (widget.board.cells.length / columns).ceil();
-
-  @override
-  void initState() {
-    super.initState();
-    // Ajustamos las columnas para que el tablero sea más cuadrado según la cantidad de celdas
-    if (widget.board.cells.length <= 49) {
-      columns = 7;
-    } else {
-      columns = 10;
-    }
-    for (int i = 0; i <= widget.board.finalPosition; i++) {
-      _cellKeys[i] = GlobalKey();
-    }
-  }
+  GlobalKey _keyFor(int cell) => _cellKeys.putIfAbsent(cell, GlobalKey.new);
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +61,7 @@ class _BoardWidgetState extends State<BoardWidget> {
                 final cell = cells[realIndex];
 
                 return _StaticCell(
-                  key: _cellKeys[cell.number],
+                  key: _keyFor(cell.number),
                   cell: cell,
                   finalPosition: widget.board.finalPosition,
                   controller: controller,
@@ -110,7 +100,7 @@ class _BoardWidgetState extends State<BoardWidget> {
         animatedTokens.add(
           _TokenObserver(
             key: ValueKey("token_${player.id}_${token.id}"),
-            cellKey: _cellKeys[pos]!,
+            cellKey: _keyFor(pos),
             player: player,
             token: token,
             index: i,
