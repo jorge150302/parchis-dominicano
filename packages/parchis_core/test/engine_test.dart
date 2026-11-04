@@ -222,7 +222,8 @@ void main() {
       threeSixes(g);
       final out = g.roll(6);
       expect(out.threeSixes, isTrue);
-      expect(out.sentHome, [a.tokens[0]]);
+      expect(out.sentHome.map((s) => (s.token, s.fromPosition)),
+          [(a.tokens[0], 5)]);
       expect([a.tokens[0].position, a.tokens[1].position], [0, 9]);
       expect(a.extraTurns, 0);
       expect(out.playAgain, isFalse);

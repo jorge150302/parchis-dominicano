@@ -22,6 +22,13 @@ abstract interface class RulesPlayer {
   bool get isFinished;
 }
 
+/// A token the rules sent home, and the cell it was on.
+class SentHome {
+  SentHome(this.token, this.fromPosition);
+  final RulesToken token;
+  final int fromPosition;
+}
+
 class RollOutcome {
   RollOutcome._({
     required this.dice,
@@ -37,7 +44,7 @@ class RollOutcome {
   final bool threeSixes;
 
   /// Tokens the three-sixes penalty sent home.
-  final List<RulesToken> sentHome;
+  final List<SentHome> sentHome;
 
   /// Tokens that can move [dice] cells. Empty when the roll is lost.
   final List<RulesToken> movable;
@@ -173,7 +180,7 @@ class ParchisEngine<P extends RulesPlayer> {
     return RollOutcome._(dice: dice, playAgain: _spendExtraTurn(player));
   }
 
-  List<RulesToken> _threeSixesPenalty(RulesPlayer player) {
+  List<SentHome> _threeSixesPenalty(RulesPlayer player) {
     final onTrack =
         player.tokens.where((t) => !t.isFinished && t.position > 0).toList();
     final sent = switch (rules.threeSixes) {
@@ -181,10 +188,11 @@ class ParchisEngine<P extends RulesPlayer> {
       ThreeSixesPenalty.allTokensHome => onTrack,
       ThreeSixesPenalty.loseTurn => <RulesToken>[],
     };
+    final out = [for (final t in sent) SentHome(t, t.position)];
     for (final t in sent) {
       t.position = 0;
     }
-    return sent;
+    return out;
   }
 
   /// Moves [token] one cell; true when that step finished it.
