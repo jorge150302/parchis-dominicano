@@ -6,6 +6,12 @@ Cuando estén decididas, este documento será la referencia, y el motor comparti
 
 **Cómo responder:** en cada decisión, elige una opción (por ejemplo "D1: A"). Si no estás seguro, la recomendada es la que menos cambia el juego actual.
 
+> **Estado actual:** las reglas ya están en el motor compartido `parchis_core`, y la app y el servidor juegan con las mismas. Cada decisión es una opción de `RulesConfig` (`packages/parchis_core/lib/src/rules.dart`):
+> - **D1 a D5:** está activa la opción recomendada (⭐).
+> - **P1 y P2:** se mantiene lo de hoy.
+>
+> Cambiar una decisión es cambiar una línea, y hay un test para cada opción.
+
 ---
 
 ## 1. Lo que ya es igual en los dos lados
@@ -110,19 +116,31 @@ Offline hay tres tableros: fácil (49 casillas, sin castigos), medio (100) y dif
 ### P4. ¿Cuál es la duración objetivo de una partida de 4 jugadores?
 La respuesta es un número de minutos, por ejemplo "menos de 10 minutos". Con ese número ajusto P1, el tablero y la velocidad de las animaciones, y lo dejo como una prueba automática en la CI.
 
+**Duración medida.** Son 500 partidas simuladas por fila con `packages/parchis_core/tool/match_length.dart`, calculando unos 4 segundos por tirada. Online hoy se juega siempre en el tablero **medio**.
+
+| Tablero | Jugadores | Hasta que queda uno (hoy) | Hasta que gana el primero |
+|---|---|---|---|
+| Medio (100) | 2 | ~15 min | ~15 min |
+| Medio (100) | 4 | **~50 min** | ~29 min |
+| Fácil (49) | 4 | ~12 min | ~8 min |
+| Difícil (100) | 4 | ~2 h 15 min | ~66 min |
+| **Rápido (60, nuevo)** | 2 | ~5 min | ~5 min |
+| **Rápido (60, nuevo)** | 4 | ~15 min | **~10 min** |
+
+El tablero **rápido** (`quick`) ya está en el catálogo para la Fase 4.3. No se usa por defecto: para usarlo online hace falta decidir P3.
+
 ### P5. Confirmar R2 y R4
 - R2: ¿salir de casa con cualquier número, o solo con 5 o 6?
 - R4: ¿tiro exacto para entrar a la meta, o "rebote" (lo que sobra se retrocede)?
 
 ---
 
-## 4. Errores encontrados al comparar
+## 4. Errores encontrados al comparar (corregidos)
 
-No son decisiones: se corrigen solos al pasar a `parchis_core`.
-
-- El tablero fácil se genera con **49** casillas, pero al recibir el estado del servidor la app lo reconoce como tablero fácil solo si tiene **50**.
-- La cantidad de fichas está fijada en 2 en varios lugares de la app y del servidor. Con el motor compartido sale de un solo lugar.
-- El resto del parchís de 68 casillas que aparece en D3 se elimina, sea cual sea la decisión.
+- El tablero fácil se generaba con **49** casillas, pero la app lo reconocía como tablero fácil solo si tenía **50**. Ahora el servidor manda el `boardId` del tablero y la app dibuja ese.
+- La cantidad de fichas estaba fijada en 2 en varios lugares de la app y del servidor. Ahora sale de un solo lugar: `RulesConfig.tokensPerPlayer`.
+- Se eliminó el resto del parchís de 68 casillas que aparecía en D3.
+- Si una tirada no se podía mover, el servidor guardaba los turnos extra pendientes para más adelante en vez de usarlos en ese momento. Ahora se usan en el momento, igual que en la app.
 
 ---
 
