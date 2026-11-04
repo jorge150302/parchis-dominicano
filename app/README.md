@@ -1,4 +1,4 @@
-# frontend_parchis
+# Parchís — app (Flutter)
 
 Proyecto de frontend de parchis
 
@@ -10,15 +10,7 @@ flutter test
 PARCHIS_E2E_URL=ws://localhost:8080/ws flutter test test/e2e
 ```
 
-CI (`.github/workflows/ci.yml`) corre en cada pull request y en cada push a `Jorge` o `main`:
-
-| Job | Qué verifica |
-|---|---|
-| `test` | `flutter analyze` + tests |
-| `e2e` | La app juega una partida online contra `parchis_server` (misma rama si existe, si no `main`) |
-| `android` | El proyecto Android compila (`flutter build apk --debug`, sin firmar ni publicar) |
-
-Para que un fallo bloquee el merge, activa en GitHub *Settings → Branches* la regla de la rama con *Require status checks to pass* y marca estos jobs.
+La CI de todo el proyecto está descrita en el [README raíz](../README.md#ci).
 
 ## Getting Started
 
