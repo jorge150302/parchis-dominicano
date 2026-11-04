@@ -1,0 +1,101 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:web_socket_channel/io.dart';
+
+void main() async {
+  final channel = IOWebSocketChannel.connect('ws://localhost:8080/ws');
+  print('✅ Conectado al servidor de Parchís');
+
+  final myClientId = 'Client_${DateTime.now().millisecondsSinceEpoch}';
+
+  channel.stream.listen((dynamic message) {
+    try {
+      final rawMessage =
+          message is List<int> ? utf8.decode(message) : message as String;
+
+      final event = jsonDecode(rawMessage) as Map<String, dynamic>;
+      final eventName = event['event'] as String;
+      final data =
+          (event['data'] ?? <String, dynamic>{}) as Map<String, dynamic>;
+
+      switch (eventName) {
+        case 'game_created':
+          print('\n🏠 SALA CREADA: ${data['roomCode']}');
+        case 'game_joined':
+          print(
+              '\n🤝 UNIDO CON ÉXITO. Jugadores en sala: ${data['playerCount']}');
+        case 'game_state':
+          print('\n--- TABLERO ---');
+          print('Sala: ${data['roomCode']}');
+          final players = data['players'] as List<dynamic>;
+          for (final p in players) {
+            final player = p as Map<String, dynamic>;
+            final isMe = player['id'] == myClientId ? ' (YO)' : '';
+            print(
+                '👤 [Slot ${player['index']}] ${player['name']} | Pos: ${player['position']} | AI: ${player['isAI']}$isMe');
+          }
+          final turnText = data['currentPlayerId'] == myClientId
+              ? '¡TU TURNO!'
+              : (data['currentPlayerId'] as String);
+          print('👉 Turno de: $turnText');
+        case 'dice_result':
+          print('\n🎲 DADO: ${data['diceValue']} (Por: ${data['playerId']})');
+        case 'game_event':
+          print('\n🔔 EVENTO: ${data['message']}');
+        case 'chat':
+          print('\n💬 [${data['sender']}]: ${data['message']}');
+        case 'error':
+          print('\n❌ ERROR: ${data['message']}');
+      }
+    } catch (e) {
+      print('Error procesando respuesta del servidor: $e');
+    }
+  });
+
+  print('\n--- COMANDOS ---');
+  print('- "create" : Crear sala');
+  print('- "join [CÓDIGO]" : Unirse a una sala');
+  print('- "roll" : Tirar dado');
+  print('- Cualquier cosa : Chatear');
+
+  stdin.listen((List<int> bytes) {
+    final input = utf8.decode(bytes).trim();
+    if (input.isEmpty) return;
+
+    if (input == 'create') {
+      channel.sink.add(
+        jsonEncode({
+          'event': 'create_game',
+          'clientId': myClientId,
+          'data': {'name': 'Anfitrión'},
+        }),
+      );
+    } else if (input.startsWith('join ')) {
+      final parts = input.split(' ');
+      if (parts.length < 2) return;
+      final code = parts[1];
+      channel.sink.add(
+        jsonEncode({
+          'event': 'join_game',
+          'clientId': myClientId,
+          'data': {'roomCode': code, 'name': 'Tester'},
+        }),
+      );
+    } else if (input == 'roll') {
+      channel.sink.add(
+        jsonEncode({
+          'event': 'roll_dice',
+          'clientId': myClientId,
+        }),
+      );
+    } else {
+      channel.sink.add(
+        jsonEncode({
+          'event': 'chat_message',
+          'clientId': myClientId,
+          'data': {'message': input},
+        }),
+      );
+    }
+  });
+}

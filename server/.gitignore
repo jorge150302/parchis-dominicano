@@ -1,0 +1,26 @@
+# https://dart.dev/guides/libraries/private-files
+# Archivos de Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Dart Frog
+.dart_frog/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Log files
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Firebase service account — NEVER commit this file
+service_account.json
+node_modules/
