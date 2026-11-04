@@ -4,7 +4,7 @@ name: CI
 # required status checks must never be skipped.
 on:
   push:
-    branches: [main, Jorge]
+    branches: [main]
   pull_request:
 
 jobs:

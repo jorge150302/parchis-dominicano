@@ -26,7 +26,7 @@ En Android Studio abre la carpeta `app/`.
 
 ## CI
 
-`.github/workflows/ci.yml` corre en cada pull request y en cada push a `main` o `Jorge`. Todos los jobs corren siempre: app y servidor comparten el protocolo.
+`.github/workflows/ci.yml` corre en cada pull request y en cada push a `main`, la rama principal. Todos los jobs corren siempre: app y servidor comparten el protocolo.
 
 | Job | Qué verifica |
 |---|---|
