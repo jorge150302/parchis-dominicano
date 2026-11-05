@@ -130,4 +130,43 @@ void main() {
     }
   }, skip: _url == null ? 'set PARCHIS_E2E_URL to run against a server' : false,
       timeout: const Timeout(Duration(minutes: 3)));
+
+  test('a lone player in a public room can fill it with AI after the wait', () async {
+    SharedPreferences.setMockInitialValues(
+        {'player_name': 'Solo', 'sound_enabled': false, 'vibration_enabled': false});
+    await PrefsService.init();
+
+    final socket = SocketService.instance;
+    addTearDown(socket.disconnect);
+    await socket.connect(_url!);
+    socket.send('find_match', {'name': 'Solo', 'maxPlayers': 3});
+
+    // The server offers AI only after its wait (45 s), never on its own.
+    final offered = await socket.events
+        .where((e) => e['event'] == 'game_state')
+        .map((e) => e['data'] as Map<String, dynamic>)
+        .firstWhere((s) => s['canFillWithAi'] == true)
+        .timeout(const Duration(seconds: 70));
+    expect(offered['phase'], 'idle');
+    expect(offered['players'] as List, hasLength(1));
+
+    final engine = GameEngine(board: mediumBoard.build(), players: []);
+    final controller = NetworkGameController(engine: engine, socketService: socket);
+    addTearDown(controller.dispose);
+
+    socket.send('fill_with_ai');
+    final started = await socket.events
+        .where((e) => e['event'] == 'game_state')
+        .map((e) => e['data'] as Map<String, dynamic>)
+        .firstWhere((s) => s['phase'] != 'idle')
+        .timeout(const Duration(seconds: 10));
+    expect(started['filledWithAi'], isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    // The app's controller sees the AI seats as AI.
+    expect(engine.players, hasLength(3));
+    expect(engine.players.where((p) => p.isAI), hasLength(2));
+    expect(engine.players.firstWhere((p) => !p.isAI).id, PrefsService.playerId);
+  }, skip: _url == null ? 'set PARCHIS_E2E_URL to run against a server' : false,
+      timeout: const Timeout(Duration(minutes: 2)));
 }

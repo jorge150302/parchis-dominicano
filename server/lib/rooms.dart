@@ -99,10 +99,21 @@ class GameRoom {
   /// Players already sent their `you_finished`.
   final Set<String> notifiedFinish = {};
 
+  /// How long a public room waits for people before its players may choose
+  /// to fill the empty seats with AI (`fill_with_ai`). Never automatic.
+  static const aiFillDelay = Duration(seconds: 45);
+
+  /// [aiFillDelay] has passed with seats still empty.
+  bool canFillWithAi = false;
+
+  /// A player filled the empty seats with AI: the match pays reduced XP.
+  bool filledWithAi = false;
+
   Timer? turnTimer;
   Timer? maxDurationTimer;
   Timer? zombieCleanupTimer;
   Timer? lobbyTimeoutTimer;
+  Timer? aiFillTimer;
   int remainingSeconds = 20;
   int? forcedDice; // debug only: consumed on next roll
 
@@ -129,11 +140,17 @@ class GameRoom {
     lobbyTimeoutTimer = Timer(const Duration(minutes: 15), onExpired);
   }
 
+  void startAiFillTimer(void Function() onReady) {
+    aiFillTimer?.cancel();
+    aiFillTimer = Timer(aiFillDelay, onReady);
+  }
+
   void stopAll() {
     turnTimer?.cancel();
     maxDurationTimer?.cancel();
     zombieCleanupTimer?.cancel();
     lobbyTimeoutTimer?.cancel();
+    aiFillTimer?.cancel();
   }
 
   void startTimer(void Function() onTimeout) {
@@ -263,6 +280,7 @@ void _recordResult(GameRoom room, Player player, String uid, {int? position}) {
     position: position,
     totalPlayers: room.engine.players.length,
     captures: room.captures[player.id] ?? 0,
+    vsAi: room.filledWithAi,
   );
   unawaited(
     recordMatchResult(getAdminFirestore(), result).catchError(
@@ -334,7 +352,11 @@ void _notifyAndClearPlayerFinish(String roomCode, Player player,
         // instead of computing XP itself. 0 for guests (nothing is stored).
         'xpAwarded': uid == null
             ? 0
-            : onlineMatchXp(position: rank - 1, totalPlayers: totalPlayers),
+            : onlineMatchXp(
+                position: rank - 1,
+                totalPlayers: totalPlayers,
+                vsAi: room.filledWithAi,
+              ),
       },
     }),
   );
@@ -881,6 +903,25 @@ Future<void> handleClientMessage(
       }
     }
 
+    if (eventName == 'fill_with_ai') {
+      final roomCode = _channelToRoom[channel];
+      final room = roomCode != null ? _rooms[roomCode] : null;
+      if (room == null ||
+          _channelToPlayer[channel] == null ||
+          !room.isPublic ||
+          !room.canFillWithAi ||
+          room.engine.phase != GamePhase.idle) {
+        _sendError(
+          channel,
+          'No se puede completar con IA.',
+          code: 'AI_FILL_UNAVAILABLE',
+        );
+        return;
+      }
+      _fillWithAi(room);
+      return;
+    }
+
     if (eventName == 'debug_set_dice') {
       final roomCode = _channelToRoom[channel];
       final room = roomCode != null ? _rooms[roomCode] : null;
@@ -1154,28 +1195,57 @@ void _createAndJoinRoom(
 
   unawaited(_storeUidAndSetActiveMatch(room, clientId, idToken, roomCode));
 
-  if (room.engine.players.length == room.maxPlayers) {
-    room.engine.phase = GamePhase.rolling;
-    room.hadMultipleHumans = room.engine.players.length > 1;
-    if (room.testMode) _applyTestMode(room);
+  room.startLobbyTimeoutTimer(() {
+    if (room.engine.phase == GamePhase.idle) {
+      _closeRoom(room, errorCode: 'LOBBY_TIMEOUT');
+    }
+  });
+  if (isPublic) {
+    room.startAiFillTimer(() {
+      if (_rooms[room.code] != room || room.engine.phase != GamePhase.idle) {
+        return;
+      }
+      room.canFillWithAi = true;
+      _broadcastGameState(room.code);
+    });
   }
+  if (room.engine.players.length == room.maxPlayers) _startMatch(room);
 
   channel.send(jsonEncode({
     'event': 'game_created',
     'data': {'roomCode': roomCode}
   }));
   _broadcastGameState(roomCode);
+}
 
-  room.startLobbyTimeoutTimer(() {
-    if (room.engine.phase == GamePhase.idle) {
-      _closeRoom(room, errorCode: 'LOBBY_TIMEOUT');
-    }
+/// Every seat is taken (by people, or AI the players asked for): the match
+/// starts.
+void _startMatch(GameRoom room) {
+  room.engine.phase = GamePhase.rolling;
+  room.hadMultipleHumans =
+      room.engine.players.where((p) => !p.isAI).length > 1;
+  room.canFillWithAi = false;
+  room.lobbyTimeoutTimer?.cancel();
+  room.aiFillTimer?.cancel();
+  if (room.testMode) _applyTestMode(room);
+  room.startTimer(() => _handleTimeout(room.code));
+  room.startMaxDurationTimer(() {
+    _closeRoom(room, errorCode: 'MATCH_TIMEOUT');
   });
+}
 
-  if (room.engine.phase == GamePhase.rolling) {
-    room.lobbyTimeoutTimer?.cancel();
-    room.startTimer(() => _handleTimeout(roomCode));
+/// Fills [room]'s empty seats with AI players and starts the match.
+void _fillWithAi(GameRoom room) {
+  var n = 1;
+  while (room.engine.players.length < room.maxPlayers) {
+    room.engine.players.add(
+      Player(id: 'ai_${room.matchId}_$n', name: 'IA $n', isAI: true),
+    );
+    n++;
   }
+  room.filledWithAi = true;
+  _startMatch(room);
+  _broadcastGameState(room.code);
 }
 
 void _joinToRoom(
@@ -1254,13 +1324,7 @@ void _joinToRoom(
 
   unawaited(_storeUidAndSetActiveMatch(room, clientId, idToken, room.code));
 
-  var gameJustStarted = false;
-  if (room.engine.players.length == room.maxPlayers) {
-    room.engine.phase = GamePhase.rolling;
-    room.hadMultipleHumans = room.engine.players.length > 1;
-    gameJustStarted = true;
-    if (room.testMode) _applyTestMode(room);
-  }
+  if (room.engine.players.length == room.maxPlayers) _startMatch(room);
 
   channel.send(
     jsonEncode({
@@ -1273,14 +1337,6 @@ void _joinToRoom(
     }),
   );
   _broadcastGameState(room.code);
-
-  if (gameJustStarted) {
-    room.lobbyTimeoutTimer?.cancel();
-    room.startTimer(() => _handleTimeout(room.code));
-    room.startMaxDurationTimer(() {
-      _closeRoom(room, errorCode: 'MATCH_TIMEOUT');
-    });
-  }
 }
 
 void _handleRollDice(ClientConnection? channel,
@@ -1609,6 +1665,9 @@ void _broadcastGameState(String roomCode) {
       'timer': room.remainingSeconds,
       'phase': phaseStr,
       'boardId': room.engine.boardId,
+      'canFillWithAi':
+          room.canFillWithAi && room.engine.phase == GamePhase.idle,
+      'filledWithAi': room.filledWithAi,
       'boardSize': room.engine.board.finalPosition,
       'maxPlayers': room.maxPlayers,
       'winners': room.engine.finishedPlayers.map((p) => p.id).toList(),

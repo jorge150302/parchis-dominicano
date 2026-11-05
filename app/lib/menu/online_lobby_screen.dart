@@ -12,6 +12,7 @@ import '../config/language_provider.dart';
 import '../game/logic/game_controller.dart';
 import '../service/audio_service.dart';
 import '../service/auth_service.dart';
+import '../widgets/ai_fill_offer.dart';
 
 class OnlineLobbyScreen extends StatefulWidget {
   const OnlineLobbyScreen({super.key});
@@ -28,6 +29,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
   String? _currentRoomCode;
   int? _maxPlayersInRoom;
   int _currentPlayersInRoom = 0;
+  bool _canFillWithAi = false; // server offers AI for the empty seats
   int? _lastRequestedPlayers;
   bool _showTransitionOverlay = false;
 
@@ -112,6 +114,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           _isLoading = false;
           _currentPlayersInRoom = players.length;
           _maxPlayersInRoom = maxPlayers;
+          _canFillWithAi = data['canFillWithAi'] == true;
           if (_currentRoomCode == null && roomCode != null) _currentRoomCode = roomCode;
         });
 
@@ -142,6 +145,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           _showSessionConflictDialog();
         } else if (code == 'UPDATE_REQUIRED') {
           // MainMenuScreen, below this route, shows the update dialog.
+        } else if (code == 'AI_FILL_UNAVAILABLE') {
+          // The room filled or started meanwhile; its game_state follows.
+          setState(() => _canFillWithAi = false);
         } else if (code == 'LOBBY_TIMEOUT') {
           PrefsService.lastRoomCode = null;
           setState(() {
@@ -694,6 +700,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
           const SizedBox(height: 15),
           Text(context.translate('waiting_room_subtitle'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic)),
           const SizedBox(height: 10),
+          if (_canFillWithAi) ...[
+            const SizedBox(height: 10),
+            AiFillOffer(onAccept: () {
+              AudioService.playClick();
+              setState(() => _canFillWithAi = false);
+              socketService.send('fill_with_ai');
+            }),
+          ],
         ],
       ),
     ).animate().fadeIn().scale();
