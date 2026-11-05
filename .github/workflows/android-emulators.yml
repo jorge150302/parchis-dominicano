@@ -1,0 +1,58 @@
+name: Android emulators
+
+# The real app on Android emulators (integration_test/): it opens, goes to
+# offline mode and plays a match against the AI. Pull requests check the
+# oldest supported Android and the newest; the nightly run covers the
+# versions in between.
+on:
+  pull_request:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: android-${{ matrix.api-level }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # 24 = Android 7 (the minimum), 29 = 10, 34 = 14, 36 = 16 (target).
+        api-level: ${{ fromJSON(github.event_name == 'pull_request' && '[24, 36]' || '[24, 29, 34, 36]') }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable KVM (hardware-accelerated emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          # Gradle dependencies, so builds rarely depend on Maven being up.
+          cache: gradle
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+      - uses: ./.github/actions/android-ndk
+      - run: flutter pub get
+      # Download the build's dependencies before booting the emulator, with
+      # retries: a Maven 504 once failed the run before any test ran.
+      - name: Build debug APK
+        run: ../.github/scripts/retry-on-network-error.sh flutter build apk --debug
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          working-directory: app
+          script: flutter test integration_test --timeout 20m

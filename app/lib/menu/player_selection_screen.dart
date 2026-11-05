@@ -179,6 +179,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
                     Builder(
                       builder: (btnContext) {
                         return ElevatedButton(
+                          key: const Key('start_game'),
                           onPressed: selectedPlayers == null 
                             ? null 
                             : () {
@@ -399,6 +400,7 @@ class _PlayerSelectionScreenState extends State<PlayerSelectionScreen> {
     }
 
     return GestureDetector(
+      key: Key('player_count_$players'),
       onTap: () {
         AudioService.playClick(); // ✅ Sonido
         setState(() {
