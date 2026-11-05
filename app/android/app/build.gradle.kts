@@ -16,7 +16,7 @@ if (keyPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.frontend_parchis"
+    namespace = "com.jorgealmanzar.parchisdominicano"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -38,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.frontend_parchis"
+        applicationId = "com.jorgealmanzar.parchisdominicano"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutter.versionCode
