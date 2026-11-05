@@ -1273,6 +1273,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       const SizedBox(height: 70),
 
                       _MenuButton(
+                        key: const Key('menu_offline'),
                         icon: Icons.people_alt_rounded,
                         title: context.translate('offline_mode'),
                         subtitle: context.translate('offline_subtitle'),
@@ -1609,6 +1610,7 @@ class _MenuButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const _MenuButton({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
