@@ -173,6 +173,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          # Gradle dependencies, so builds rarely depend on Maven being up.
+          cache: gradle
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.41.9
@@ -180,4 +182,4 @@ jobs:
           cache: true
       - uses: ./.github/actions/android-ndk
       - run: flutter pub get
-      - run: flutter build apk --debug
+      - run: ../.github/scripts/retry-on-network-error.sh flutter build apk --debug
