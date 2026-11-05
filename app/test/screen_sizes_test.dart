@@ -81,19 +81,12 @@ final screens = <String, Screen>{
 
 /// Tests render text with a placeholder font whose glyphs are full squares,
 /// far wider than real text, so every label "overflows". Load Roboto (the
-/// app's Android font) from the Flutter SDK to measure like a phone does.
+/// app's Android font, bundled in test/fonts with its license: CI's Flutter
+/// SDK doesn't always carry it) to measure like a phone does.
 Future<void> loadRoboto() async {
-  // FLUTTER_ROOT when the tool sets it; otherwise walk up from the test
-  // runner (…/bin/cache/artifacts/engine/<platform>/flutter_tester).
-  Directory fontsIn(String root) => Directory('$root/bin/cache/artifacts/material_fonts');
-  var dir = fontsIn(Platform.environment['FLUTTER_ROOT'] ?? '');
-  for (var d = File(Platform.resolvedExecutable).parent; !dir.existsSync(); d = d.parent) {
-    if (d.parent.path == d.path) throw StateError('Roboto not found in the Flutter SDK');
-    dir = fontsIn(d.path);
-  }
   final loader = FontLoader('Roboto');
   for (final weight in ['light', 'regular', 'medium', 'bold', 'black']) {
-    final file = File('${dir.path}/roboto-$weight.ttf');
+    final file = File('test/fonts/roboto-$weight.ttf');
     loader.addFont(file.readAsBytes().then((b) => ByteData.view(b.buffer)));
   }
   await loader.load();
