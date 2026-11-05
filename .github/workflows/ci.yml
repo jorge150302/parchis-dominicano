@@ -53,6 +53,14 @@ jobs:
       # Warnings and errors fail the build; style infos are reported only.
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
+      # A golden screenshot differs (or is missing): old, new and diff images.
+      - name: Golden differences
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: app/test/goldens/failures/
+          if-no-files-found: ignore
 
   firestore:
     # Security rules + server transactions against the Firestore emulator
