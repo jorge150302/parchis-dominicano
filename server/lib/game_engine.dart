@@ -44,4 +44,19 @@ class GameEngine extends ParchisEngine<Player> {
 
   bool canMoveAnyToken(Player player, int steps) =>
       movableTokens(player, steps).isNotEmpty;
+
+  /// The token an AI or auto-play seat moves for [lastDiceValue], or null
+  /// when none can move. Online seats play at [AiLevel.medium].
+  Token? aiMove() {
+    final movable = movableTokens(currentPlayer, lastDiceValue);
+    if (movable.isEmpty) return null;
+    return chooseAiMove(
+      this,
+      currentPlayer,
+      lastDiceValue,
+      movable,
+      AiLevel.medium,
+      _random,
+    ) as Token;
+  }
 }

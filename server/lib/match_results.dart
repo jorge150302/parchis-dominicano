@@ -27,7 +27,14 @@ int levelForXp(int totalXp) {
 /// XP for finishing at 0-based [position] out of [totalPlayers] in an online
 /// match. Same table as the client's `LevelManager.calculateMatchXP` at
 /// medium difficulty (online games have no difficulty setting).
-int onlineMatchXp({required int position, required int totalPlayers}) {
+///
+/// Matches whose empty seats a player chose to fill with AI ([vsAi]) pay
+/// half: beating bots is worth less than beating people.
+int onlineMatchXp({
+  required int position,
+  required int totalPlayers,
+  bool vsAi = false,
+}) {
   const table = {
     2: [60, 10],
     3: [80, 20, 10],
@@ -35,7 +42,7 @@ int onlineMatchXp({required int position, required int totalPlayers}) {
   };
   final row = table[totalPlayers];
   if (row == null || position < 0 || position >= row.length) return 0;
-  return row[position];
+  return vsAi ? row[position] ~/ 2 : row[position];
 }
 
 /// The outcome of one online match for one account, decided by the server.
@@ -46,6 +53,7 @@ class MatchResult {
     required this.totalPlayers,
     required this.captures,
     this.position,
+    this.vsAi = false,
   });
 
   final String uid;
@@ -58,9 +66,16 @@ class MatchResult {
   final int totalPlayers;
   final int captures;
 
+  /// The match was completed with AI seats (reduced XP).
+  final bool vsAi;
+
   int get xp => position == null
       ? 0
-      : onlineMatchXp(position: position!, totalPlayers: totalPlayers);
+      : onlineMatchXp(
+          position: position!,
+          totalPlayers: totalPlayers,
+          vsAi: vsAi,
+        );
 
   bool get isWin => position == 0;
 

@@ -12,6 +12,7 @@ La explicación de cada regla y de cada decisión pendiente está en [`docs/regl
 | `lib/src/engine.dart` | `ParchisEngine`: tirada (`roll`), avance (`step`), resolución de la casilla y las capturas (`land`) y cambio de turno (`nextTurn`). |
 | `lib/src/board.dart` | Tableros como datos: `BoardDefinition`, con su JSON y su validación. |
 | `lib/src/boards.dart` | Catálogo incluido: `easy`, `medium` (el de online), `hard` y `quick`. |
+| `lib/src/ai.dart` | `chooseAiMove`: la IA, en tres niveles (fácil, media y difícil). Offline la usa la app con el nivel que elige el jugador; online el servidor usa siempre la media, en los asientos de IA y en el juego automático. |
 
 El motor no tira el dado ni anima nada. Eso lo hacen la app y el servidor, cada uno con sus propios modelos de jugador, que implementan `RulesPlayer` y `RulesToken`.
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:parchis_server/entitlements.dart';
+import 'package:parchis_server/match_results.dart';
 import 'package:parchis_server/rooms.dart';
 import 'package:parchis_server/server_stats.dart';
 import 'package:test/test.dart';
@@ -267,6 +268,20 @@ void main() {
     });
   });
 
+  test('AI seats act at a human pace: 2 s per roll', () {
+    run(() {
+      final room = startRoom(['a', 'b', 'c']);
+      say(room[0], 'surrender');
+      clock.elapse(const Duration(milliseconds: 1900));
+      expect(room[1].events('dice_result'), isEmpty);
+      clock.elapse(const Duration(milliseconds: 200));
+      expect(
+        room[1].events('dice_result').map((e) => e['data']['playerId']),
+        ['a'],
+      );
+    });
+  });
+
   test('disconnecting on your own turn hands it to auto-play right away', () {
     run(() {
       final room = startRoom(['a', 'b']);
@@ -306,6 +321,94 @@ void main() {
         {for (final c in room) c.last('you_finished')!['position']},
         {1, 2},
       );
+    });
+  });
+
+  group('filling a public room with AI', () {
+    /// A public room for [size] with only [conn] in it.
+    FakeConnection waitAlone(String id, {int size = 4}) {
+      final conn = FakeConnection(id);
+      say(conn, 'find_match', data: {'maxPlayers': size}, token: id);
+      expect(conn.state!['phase'], 'idle');
+      return conn;
+    }
+
+    test('is offered only after the wait, and never automatic', () {
+      run(() {
+        final me = waitAlone('a');
+        say(me, 'fill_with_ai');
+        expect(me.errorCodes, ['AI_FILL_UNAVAILABLE']);
+        expect(me.state!['canFillWithAi'], isFalse);
+
+        clock.elapse(const Duration(seconds: 46));
+        expect(me.state!['canFillWithAi'], isTrue);
+        // Offering it seats nobody.
+        expect(me.state!['players'] as List, hasLength(1));
+        expect(me.state!['phase'], 'idle');
+      });
+    });
+
+    test('fills the empty seats with marked AI players and starts', () {
+      run(() {
+        final me = waitAlone('a');
+        clock.elapse(const Duration(seconds: 46));
+        say(me, 'fill_with_ai');
+
+        final players =
+            (me.state!['players'] as List).cast<Map<String, dynamic>>();
+        expect(players, hasLength(4));
+        expect(players.where((p) => p['isAI'] == true), hasLength(3));
+        expect(me.seat('a')['isAI'], isFalse);
+        expect(me.state!['phase'], 'rolling');
+        expect(me.state!['filledWithAi'], isTrue);
+        expect(me.state!['canFillWithAi'], isFalse);
+
+        // The AI seats play their own turns once the human's has passed.
+        clock.elapse(const Duration(seconds: 40));
+        final rollers = me.events('dice_result').map((e) => e['data']['playerId']);
+        expect(rollers.where((id) => '$id'.startsWith('ai_')), isNotEmpty);
+
+        // A filled room is no longer offered to matchmaking.
+        final late = FakeConnection('late');
+        say(late, 'find_match', data: {'maxPlayers': 4}, token: 'late');
+        expect(late.state!['roomCode'], isNot(me.state!['roomCode']));
+      });
+    });
+
+    test('is not available in private rooms or to outsiders', () {
+      run(() {
+        final room = startRoom(['a', 'b', 'c']);
+        clock.elapse(const Duration(seconds: 46));
+        say(room[0], 'fill_with_ai');
+        expect(room[0].errorCodes, ['AI_FILL_UNAVAILABLE']);
+
+        final outsider = FakeConnection('x');
+        say(outsider, 'fill_with_ai');
+        expect(outsider.errorCodes, ['AI_FILL_UNAVAILABLE']);
+      });
+    });
+
+    test('pays half the XP', () {
+      run(() {
+        final me = waitAlone('a', size: 2);
+        clock.elapse(const Duration(seconds: 46));
+        say(me, 'fill_with_ai');
+        say(me, 'toggle_auto_play', data: {'value': true});
+        for (var i = 0; i < 4 * 3600 && me.state!['phase'] != 'finished'; i++) {
+          clock.elapse(const Duration(seconds: 1));
+        }
+        expect(me.state!['phase'], 'finished');
+        final result = me.last('you_finished')!;
+        final rank = result['position'] as int;
+        expect(
+          result['xpAwarded'],
+          onlineMatchXp(position: rank - 1, totalPlayers: 2, vsAi: true),
+        );
+        expect(
+          onlineMatchXp(position: 0, totalPlayers: 2, vsAi: true),
+          onlineMatchXp(position: 0, totalPlayers: 2) ~/ 2,
+        );
+      });
     });
   });
 
