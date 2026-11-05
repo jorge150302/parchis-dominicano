@@ -268,6 +268,20 @@ void main() {
     });
   });
 
+  test('AI seats act at a human pace: 2 s per roll', () {
+    run(() {
+      final room = startRoom(['a', 'b', 'c']);
+      say(room[0], 'surrender');
+      clock.elapse(const Duration(milliseconds: 1900));
+      expect(room[1].events('dice_result'), isEmpty);
+      clock.elapse(const Duration(milliseconds: 200));
+      expect(
+        room[1].events('dice_result').map((e) => e['data']['playerId']),
+        ['a'],
+      );
+    });
+  });
+
   test('disconnecting on your own turn hands it to auto-play right away', () {
     run(() {
       final room = startRoom(['a', 'b']);

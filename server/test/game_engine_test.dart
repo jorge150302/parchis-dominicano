@@ -59,4 +59,20 @@ void main() {
   test('defaults to the medium board id', () {
     expect(_engine().boardId, mediumBoard.id);
   });
+
+  test('AI and auto-play seats move like the shared medium AI', () {
+    final engine = _engine();
+    final me = engine.currentPlayer;
+    // The front token would land on 13 ("go to start"); the old rule
+    // (always the furthest token) took it there.
+    me.tokens[0].position = 9;
+    me.tokens[1].position = 3;
+    engine.lastDiceValue = 4;
+    expect(engine.aiMove()?.id, 1);
+
+    me.tokens[0].position = 99;
+    me.tokens[1].position = 98;
+    engine.lastDiceValue = 5;
+    expect(engine.aiMove(), isNull, reason: 'no legal move');
+  });
 }

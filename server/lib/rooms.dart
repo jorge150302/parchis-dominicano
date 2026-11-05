@@ -103,6 +103,9 @@ class GameRoom {
   /// to fill the empty seats with AI (`fill_with_ai`). Never automatic.
   static const aiFillDelay = Duration(seconds: 45);
 
+  /// How long an AI or auto-play seat takes per action (roll, then move).
+  static const aiActionDelay = Duration(seconds: 2);
+
   /// [aiFillDelay] has passed with seats still empty.
   bool canFillWithAi = false;
 
@@ -159,7 +162,7 @@ class GameRoom {
     final currentPlayer = engine.currentPlayer;
 
     if (currentPlayer.isAI || currentPlayer.isAutoPlaying) {
-      turnTimer = Timer(const Duration(seconds: 3), onTimeout);
+      turnTimer = Timer(aiActionDelay, onTimeout);
       return;
     }
 
@@ -1532,16 +1535,7 @@ void _handleTimeout(String roomCode) {
     _handleRollDice(null,
         roomCode: roomCode, playerId: room.engine.currentPlayer.id);
   } else if (room.engine.phase == GamePhase.choosingToken) {
-    Token? best;
-    var max = -1;
-    for (final t in room.engine.currentPlayer.tokens) {
-      if (room.engine.canMove(
-              room.engine.currentPlayer, t, room.engine.lastDiceValue) &&
-          t.position > max) {
-        max = t.position;
-        best = t;
-      }
-    }
+    final best = room.engine.aiMove();
     if (best != null) {
       unawaited(
         _handleMoveToken(

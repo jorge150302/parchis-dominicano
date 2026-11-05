@@ -9,17 +9,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend_parchis/config/language_provider.dart';
 import 'package:frontend_parchis/game/logic/game_controller.dart';
 import 'package:frontend_parchis/game/logic/game_engine.dart';
+import 'package:frontend_parchis/game/logic/level_manager.dart';
 import 'package:frontend_parchis/game/models/player.dart';
 import 'package:frontend_parchis/service/prefs_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Plays a match to the end on fake time and returns the controller.
-LocalGameController playMatch(BoardDefinition board, int seats) {
+LocalGameController playMatch(BoardDefinition board, int seats, GameDifficulty difficulty) {
   late LocalGameController controller;
   fakeAsync((time) {
     controller = LocalGameController(
       engine: GameEngine(board: board.build(), players: []),
       vsAI: true,
+      difficulty: difficulty,
     );
     controller.setPlayers([
       for (var i = 0; i < seats; i++)
@@ -64,9 +66,14 @@ void main() {
 
   final keys = LanguageProvider.translations[Language.es]!.keys.toSet();
 
-  for (final (board, seats) in [(easyBoard, 2), (mediumBoard, 2), (hardBoard, 3)]) {
-    test('a ${board.id} match with $seats bots plays to the end', () {
-      final controller = playMatch(board, seats);
+  for (final (board, seats, difficulty) in [
+    (easyBoard, 2, GameDifficulty.easy),
+    (mediumBoard, 2, GameDifficulty.medium),
+    (hardBoard, 3, GameDifficulty.hard),
+    (quickBoard, 4, GameDifficulty.medium),
+  ]) {
+    test('a ${board.id} match with $seats ${difficulty.name} bots plays to the end', () {
+      final controller = playMatch(board, seats, difficulty);
       final engine = controller.engine;
 
       // Everyone is ranked once; the winner finished every token.
