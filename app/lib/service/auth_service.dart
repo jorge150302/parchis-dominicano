@@ -16,10 +16,10 @@ enum SignOutStatus { success, offline }
 enum DeleteAccountStatus { success, offline, error, cancelled }
 
 class AuthService extends ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  final FirebaseAuth _auth;
+  final GoogleSignIn _googleSignIn;
   Future<void>? _googleSignInInit;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
 
   UserProfile? _profile;
   bool _needsMigrationDialog = false;
@@ -41,7 +41,12 @@ class AuthService extends ChangeNotifier {
     super.dispose();
   }
 
-  AuthService() {
+  /// [auth], [googleSignIn] and [db] default to the Firebase instances;
+  /// tests pass fakes so screens can be built without Firebase.
+  AuthService({FirebaseAuth? auth, GoogleSignIn? googleSignIn, FirebaseFirestore? db})
+      : _auth = auth ?? FirebaseAuth.instance,
+        _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
+        _db = db ?? FirebaseFirestore.instance {
     _wasSignedIn = _auth.currentUser != null;
     _authSub = _auth.authStateChanges().listen(_onAuthStateChanged);
   }

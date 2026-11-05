@@ -1549,9 +1549,14 @@ class _PlayerProfileHeader extends StatelessWidget {
           children: [
             const Icon(Icons.login, color: Colors.white70, size: 10),
             const SizedBox(width: 4),
-            Text(
-              context.translate('sign_in_google'),
-              style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w600),
+            // Large text (accessibility) must not push it out of the card.
+            Flexible(
+              child: Text(
+                context.translate('sign_in_google'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
