@@ -1765,6 +1765,7 @@ class _PlayerCornerWidget extends StatelessWidget {
           _buildFinishedBadge(context, controller)
         else
           GestureDetector(
+            key: Key('roll_dice_${player.id}'),
             onTap: () {
                if (canTap) {
                  if (controller.isOnline && !socketSrv.isConnected) {

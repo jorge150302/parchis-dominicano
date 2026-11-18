@@ -1,0 +1,61 @@
+name: Actualizar capturas
+
+# Regenerates the golden screenshots (app/test/goldens) on Linux, where CI
+# compares them, and commits them to the branch. Use it when a visual
+# change is intended:
+#   - on a pull request: add the `actualizar-capturas` label;
+#   - on any branch: Actions -> Actualizar capturas -> Run workflow.
+# Commits pushed with the default token don't start CI; with a
+# GOLDENS_TOKEN secret (a fine-grained token with "Contents: write") they
+# do. Without it, close and reopen the pull request to rerun CI.
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'actualizar-capturas'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GOLDENS_TOKEN || github.token }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+      - name: Render the screenshots
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter test --tags golden --update-goldens
+      - name: Commit them
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/test/goldens
+          if git diff --cached --quiet; then
+            echo "Las capturas ya estaban al día." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git commit -m "test(app): update golden screenshots"
+          git push
+          {
+            echo "Capturas actualizadas: revísalas en *Files changed* del PR."
+            if [ -z "${{ secrets.GOLDENS_TOKEN }}" ]; then
+              echo ""
+              echo "Para que la CI vuelva a correr: cierra y vuelve a abrir el PR."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the label
+        if: github.event_name == 'pull_request'
+        run: gh pr edit "${{ github.event.pull_request.number }}" --remove-label actualizar-capturas --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

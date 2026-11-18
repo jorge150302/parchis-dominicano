@@ -1,0 +1,36 @@
+name: Android NDK
+description: >
+  Installs the NDK version the active Flutter pins, cached and with
+  retries. Gradle would otherwise download it mid-build, and a truncated
+  download once failed the build. Run after flutter-action.
+runs:
+  using: composite
+  steps:
+    - name: Android NDK version
+      id: ndk
+      shell: bash
+      run: |
+        flutter_root="$(dirname "$(dirname "$(command -v flutter)")")"
+        ext="$flutter_root/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt"
+        version=$(grep -o 'ndkVersion: String = "[^"]*"' "$ext" | cut -d '"' -f 2)
+        test -n "$version"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "dir=$ANDROID_HOME/ndk/$version" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      with:
+        path: ${{ steps.ndk.outputs.dir }}
+        key: android-ndk-${{ steps.ndk.outputs.version }}
+    - name: Install Android NDK
+      shell: bash
+      run: |
+        dir="${{ steps.ndk.outputs.dir }}"
+        sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        if [ -f "$dir/source.properties" ]; then echo "NDK from cache"; exit 0; fi
+        for attempt in 1 2 3; do
+          rm -rf "$dir"
+          yes | "$sdkmanager" --install "ndk;${{ steps.ndk.outputs.version }}" > /dev/null || true
+          if [ -f "$dir/source.properties" ]; then exit 0; fi
+          echo "NDK install attempt $attempt failed"
+          sleep 15
+        done
+        exit 1

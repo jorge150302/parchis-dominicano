@@ -42,7 +42,10 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.auth});
+
+  /// The app's account service; tests pass one built without Firebase.
+  final AuthService? auth;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +53,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: socketService),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
-        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => auth ?? AuthService()),
         ChangeNotifierProxyProvider<AuthService, SyncQueueService>(
           create: (ctx) => SyncQueueService(ctx.read<AuthService>()),
           update: (ctx, auth, prev) => prev ?? SyncQueueService(auth),
