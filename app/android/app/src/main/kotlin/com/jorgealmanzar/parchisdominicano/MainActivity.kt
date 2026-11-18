@@ -1,4 +1,4 @@
-package com.example.frontend_parchis
+package com.jorgealmanzar.parchisdominicano
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -33,7 +33,7 @@ class DefaultFirebaseOptions {
   // ── Android ───────────────────────────────────────────────────────────────
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBkMR47MmMs4M5wbDJFw2adLR-I5SVKsZ8',
-    appId: '1:274739580013:android:97ba5ca836fc8a9e8d8364',
+    appId: '1:274739580013:android:a467401ee16edabc8d8364', // com.jorgealmanzar.parchisdominicano
     messagingSenderId: '274739580013',
     projectId: 'parche-6c44d',
     authDomain: 'parche-6c44d.firebaseapp.com',
