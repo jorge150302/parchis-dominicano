@@ -11,6 +11,8 @@ import 'package:frontend_parchis/game/tutorial/tutorial_overlay.dart';
 import 'package:frontend_parchis/game/tutorial/tutorial_script.dart';
 import 'package:frontend_parchis/game/widgets/board_widget.dart';
 import 'package:frontend_parchis/main.dart';
+import 'package:frontend_parchis/service/prefs_service.dart';
+import 'package:frontend_parchis/service/sync_queue_service.dart';
 import 'package:frontend_parchis/service/socket_service.dart';
 import 'package:provider/provider.dart';
 
@@ -128,24 +130,13 @@ Future<List<String>> _playThrough(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 100));
     final d = _director(tester);
     if (d.isDone) {
-      // The last card's entrance.
-      final card = find.byKey(const Key('tutorial_finish'));
-      for (
-        var k = 0;
-        k < 30 &&
-            (card.evaluate().isEmpty || tester.getSize(card).height < 100);
-        k++
-      ) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-      await tester.pump(const Duration(seconds: 1));
-      final screen =
-          Offset.zero & tester.view.physicalSize / tester.view.devicePixelRatio;
+      // The last card's entrance: both buttons must end up tappable.
       for (final button in ['tutorial_menu', 'tutorial_play_ai']) {
-        expect(
-          screen.contains(tester.getCenter(find.byKey(Key(button)))),
-          isTrue,
-          reason: '$button is off screen',
+        await pumpUntilFound(
+          tester,
+          find.byKey(Key(button)).hitTestable(),
+          timeout: const Duration(seconds: 5),
+          reason: '$button never became tappable',
         );
       }
       return reads;
@@ -213,8 +204,10 @@ void main() {
         reason: 'the learner wins the last scene',
       );
 
-      // Ends on its own card, not the match results.
+      // Ends on its own card, not the match results, with the reward.
       expect(find.byKey(const Key('tutorial_finish')), findsOneWidget);
+      expect(find.byKey(const Key('tutorial_reward')), findsOneWidget);
+      expect(PrefsService.totalXp, SyncQueueService.tutorialRewardXp);
       await tester.tap(find.byKey(const Key('tutorial_menu')));
       await pumpUntilFound(
         tester,
@@ -295,12 +288,28 @@ void main() {
     await _openTutorial(tester, const Size(412, 915));
     await tester.tap(find.byKey(const Key('tutorial_skip')));
     await _pumpUntilGone(tester, find.byType(TutorialOverlay));
+    expect(PrefsService.totalXp, 0, reason: 'skipping earns nothing');
+    expect(PrefsService.pendingSyncReceipts, isEmpty);
     await pumpUntilFound(
       tester,
       find.byKey(const Key('menu_offline')),
       reason: 'skip did not reach the menu',
     );
     expect(find.byType(TutorialOverlay), findsNothing);
+  });
+
+  testWidgets('finishing it again gives no second reward', (tester) async {
+    await usePrefs({
+      'is_first_time': true,
+      'tutorial_xp_claimed_by': ['guest'],
+    });
+    await _openTutorial(tester, const Size(412, 915));
+    await _playThrough(tester);
+    expect(find.byKey(const Key('tutorial_finish')), findsOneWidget);
+    expect(find.byKey(const Key('tutorial_reward')), findsNothing);
+    expect(PrefsService.totalXp, 0);
+    expect(PrefsService.pendingSyncReceipts, isEmpty);
+    await _leave(tester);
   });
 
   testWidgets('the last card starts a real match against the AI', (

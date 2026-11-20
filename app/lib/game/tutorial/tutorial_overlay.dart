@@ -37,6 +37,7 @@ class TutorialOverlay extends StatefulWidget {
     required this.onSkip,
     required this.onMenu,
     required this.onPlayAi,
+    this.rewardXp = 0,
   });
 
   final TutorialDirector director;
@@ -44,6 +45,9 @@ class TutorialOverlay extends StatefulWidget {
   final VoidCallback onSkip;
   final VoidCallback onMenu;
   final VoidCallback onPlayAi;
+
+  /// XP shown on the last card; 0 when this account already got it.
+  final int rewardXp;
 
   @override
   State<TutorialOverlay> createState() => _TutorialOverlayState();
@@ -98,7 +102,11 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   Widget build(BuildContext context) {
     final director = widget.director;
     if (director.isDone) {
-      return _FinishCard(onMenu: widget.onMenu, onPlayAi: widget.onPlayAi);
+      return _FinishCard(
+        onMenu: widget.onMenu,
+        onPlayAi: widget.onPlayAi,
+        rewardXp: widget.rewardXp,
+      );
     }
 
     final step = director.step;
@@ -346,10 +354,15 @@ class _StepCard extends StatelessWidget {
 }
 
 class _FinishCard extends StatelessWidget {
-  const _FinishCard({required this.onMenu, required this.onPlayAi});
+  const _FinishCard({
+    required this.onMenu,
+    required this.onPlayAi,
+    required this.rewardXp,
+  });
 
   final VoidCallback onMenu;
   final VoidCallback onPlayAi;
+  final int rewardXp;
 
   @override
   Widget build(BuildContext context) {
@@ -358,40 +371,80 @@ class _FinishCard extends StatelessWidget {
       color: Colors.black54,
       alignment: Alignment.center,
       padding: EdgeInsets.all(compact ? 12 : 24),
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          key: const Key('tutorial_finish'),
-          padding: EdgeInsets.all(compact ? 14 : 20),
-          decoration: BoxDecoration(
-            color: Colors.brown.shade900,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.orange, width: 3),
-            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
-          ),
-          child: SingleChildScrollView(
+      child: _PopIn(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            key: const Key('tutorial_finish'),
+            padding: EdgeInsets.all(compact ? 14 : 20),
+            decoration: BoxDecoration(
+              color: Colors.brown.shade900,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.orange, width: 3),
+              boxShadow: const [
+                BoxShadow(color: Colors.black54, blurRadius: 20),
+              ],
+            ),
+            // The buttons stay in view; only the text scrolls if it must.
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('🎉', style: TextStyle(fontSize: compact ? 30 : 40)),
-                SizedBox(height: compact ? 4 : 8),
-                Text(
-                  context.translate('tut_done_title'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.orangeAccent,
-                    fontSize: compact ? 19 : 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: compact ? 8 : 12),
-                Text(
-                  context.translate('tut_done_body'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: compact ? 14 : 15,
-                    height: 1.35,
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '🎉',
+                          style: TextStyle(fontSize: compact ? 30 : 40),
+                        ),
+                        SizedBox(height: compact ? 4 : 8),
+                        Text(
+                          context.translate('tut_done_title'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.orangeAccent,
+                            fontSize: compact ? 19 : 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (rewardXp > 0) ...[
+                          SizedBox(height: compact ? 6 : 10),
+                          Container(
+                            key: const Key('tutorial_reward'),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade700,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              context.translate(
+                                'tut_reward',
+                                args: {'xp': '$rewardXp'},
+                              ),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                        SizedBox(height: compact ? 8 : 12),
+                        Text(
+                          context.translate('tut_done_body'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: compact ? 14 : 15,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 SizedBox(height: compact ? 12 : 20),
@@ -432,9 +485,28 @@ class _FinishCard extends StatelessWidget {
             ),
           ),
         ),
-      ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+      ),
     );
   }
+}
+
+/// Fades and grows [child] in once, when it first appears.
+class _PopIn extends StatelessWidget {
+  const _PopIn({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 300),
+    curve: Curves.easeOut,
+    builder: (_, t, child) => Opacity(
+      opacity: t,
+      child: Transform.scale(scale: 0.85 + 0.15 * t, child: child),
+    ),
+    child: child,
+  );
 }
 
 /// Where the step card goes: of bottom, top and middle, the spot covering

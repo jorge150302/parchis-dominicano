@@ -66,6 +66,9 @@ class _GameScreenState extends State<GameScreen> {
   TutorialDirector? _tutorial;
   final TutorialAnchors _anchors = TutorialAnchors();
 
+  /// XP granted on finishing the tutorial; null until it is finished.
+  int? _tutorialXp;
+
   // Variables para el sistema de niveles
   int _lastGainedXp = 0;
   bool _didLevelUp = false;
@@ -137,7 +140,9 @@ class _GameScreenState extends State<GameScreen> {
       }
 
       if (widget.isTutorial && controller is LocalGameController) {
-        setState(() => _tutorial = TutorialDirector(controller)..start());
+        setState(() => _tutorial = TutorialDirector(controller)
+          ..addListener(_onTutorialProgress)
+          ..start());
       }
     });
   }
@@ -551,6 +556,7 @@ class _GameScreenState extends State<GameScreen> {
                                   onSkip: _leaveTutorial,
                                   onMenu: _leaveTutorial,
                                   onPlayAi: _playFirstMatch,
+                                  rewardXp: _tutorialXp ?? 0,
                                 ),
                               ),
                             
@@ -647,6 +653,13 @@ class _GameScreenState extends State<GameScreen> {
         diceKey: _anchors.diceOf(player.id),
         homeKey: _anchors.homeOf(player.id),
       );
+
+  /// Finishing (not skipping) the tutorial earns its XP once per account.
+  void _onTutorialProgress() {
+    final tutorial = _tutorial;
+    if (!mounted || tutorial == null || !tutorial.isDone || _tutorialXp != null) return;
+    setState(() => _tutorialXp = context.read<SyncQueueService>().recordTutorialReward());
+  }
 
   void _leaveTutorial() {
     Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);

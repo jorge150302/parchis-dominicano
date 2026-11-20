@@ -30,6 +30,12 @@ class PrefsService {
   static bool get isFirstTime => _prefs.getBool('is_first_time') ?? true;
   static set isFirstTime(bool value) => _prefs.setBool('is_first_time', value);
 
+  /// Accounts (uid, or 'guest') this device already gave the tutorial XP.
+  static Set<String> get tutorialXpClaimedBy =>
+      (_prefs.getStringList('tutorial_xp_claimed_by') ?? const <String>[]).toSet();
+  static set tutorialXpClaimedBy(Set<String> owners) =>
+      _prefs.setStringList('tutorial_xp_claimed_by', owners.toList());
+
   // 🏠 Sala (Online)
   static String? get lastRoomCode => _prefs.getString('last_room_code');
   static set lastRoomCode(String? code) {

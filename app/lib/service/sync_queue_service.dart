@@ -106,6 +106,35 @@ class SyncQueueService extends ChangeNotifier {
     return awarded;
   }
 
+  static const tutorialRewardXp = 50;
+
+  /// Fixed, so the server (which stores processed receipt ids per account)
+  /// credits it once per account, even after a reinstall or on a second
+  /// device.
+  static const tutorialReceiptId = 'tutorial_complete';
+
+  /// XP for finishing the tutorial, once per account. The flag per account
+  /// keeps this device's counter from adding it twice; the fixed receipt id
+  /// keeps the server from crediting it twice. Returns the XP added here
+  /// (0 when this account already got it).
+  int recordTutorialReward() {
+    final owner = _authService.firebaseUser?.uid ?? 'guest';
+    final claimed = PrefsService.tutorialXpClaimedBy;
+    if (claimed.contains(owner)) return 0;
+    PrefsService.tutorialXpClaimedBy = {...claimed, owner};
+
+    _enqueue(XpReceipt(
+      id: tutorialReceiptId,
+      xp: tutorialRewardXp,
+      isOnline: false,
+      timestamp: DateTime.now(),
+    ));
+    _applyLocalXp(tutorialRewardXp);
+    if (_authService.isSignedIn) _attemptSync();
+    notifyListeners();
+    return tutorialRewardXp;
+  }
+
   Future<void> syncNow() => _attemptSync();
 
   /// Submits guest XP as server receipts, capped at 500 XP total.
