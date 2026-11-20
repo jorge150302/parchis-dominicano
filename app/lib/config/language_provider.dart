@@ -169,6 +169,7 @@ class LanguageProvider extends ChangeNotifier {
       'tut_done_body': 'Sales con cualquier número, el 6 repite, capturar da un tiro extra, los puentes bloquean, el tercer 6 castiga y a la meta se entra con el número exacto.',
       'tut_play_ai': 'Jugar mi primera partida contra la IA',
       'tut_menu': 'Ir al menú',
+      'tut_reward': '+{xp} XP por aprender a jugar',
       // Privacy & Account
       'privacy_policy': 'Política de Privacidad',
       'credits': 'Créditos',
@@ -478,6 +479,7 @@ class LanguageProvider extends ChangeNotifier {
       'tut_done_body': 'Leave home with any number, a 6 rolls again, captures earn a roll, bridges block, the third 6 is a penalty, and home takes the exact number.',
       'tut_play_ai': 'Play my first match against the AI',
       'tut_menu': 'Go to menu',
+      'tut_reward': '+{xp} XP for learning to play',
       // Privacy & Account
       'privacy_policy': 'Privacy Policy',
       'credits': 'Credits',

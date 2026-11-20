@@ -165,6 +165,20 @@ void main() {
       expect(b.rejected.single, contains('daily match cap'));
     });
 
+    test('the tutorial reward is XP-only and paid once per account', () {
+      // The app sends it with this fixed id, so a reinstall or a second
+      // device finds it already processed.
+      final first = _validate([_receipt('tutorial_complete', xp: 50, match: false)]);
+      expect([first.acceptedIds, first.xp, first.matches], [['tutorial_complete'], 50, 0]);
+
+      final again = _validate(
+        [_receipt('tutorial_complete', xp: 50, match: false)],
+        processed: {'tutorial_complete'},
+      );
+      expect(again.isEmpty, isTrue);
+      expect(again.rejected.single, contains('duplicate'));
+    });
+
     test('a replay of 20 max receipts is bounded by the daily cap', () {
       final receipts = [for (var i = 0; i < 20; i++) _receipt('r$i', xp: 75)];
       expect(_validate(receipts).xp, maxOfflineXpPerDay);
