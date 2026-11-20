@@ -16,6 +16,8 @@ import '../models/player.dart';
 import '../widgets/board_widget.dart';
 import '../widgets/dice_widget.dart';
 import '../widgets/home_zone_widget.dart';
+import '../tutorial/tutorial_director.dart';
+import '../tutorial/tutorial_overlay.dart';
 import '../../service/socket_service.dart';
 import '../../service/prefs_service.dart';
 import '../../service/audio_service.dart';
@@ -61,8 +63,8 @@ class _GameScreenState extends State<GameScreen> {
   int _lastMessageCount = 0;
   int? _lastSeconds;
 
-  int _tutorialStep = 0;
-  bool _canContinueTutorial = true;
+  TutorialDirector? _tutorial;
+  final TutorialAnchors _anchors = TutorialAnchors();
 
   // Variables para el sistema de niveles
   int _lastGainedXp = 0;
@@ -112,9 +114,14 @@ class _GameScreenState extends State<GameScreen> {
         final players = List.generate(
           widget.playerCount,
           (i) {
-            String name = (widget.playerNames != null && widget.playerNames!.length > i) 
-                ? widget.playerNames![i] 
+            String name = (widget.playerNames != null && widget.playerNames!.length > i)
+                ? widget.playerNames![i]
                 : '${context.read<LanguageProvider>().translate('player')} ${i + 1}';
+            if (widget.isTutorial) {
+              name = i == 0 && PrefsService.playerName.isNotEmpty
+                  ? PrefsService.playerName
+                  : context.read<LanguageProvider>().translate(i == 0 ? 'tut_you_name' : 'tut_rival_name');
+            }
             
             return Player(
               id: '${i + 1}',
@@ -129,8 +136,8 @@ class _GameScreenState extends State<GameScreen> {
         controller.startTurn();
       }
 
-      if (widget.isTutorial) {
-        setState(() => _tutorialStep = 1);
+      if (widget.isTutorial && controller is LocalGameController) {
+        setState(() => _tutorial = TutorialDirector(controller)..start());
       }
     });
   }
@@ -139,6 +146,7 @@ class _GameScreenState extends State<GameScreen> {
   void dispose() {
     _confettiController.dispose();
     _captureSubscription?.cancel();
+    _tutorial?.dispose();
     super.dispose();
   }
 
@@ -338,7 +346,8 @@ class _GameScreenState extends State<GameScreen> {
        AudioService.stopFinalTiming();
     }
 
-    if (controller.engine.phase == GamePhase.finished && !_isGameFinishedDialogShown) {
+    // The tutorial ends with its own card, not the results dialog.
+    if (controller.engine.phase == GamePhase.finished && !_isGameFinishedDialogShown && !widget.isTutorial) {
       _isGameFinishedDialogShown = true;
       _updatePlayerProgress(controller);
       _confettiController.stop();
@@ -353,26 +362,6 @@ class _GameScreenState extends State<GameScreen> {
       }
 
       _showGameFinishedDialog();
-    }
-
-    if (widget.isTutorial) {
-       // Sincronización automática de pasos de MOVIMIENTO inicial para el usuario (pasos 1 y 2)
-       if (_tutorialStep == 1 && controller.engine.phase == GamePhase.choosing_token) {
-          setState(() => _tutorialStep = 2);
-       } else if (_tutorialStep == 2 && controller.engine.phase == GamePhase.idle) {
-          Future.delayed(const Duration(milliseconds: 600), () {
-             if (mounted && _tutorialStep == 2) {
-                setState(() {
-                  _tutorialStep = 3;
-                  _canContinueTutorial = false;
-                });
-                // Delay de 2 segundos para permitir que la ficha termine de moverse
-                Future.delayed(const Duration(seconds: 2), () {
-                   if (mounted) setState(() => _canContinueTutorial = true);
-                });
-             }
-          });
-       }
     }
 
     setState(() {});
@@ -535,6 +524,7 @@ class _GameScreenState extends State<GameScreen> {
                                       child: BoardWidget(
                                         board: controller.engine.board,
                                         players: controller.players,
+                                        cellKeys: _anchors.cells,
                                       ),
                                     ),
                                   ),
@@ -551,9 +541,18 @@ class _GameScreenState extends State<GameScreen> {
                             // Capas de Animación y Overlays (Sobre el layout principal)
                             if (isReconnecting) _buildConnectionOverlay(),
                             ..._buildFlyingTokens(),
-                            _buildFloatingEvents(),
+                            IgnorePointer(child: _buildFloatingEvents()), // notices never block a tap
                             if (isWaiting) _buildWaitingOverlay(),
-                            if (widget.isTutorial && _tutorialStep > 0) _buildTutorialOverlay(),
+                            if (_tutorial != null)
+                              Positioned.fill(
+                                child: TutorialOverlay(
+                                  director: _tutorial!,
+                                  anchors: _anchors,
+                                  onSkip: _leaveTutorial,
+                                  onMenu: _leaveTutorial,
+                                  onPlayAi: _playFirstMatch,
+                                ),
+                              ),
                             
                             // Botón de finalización rápida
                             if (_earlyFinishAvailable &&
@@ -632,10 +631,10 @@ class _GameScreenState extends State<GameScreen> {
         crossAxisAlignment: isTop ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
           if (rowPlayers.isNotEmpty)
-            Flexible(child: _PlayerCornerWidget(player: rowPlayers[0])),
+            Flexible(child: _cornerFor(rowPlayers[0])),
           
           if (rowPlayers.length > 1)
-            Flexible(child: _PlayerCornerWidget(player: rowPlayers[1]))
+            Flexible(child: _cornerFor(rowPlayers[1]))
           else if (isTop || rowPlayers.isNotEmpty)
             const Spacer(),
         ],
@@ -643,185 +642,26 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildTutorialOverlay() {
-    final controller = context.read<GameController>();
-    String textKey = '';
-    bool isActionStep = false;
+  Widget _cornerFor(Player player) => _PlayerCornerWidget(
+        player: player,
+        diceKey: _anchors.diceOf(player.id),
+        homeKey: _anchors.homeOf(player.id),
+      );
 
-    switch (_tutorialStep) {
-      case 1:
-        textKey = 'tutorial_step_dice_1';
-        isActionStep = true;
-        break;
-      case 2:
-        textKey = 'tutorial_step_move_1';
-        isActionStep = true;
-        break;
-      case 3:
-        textKey = 'tutorial_step_transition_blue';
-        isActionStep = false;
-        break;
-      case 4:
-        textKey = 'tutorial_step_dice_2';
-        isActionStep = false;
-        break;
-      case 5:
-        textKey = 'tutorial_step_capture';
-        isActionStep = false;
-        break;
-      case 6:
-        textKey = 'tutorial_step_extra_explanation';
-        isActionStep = false;
-        break;
-      case 7:
-        textKey = 'tutorial_step_dice_3'; // Explicación del 6 y turno extra
-        isActionStep = false;
-        break;
-      case 8:
-        textKey = 'tutorial_step_six_info';
-        isActionStep = false;
-        break;
-      case 9:
-        textKey = 'tutorial_step_action_start';
-        isActionStep = false;
-        break;
-      case 10:
-        textKey = 'tutorial_step_action_skip';
-        isActionStep = false;
-        break;
-      case 11:
-        textKey = 'tutorial_step_action_extra';
-        isActionStep = false;
-        break;
-      case 12:
-        textKey = 'tutorial_step_action_move';
-        isActionStep = false;
-        break;
-      case 13:
-        textKey = 'tutorial_finish';
-        break;
-    }
+  void _leaveTutorial() {
+    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
+  }
 
-    String subtext = '';
-    if (_tutorialStep == 1) {
-      subtext = context.translate('tutorial_tap_dice_continue', listen: false);
-    } else if (_tutorialStep == 2) {
-      subtext = context.translate('tutorial_tap_token_continue', listen: false);
-    } else if (_tutorialStep == 13) {
-      subtext = context.translate('tutorial_finish_sub', listen: false);
-    } else {
-      subtext = context.translate('tutorial_continue_sub', listen: false);
-    }
-
-    return IgnorePointer(
-      ignoring: isActionStep,
-      child: Stack(
-        children: [
-          Align(
-            alignment: Alignment.center,
-            child: GestureDetector(
-              onTap: () async {
-                if (!isActionStep && _canContinueTutorial) {
-                  if (_tutorialStep == 3) {
-                     setState(() => _tutorialStep = 4);
-                  } else if (_tutorialStep == 4) {
-                     setState(() {
-                        _tutorialStep = 5;
-                        _canContinueTutorial = false;
-                     });
-                     
-                     // El azul lanza el dado y mueve para capturar cuando se pasa al paso 5
-                     await controller.rollDice();
-                     if (controller.movableTokenIds.isNotEmpty) {
-                        await controller.selectToken(controller.movableTokenIds.first);
-                     }
-
-                     // Delay de 2 segundos para simular movimiento/acción
-                     Future.delayed(const Duration(seconds: 2), () {
-                        if (mounted) setState(() => _canContinueTutorial = true);
-                     });
-                  } else if (_tutorialStep == 5) {
-                     setState(() => _tutorialStep = 6);
-                  } else if (_tutorialStep == 6) {
-                     setState(() {
-                        _tutorialStep = 7;
-                        _canContinueTutorial = false; // Pausa para la animación del 6
-                     });
-                     
-                     // Primer tiro del azul (que debe ser un 6 según el tutorial)
-                     await controller.rollDice();
-                     if (controller.movableTokenIds.isNotEmpty) {
-                        await controller.selectToken(controller.movableTokenIds.first);
-                     }
-
-                     // Esperamos a que la ficha avance las 6 posiciones antes de habilitar el siguiente paso
-                     Future.delayed(const Duration(milliseconds: 2500), () {
-                        if (mounted) setState(() => _canContinueTutorial = true);
-                     });
-                  } else if (_tutorialStep == 7) {
-                     setState(() {
-                        _tutorialStep = 8;
-                        _canContinueTutorial = false; // El retraso se mueve AQUÍ para esperar el tiro del 1
-                     });
-
-                     // Segundo tiro del azul por el turno extra (saca el 1)
-                     await controller.rollDice();
-                     if (controller.movableTokenIds.isNotEmpty) {
-                        await controller.selectToken(controller.movableTokenIds.first);
-                     }
-
-                     // Esperamos a que el movimiento del 1 se complete ANTES de habilitar el paso 8
-                     Future.delayed(const Duration(milliseconds: 2000), () {
-                        if (mounted) setState(() => _canContinueTutorial = true);
-                     });
-                  } else if (_tutorialStep == 8) {
-                     // Al tocar en el paso 8 (ya con la ficha movida), pasamos directamente al 9
-                     setState(() => _tutorialStep = 9);
-                  } else if (_tutorialStep < 13) {
-                     setState(() => _tutorialStep++);
-                  } else {
-                    Navigator.of(context).pushNamedAndRemoveUntil('/menu', (route) => false);
-                  }
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.all(40),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.brown.shade900,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.orange, width: 3),
-                  boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _tutorialStep == 13 
-                        ? "${context.translate('tutorial_finish', listen: false)}\n\n${context.translate('tutorial_tip', listen: false)}" 
-                        : context.translate(textKey, listen: false),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    if (_canContinueTutorial) ...[
-                      const SizedBox(height: 20),
-                      Text(
-                        subtext,
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic
-                        ),
-                      ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 800.ms).then().fadeOut(duration: 800.ms),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ).animate().scale().fadeIn(),
-        ],
-      ),
-    );
+  /// From the tutorial's last card straight into a match against the AI,
+  /// with the menu underneath.
+  void _playFirstMatch() {
+    final navigator = Navigator.of(context);
+    navigator.pushNamedAndRemoveUntil('/menu', (route) => false);
+    navigator.pushNamed('/game', arguments: {
+      'playerCount': 2,
+      'vsAI': true,
+      if (PrefsService.playerName.isNotEmpty) 'playerNames': [PrefsService.playerName],
+    });
   }
 
   Widget _buildConnectionOverlay() {
@@ -1445,7 +1285,9 @@ class _ChatDrawerState extends State<_ChatDrawer> {
 
 class _PlayerCornerWidget extends StatelessWidget {
   final Player player;
-  const _PlayerCornerWidget({required this.player});
+  final GlobalKey? diceKey;
+  final GlobalKey? homeKey;
+  const _PlayerCornerWidget({required this.player, this.diceKey, this.homeKey});
 
   void _showPlayerOptions(BuildContext context, GameController controller) {
     if (player.id == PrefsService.playerId || player.isAI) return;
@@ -1764,7 +1606,9 @@ class _PlayerCornerWidget extends StatelessWidget {
         if (player.isFinished)
           _buildFinishedBadge(context, controller)
         else
-          GestureDetector(
+          KeyedSubtree(
+            key: diceKey,
+            child: GestureDetector(
             key: Key('roll_dice_${player.id}'),
             onTap: () {
                if (canTap) {
@@ -1861,10 +1705,11 @@ class _PlayerCornerWidget extends StatelessWidget {
               ),
             ),
           ),
+          ),
 
         if (!player.isFinished) ...[
           const SizedBox(height: 4),
-          HomeZoneWidget(player: player),
+          KeyedSubtree(key: homeKey, child: HomeZoneWidget(player: player)),
         ],
       ],
     );

@@ -223,7 +223,19 @@ class LocalGameController extends GameController {
   final bool vsAI;
   final GameDifficulty difficulty;
   bool _isTutorial = false;
-  int _tutorialDiceIndex = 0;
+
+  /// Tutorial: the dice to roll next, in order (random once empty).
+  final List<int> scriptedDice = [];
+
+  /// Tutorial: whether the learner may roll or move right now.
+  bool tutorialUserCanAct = false;
+
+  /// Tutorial: the only tokens the learner may move (null: any legal one).
+  Set<int>? tutorialMovable;
+
+  /// Counts finished actions (every [startTurn]), so the tutorial can wait
+  /// for "the move is over" instead of guessing a duration.
+  int turnSerial = 0;
 
   LocalGameController({
     required super.engine,
@@ -326,8 +338,41 @@ class LocalGameController extends GameController {
     notifyListeners();
   }
 
+  /// Tutorial: places every token ([positions] per player id; 0 = home,
+  /// -1 = finished), clears pending turns and gives the turn to [currentId].
+  /// Only call it when no roll or move is running.
+  void tutorialSetup(Map<String, List<int>> positions, String currentId) {
+    for (final player in engine.players) {
+      final cells = positions[player.id] ?? const <int>[];
+      for (final token in player.tokens) {
+        token.forceReset();
+        final cell = token.id < cells.length ? cells[token.id] : 0;
+        if (cell < 0) {
+          token.isFinished = true;
+          token.position = -1;
+        } else {
+          token.position = cell;
+        }
+      }
+      player.skippedTurns = 0;
+      player.consecutiveSixes = 0;
+      player.extraTurns = 0;
+    }
+    engine.finishOrder.clear();
+    engine.finisherIds.clear();
+    engine.isOver = false;
+    engine.setCurrentPlayerById(currentId);
+    engine.phase = GamePhase.idle;
+    movableTokenIds = [];
+    inputLocked = false;
+    notifyListeners();
+  }
+
+  bool get _tutorialBlocksUser => _isTutorial && _isHumanTurn && !tutorialUserCanAct;
+
   @override
   void startTurn() {
+    turnSerial++;
     if (engine.phase == GamePhase.finished) {
       _saveGame();
       notifyListeners();
@@ -377,6 +422,7 @@ class LocalGameController extends GameController {
   @override
   Future<void> selectToken(int tokenId) async {
     if (isDisposed || engine.phase != GamePhase.choosing_token || inputLocked) return;
+    if (_tutorialBlocksUser) return;
     
     if (!movableTokenIds.contains(tokenId)) {
       engine.events.add(GameEvent(
@@ -401,6 +447,7 @@ class LocalGameController extends GameController {
   @override
   Future<void> rollDice() async {
     if (isDisposed || rollingDice || engine.phase != GamePhase.idle || inputLocked || isFanfarePlaying) return;
+    if (_tutorialBlocksUser) return;
 
     inputLocked = true;
     rollingDice = true;
@@ -410,13 +457,8 @@ class LocalGameController extends GameController {
     _playSound(diceAudio, 'sounds/dice.mp3');
 
     for (int i = 0; i < 12; i++) {
-      if (_isTutorial && i == 11) {
-        if (_tutorialDiceIndex == 0) {
-          diceValue = 5;
-        } else if (_tutorialDiceIndex == 1) diceValue = 5;
-        else if (_tutorialDiceIndex == 2) diceValue = 6;
-        else if (_tutorialDiceIndex == 3) diceValue = 1;
-        else diceValue = random.nextInt(6) + 1;
+      if (_isTutorial && i == 11 && scriptedDice.isNotEmpty) {
+        diceValue = scriptedDice.removeAt(0);
       } else if (kTestModeEnabled && i == 11) {
         if (forcedDice != null) {
           diceValue = forcedDice!;
@@ -443,8 +485,6 @@ class LocalGameController extends GameController {
       return;
     }
 
-    if (_isTutorial) _tutorialDiceIndex++;
-
     rollingDice = false;
     rollingPlayerId = null;
     currentPlayer.lastDiceValue = diceValue;
@@ -470,6 +510,10 @@ class LocalGameController extends GameController {
     }
 
     movableTokenIds = [for (final t in roll.movable) t.id];
+    final onlyTokens = tutorialMovable;
+    if (_isTutorial && _isHumanTurn && onlyTokens != null) {
+      movableTokenIds = movableTokenIds.where(onlyTokens.contains).toList();
+    }
     
     if (movableTokenIds.isEmpty) {
       engine.events.add(GameEvent(
@@ -494,7 +538,8 @@ class LocalGameController extends GameController {
         if (!_isTutorial) {
           _triggerAISelection();
         }
-      } else {
+      } else if (!_isTutorial) {
+        // The tutorial wants the learner's own tap.
         _checkAutoMove();
       }
     }

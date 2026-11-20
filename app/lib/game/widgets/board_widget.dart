@@ -11,10 +11,15 @@ class BoardWidget extends StatefulWidget {
   final Board board;
   final List<Player> players;
 
+  /// Where to keep each cell's key, so others (the tutorial) can find a
+  /// cell on screen. Defaults to a map of the board's own.
+  final Map<int, GlobalKey>? cellKeys;
+
   const BoardWidget({
     super.key,
     required this.board,
     required this.players,
+    this.cellKeys,
   });
 
   @override
@@ -22,7 +27,8 @@ class BoardWidget extends StatefulWidget {
 }
 
 class _BoardWidgetState extends State<BoardWidget> {
-  final Map<int, GlobalKey> _cellKeys = {};
+  final Map<int, GlobalKey> _ownCellKeys = {};
+  Map<int, GlobalKey> get _cellKeys => widget.cellKeys ?? _ownCellKeys;
 
   // From the current board, not the first one: online the server can swap
   // the board after this widget is built.
