@@ -20,6 +20,19 @@ class FakeUser extends Fake implements User {
   @override
   Future<String?> getIdToken([bool forceRefresh = false]) => idToken.future;
 
+  /// Set to make re-authentication fail with this Firebase error code.
+  String? reauthError;
+  int reauthentications = 0;
+
+  @override
+  Future<UserCredential> reauthenticateWithCredential(
+    AuthCredential credential,
+  ) async {
+    if (reauthError != null) throw FirebaseAuthException(code: reauthError!);
+    reauthentications++;
+    return FakeCredential(this);
+  }
+
   @override
   String get uid => 'u1';
   @override
@@ -41,6 +54,8 @@ class FakeAuth extends Fake implements FirebaseAuth {
   @override
   Stream<User?> authStateChanges() => const Stream.empty();
   @override
+  Future<void> signOut() async => signedIn = null;
+  @override
   Future<UserCredential> signInWithCredential(AuthCredential credential) async {
     signedIn = FakeUser();
     return FakeCredential(signedIn);
@@ -55,6 +70,11 @@ class FakeAccount extends Fake implements GoogleSignInAccount {
 
 class FakeGoogle extends Fake implements GoogleSignIn {
   final calls = <String>[];
+
+  /// The account picker was closed without choosing.
+  bool cancel = false;
+  @override
+  Future<void> signOut() async => calls.add('signOut');
   @override
   Future<void> initialize({
     String? clientId,
@@ -67,6 +87,11 @@ class FakeGoogle extends Fake implements GoogleSignIn {
     List<String> scopeHint = const [],
   }) async {
     calls.add('authenticate');
+    if (cancel) {
+      throw const GoogleSignInException(
+        code: GoogleSignInExceptionCode.canceled,
+      );
+    }
     return FakeAccount();
   }
 }

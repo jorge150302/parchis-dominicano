@@ -1104,6 +1104,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         _showDeleteError('auth_no_internet_delete');
       case DeleteAccountStatus.error:
         _showDeleteError('auth_delete_failed');
+      case DeleteAccountStatus.wrongAccount:
+        _showDeleteError('auth_delete_wrong_account');
     }
   }
 

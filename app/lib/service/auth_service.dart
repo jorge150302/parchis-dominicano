@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 
+import '../config/env.dart';
 import '../models/user_profile.dart';
 import 'network_checker.dart';
 import 'prefs_service.dart';
@@ -13,7 +16,7 @@ enum SignInStatus { success, offline, error, cancelled }
 
 enum SignOutStatus { success, offline }
 
-enum DeleteAccountStatus { success, offline, error, cancelled }
+enum DeleteAccountStatus { success, offline, error, cancelled, wrongAccount }
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth;
@@ -21,6 +24,7 @@ class AuthService extends ChangeNotifier {
   Future<void>? _googleSignInInit;
   final FirebaseFirestore _db;
   final Future<bool> Function() _hasConnection;
+  final http.Client _http;
 
   UserProfile? _profile;
   bool _needsMigrationDialog = false;
@@ -42,15 +46,17 @@ class AuthService extends ChangeNotifier {
     super.dispose();
   }
 
-  /// [auth], [googleSignIn], [db] and [hasConnection] default to the real
-  /// Firebase instances and network check; tests pass fakes so screens can
-  /// be built without Firebase.
+  /// [auth], [googleSignIn], [db], [hasConnection] and [httpClient] default
+  /// to the real Firebase instances, network check and HTTP client; tests
+  /// pass fakes so screens can be built without Firebase.
   AuthService({
     FirebaseAuth? auth,
     GoogleSignIn? googleSignIn,
     FirebaseFirestore? db,
     Future<bool> Function()? hasConnection,
+    http.Client? httpClient,
   })  : _auth = auth ?? FirebaseAuth.instance,
+        _http = httpClient ?? http.Client(),
         _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
         _db = db ?? FirebaseFirestore.instance,
         _hasConnection = hasConnection ?? NetworkChecker.hasConnection {
@@ -124,23 +130,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// Server-written subcollections of a profile (see firestore.rules).
-  static const _historyCollections = ['match_results', 'xp_receipts'];
-
-  Future<void> _deleteUserHistory(DocumentReference<Map<String, dynamic>> userRef) async {
-    for (final name in _historyCollections) {
-      while (true) {
-        final page = await userRef.collection(name).limit(400).get();
-        if (page.docs.isEmpty) break;
-        final batch = _db.batch();
-        for (final doc in page.docs) {
-          batch.delete(doc.reference);
-        }
-        await batch.commit();
-      }
-    }
-  }
-
   Future<SignOutStatus> signOut() async {
     final connected = await NetworkChecker.hasConnection();
     if (!connected) return SignOutStatus.offline;
@@ -159,12 +148,17 @@ class AuthService extends ChangeNotifier {
 
   /// Atomically deletes the account. Server operations run FIRST; local data
   /// is cleared only after both Firestore and Auth deletion succeed.
+  /// Deletes the account. The user confirms with Google first (the server
+  /// only accepts a fresh sign-in), then the server deletes the profile,
+  /// its history and the Firebase Auth user in one place: the app no longer
+  /// deletes Firestore data itself, so it doesn't depend on the deployed
+  /// rules or leave a half-deleted account behind.
   Future<DeleteAccountStatus> deleteAccount() async {
     final user = _auth.currentUser;
     if (user == null) return DeleteAccountStatus.error;
 
     try {
-      // Step 1 — Re-authenticate (Firebase requires this before user.delete())
+      // Step 1 — Confirm with Google.
       if (kIsWeb) {
         await user
             .reauthenticateWithPopup(GoogleAuthProvider())
@@ -176,37 +170,38 @@ class AuthService extends ChangeNotifier {
         await user.reauthenticateWithCredential(credential);
       }
 
-      // Step 2 — Delete Firestore data. Deleting a document does not delete
-      // its subcollections, so the server-written history goes first.
-      final userRef = _db.collection('users').doc(user.uid);
-      await _deleteUserHistory(userRef).timeout(const Duration(seconds: 30));
-      await userRef.delete().timeout(const Duration(seconds: 15));
+      // Step 2 — The server deletes everything. The free server may need
+      // about a minute to wake up.
+      final idToken = await user.getIdToken(true);
+      final response = await _http
+          .post(
+            Uri.parse('${Env.httpBaseUrl}/delete_account'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'id_token': idToken}),
+          )
+          .timeout(const Duration(seconds: 90));
+      if (response.statusCode != 200) {
+        debugPrint('deleteAccount: server ${response.statusCode} ${response.body}');
+        return DeleteAccountStatus.error;
+      }
 
-      // Step 3 — Delete Firebase Auth user
-      await user.delete().timeout(const Duration(seconds: 15));
-
-      // Step 4 — Sign out (local cleanup only — account already gone server-side)
+      // Step 3 — Sign out locally; the account is already gone.
       if (!kIsWeb) {
         try { await _googleSignIn.signOut(); } catch (_) {}
       }
       try { await _auth.signOut(); } catch (_) {}
-
-      // Step 5 — Clear in-memory state LAST (server confirmed, safe to wipe)
       _profile = null;
       notifyListeners();
-
       return DeleteAccountStatus.success;
     } on TimeoutException {
       return DeleteAccountStatus.offline;
+    } on http.ClientException {
+      return DeleteAccountStatus.offline;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'network-request-failed') return DeleteAccountStatus.offline;
+      // Picked a different Google account than the signed-in one.
+      if (e.code == 'user-mismatch') return DeleteAccountStatus.wrongAccount;
       debugPrint('deleteAccount FirebaseAuthException: ${e.code} ${e.message}');
-      return DeleteAccountStatus.error;
-    } on FirebaseException catch (e) {
-      if (e.code == 'network-request-failed' || e.code == 'unavailable') {
-        return DeleteAccountStatus.offline;
-      }
-      debugPrint('deleteAccount FirebaseException: ${e.code} ${e.message}');
       return DeleteAccountStatus.error;
     } catch (e) {
       debugPrint('deleteAccount error: $e');
