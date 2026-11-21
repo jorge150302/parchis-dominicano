@@ -1,7 +1,6 @@
 import '../widgets/update_required_dialog.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -157,7 +156,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => _WelcomeDialog(
-        onSessionCheck: _checkSessionConflict,
+        onSessionCheck: () => _checkSessionConflict(_authService),
         onComplete: (name) {
           if (!mounted) return;
           setState(() {
@@ -590,7 +589,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               final status = await auth.signInWithGoogle();
               if (!mounted) return;
               if (status == SignInStatus.success) {
-                await _checkSessionConflict();
+                await _checkSessionConflict(auth);
                 if (!mounted) return;
                 if (!auth.isSignedIn) return;
                 Navigator.pushNamed(context, '/online_lobby');
@@ -982,7 +981,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                 final status = await auth.signInWithGoogle();
                                 if (!mounted) return;
                                 if (status == SignInStatus.success) {
-                                  await _checkSessionConflict();
+                                  await _checkSessionConflict(auth);
                                   if (!mounted) return;
                                 }
                                 if (status == SignInStatus.offline || status == SignInStatus.error) {
@@ -1105,6 +1104,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         _showDeleteError('auth_no_internet_delete');
       case DeleteAccountStatus.error:
         _showDeleteError('auth_delete_failed');
+      case DeleteAccountStatus.wrongAccount:
+        _showDeleteError('auth_delete_wrong_account');
     }
   }
 
@@ -1210,7 +1211,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     rankName: rankName,
                     tooltipMessage: _getLevelTooltipMessage(playerLevel),
                     onTapName: _showNameDialog,
-                    onSignIn: _checkSessionConflict,
+                    onSignIn: () => _checkSessionConflict(_authService),
                   ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2),
                   const SizedBox(width: 4),
                   IconButton(
@@ -1322,14 +1323,22 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 // Session-conflict helpers — defined at file level so _WelcomeDialogState
 // can call them via callback without needing access to _MainMenuScreenState.
 
-Future<void> _checkSessionConflict() async {
-  try {
-    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-    socketService.cacheIdToken(token);
-    await socketService.connect(Env.serverUrl);
-    socketService.send('register_session', {});
-    await Future.delayed(const Duration(seconds: 2));
-  } catch (_) {}
+/// Registers this device as the account's active session, in the
+/// background. The server only answers when another device holds the
+/// account (SESSION_CONFLICT), and the menu's socket listener handles that
+/// whenever it arrives (signs out and explains); matchmaking checks again
+/// on the server. So nobody waits for it: it used to hold sign-in for the
+/// socket connect (up to a minute while the free server wakes) plus a fixed
+/// 2 s pause.
+Future<void> _checkSessionConflict(AuthService auth) async {
+  unawaited(() async {
+    try {
+      final token = await auth.firebaseUser?.getIdToken();
+      socketService.cacheIdToken(token);
+      await socketService.connect(Env.serverUrl);
+      socketService.send('register_session', {});
+    } catch (_) {}
+  }());
 }
 
 class _PlayerProfileHeader extends StatelessWidget {

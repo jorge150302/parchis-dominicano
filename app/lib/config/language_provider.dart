@@ -268,6 +268,7 @@ class LanguageProvider extends ChangeNotifier {
       'auth_no_internet_signout': 'Se requiere conexión a Internet para cerrar sesión.',
       'auth_no_internet_delete': 'Se requiere conexión a Internet para eliminar tu cuenta. Conéctate e inténtalo de nuevo.',
       'auth_delete_failed': 'No se pudo eliminar la cuenta. Tu cuenta no ha sido modificada. Inténtalo de nuevo.',
+      'auth_delete_wrong_account': 'Para confirmar, elige la misma cuenta de Google con la que entraste.',
       'auth_delete_title': 'Error al Eliminar Cuenta',
       'auth_delete_loading': 'Eliminando cuenta...',
       // Onboarding
@@ -578,6 +579,7 @@ class LanguageProvider extends ChangeNotifier {
       'auth_no_internet_signout': 'Internet connection is required to sign out.',
       'auth_no_internet_delete': 'Internet connection is required to delete your account. Please connect and try again.',
       'auth_delete_failed': 'Failed to delete account. Your account has not been changed. Please try again.',
+      'auth_delete_wrong_account': 'To confirm, choose the same Google account you signed in with.',
       'auth_delete_title': 'Account Deletion Failed',
       'auth_delete_loading': 'Deleting account...',
       // Onboarding
