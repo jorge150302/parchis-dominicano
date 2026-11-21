@@ -20,6 +20,7 @@ class AuthService extends ChangeNotifier {
   final GoogleSignIn _googleSignIn;
   Future<void>? _googleSignInInit;
   final FirebaseFirestore _db;
+  final Future<bool> Function() _hasConnection;
 
   UserProfile? _profile;
   bool _needsMigrationDialog = false;
@@ -41,12 +42,18 @@ class AuthService extends ChangeNotifier {
     super.dispose();
   }
 
-  /// [auth], [googleSignIn] and [db] default to the Firebase instances;
-  /// tests pass fakes so screens can be built without Firebase.
-  AuthService({FirebaseAuth? auth, GoogleSignIn? googleSignIn, FirebaseFirestore? db})
-      : _auth = auth ?? FirebaseAuth.instance,
+  /// [auth], [googleSignIn], [db] and [hasConnection] default to the real
+  /// Firebase instances and network check; tests pass fakes so screens can
+  /// be built without Firebase.
+  AuthService({
+    FirebaseAuth? auth,
+    GoogleSignIn? googleSignIn,
+    FirebaseFirestore? db,
+    Future<bool> Function()? hasConnection,
+  })  : _auth = auth ?? FirebaseAuth.instance,
         _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
-        _db = db ?? FirebaseFirestore.instance {
+        _db = db ?? FirebaseFirestore.instance,
+        _hasConnection = hasConnection ?? NetworkChecker.hasConnection {
     _wasSignedIn = _auth.currentUser != null;
     _authSub = _auth.authStateChanges().listen(_onAuthStateChanged);
   }
@@ -85,8 +92,11 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<SignInStatus> signInWithGoogle() async {
-    final connected = await NetworkChecker.hasConnection();
-    if (!connected) return SignInStatus.offline;
+    // The network check and Google's one-time setup run side by side
+    // instead of one after the other.
+    final connected = _hasConnection();
+    if (!kIsWeb) _googleSignInInit ??= _googleSignIn.initialize();
+    if (!await connected) return SignInStatus.offline;
 
     try {
       final User? user;
@@ -99,6 +109,9 @@ class AuthService extends ChangeNotifier {
         user = (await _auth.signInWithCredential(credential)).user;
       }
       if (user == null) return SignInStatus.error;
+      // Signed in: show the account (Google photo and name) now; the
+      // profile (XP, level, stats) follows from Firestore.
+      notifyListeners();
       await _loadOrCreateProfile(user);
       return SignInStatus.success;
     } on FirebaseAuthException catch (e) {
